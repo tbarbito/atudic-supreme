@@ -20,13 +20,13 @@ raw_host = os.getenv('DB_HOST', 'localhost')
 _db_password = os.getenv('DB_PASSWORD', '')
 if not _db_password:
     print("[WARN] DB_PASSWORD nao definida no .env — usando fallback de desenvolvimento")
-    _db_password = 'atudic'
+    _db_password = 'atudic_supreme_2026'
 
 DB_CONFIG = {
     'host': raw_host,
     'port': int(os.getenv('DB_PORT', '5432')),
-    'database': os.getenv('DB_NAME', 'atudic'),
-    'user': os.getenv('DB_USER', 'atudic'),
+    'database': os.getenv('DB_NAME', 'atudic_supreme'),
+    'user': os.getenv('DB_USER', 'atudic_supreme'),
     'password': _db_password,
     'client_encoding': 'UTF8'
 }
