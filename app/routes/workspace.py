@@ -230,3 +230,99 @@ def context_table(slug, tabela):
     if not analysis:
         return jsonify({"error": "Tabela nao encontrada"}), 404
     return jsonify({"tabela": tabela.upper(), "analysis": analysis, "chars": len(analysis)})
+
+
+# ========================================================================
+# DOCUMENTACAO IA
+# ========================================================================
+
+@workspace_bp.route("/workspaces/<slug>/docs/modules", methods=["GET"])
+def docs_modules(slug):
+    """Lista modulos disponiveis para geracao de docs."""
+    db = _get_db(slug)
+    from app.services.workspace.doc_pipeline import DocPipeline
+    pipeline = DocPipeline(db)
+    return jsonify(pipeline.get_available_modules())
+
+
+@workspace_bp.route("/workspaces/<slug>/docs/generate/<modulo>", methods=["POST"])
+def docs_generate(slug, modulo):
+    """Gera documentacao para um modulo (sem LLM = apenas contexto)."""
+    db = _get_db(slug)
+    from app.services.workspace.doc_pipeline import DocPipeline
+    pipeline = DocPipeline(db, llm_provider=None)  # TODO: injetar LLM provider
+
+    try:
+        result = pipeline.generate_for_module(modulo)
+        return jsonify({
+            "success": True,
+            "modulo": modulo,
+            "context_chars": result.get("context_chars"),
+            "elapsed_seconds": result.get("elapsed_seconds"),
+            "has_llm": False,
+        })
+    except Exception as e:
+        logger.exception(f"Erro ao gerar docs: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ========================================================================
+# EXPORT
+# ========================================================================
+
+@workspace_bp.route("/workspaces/<slug>/export/campos", methods=["GET"])
+def export_campos(slug):
+    """Exporta campos customizados em CSV."""
+    db = _get_db(slug)
+    from app.services.workspace.exporter import WorkspaceExporter
+    exporter = WorkspaceExporter(db)
+    tabela = request.args.get("tabela")
+    csv_data = exporter.export_campos_custom_csv(tabela)
+    return csv_data, 200, {"Content-Type": "text/csv; charset=utf-8",
+                           "Content-Disposition": "attachment; filename=campos_custom.csv"}
+
+
+@workspace_bp.route("/workspaces/<slug>/export/indices", methods=["GET"])
+def export_indices(slug):
+    """Exporta indices customizados em CSV."""
+    db = _get_db(slug)
+    from app.services.workspace.exporter import WorkspaceExporter
+    exporter = WorkspaceExporter(db)
+    tabela = request.args.get("tabela")
+    csv_data = exporter.export_indices_custom_csv(tabela)
+    return csv_data, 200, {"Content-Type": "text/csv; charset=utf-8",
+                           "Content-Disposition": "attachment; filename=indices_custom.csv"}
+
+
+@workspace_bp.route("/workspaces/<slug>/export/gatilhos", methods=["GET"])
+def export_gatilhos(slug):
+    """Exporta gatilhos customizados em CSV."""
+    db = _get_db(slug)
+    from app.services.workspace.exporter import WorkspaceExporter
+    exporter = WorkspaceExporter(db)
+    csv_data = exporter.export_gatilhos_custom_csv()
+    return csv_data, 200, {"Content-Type": "text/csv; charset=utf-8",
+                           "Content-Disposition": "attachment; filename=gatilhos_custom.csv"}
+
+
+@workspace_bp.route("/workspaces/<slug>/export/atudic", methods=["GET"])
+def export_atudic(slug):
+    """Exporta em formato AtuDic JSON."""
+    db = _get_db(slug)
+    from app.services.workspace.exporter import WorkspaceExporter
+    exporter = WorkspaceExporter(db)
+    tabela = request.args.get("tabela")
+    data = exporter.export_atudic_json(tabela)
+    return jsonify(data)
+
+
+@workspace_bp.route("/workspaces/<slug>/export/diff", methods=["GET"])
+def export_diff(slug):
+    """Exporta diff padrao x cliente em CSV."""
+    db = _get_db(slug)
+    from app.services.workspace.exporter import WorkspaceExporter
+    exporter = WorkspaceExporter(db)
+    tipo_sx = request.args.get("tipo_sx")
+    csv_data = exporter.export_diff_csv(tipo_sx)
+    return csv_data, 200, {"Content-Type": "text/csv; charset=utf-8",
+                           "Content-Disposition": "attachment; filename=diff.csv"}
