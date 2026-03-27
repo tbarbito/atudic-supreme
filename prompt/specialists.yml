@@ -1,0 +1,149 @@
+# === AtuDIC Supreme — Specialists Registry ===
+# 15 specialists: 9 do AtuDIC + 6 do ExtraiRPO
+
+# ── Origem: AtuDIC (GolIAs) ──
+
+diagnostico:
+  description: "Analise de erros, alertas e logs do ambiente Protheus"
+  intents: [error_analysis, alert_recurrence]
+  agent_enabled: true
+  agent_budget: 20000
+  agent_max_iterations: 6
+  tools: [get_alerts, get_alert_summary, get_recurring_errors, search_knowledge,
+          get_pipeline_status, get_services, browse_log_files, list_log_monitors,
+          scan_log_monitor, get_system_overview, get_alerts_timeline,
+          get_auditor_history, get_audit_detail, acknowledge_alert]
+
+database:
+  description: "Banco de dados, dicionario Protheus, equalizacao e validacao"
+  intents: [table_info]
+  agent_enabled: true
+  agent_budget: 35000
+  agent_max_iterations: 8
+  tools: [get_db_connections, create_db_connection, test_db_connection,
+          discover_db_schema, query_database, compare_dictionary,
+          validate_dictionary, preview_equalization, execute_equalization,
+          preview_ingestion, execute_ingestion, get_dictionary_history,
+          search_knowledge, get_auditor_history, get_audit_detail,
+          analyze_impact, list_vinculos]
+
+devops:
+  description: "Pipelines CI/CD, repositorios, servicos e deploy"
+  intents: [pipeline_status, repository_operations, service_operations, schedule_management]
+  agent_enabled: true
+  agent_budget: 30000
+  agent_max_iterations: 8
+  tools: [get_pipelines, get_pipeline_status, run_pipeline, get_repositories,
+          git_pull, get_services, execute_service_action, get_schedules,
+          create_release, search_knowledge, get_environments]
+
+knowledge:
+  description: "Base de conhecimento TDN, referencia tecnica Protheus"
+  intents: [knowledge_search, procedure_lookup]
+  agent_enabled: true
+  agent_budget: 12000
+  agent_max_iterations: 5
+  tools: [search_knowledge]
+
+settings:
+  description: "Configuracao de ambientes, variaveis e notificacoes"
+  intents: [settings_management]
+  agent_enabled: true
+  agent_budget: 15000
+  agent_max_iterations: 6
+  tools: [get_environments, get_server_variables, create_server_variable,
+          update_server_variable, delete_server_variable, search_knowledge]
+
+admin_ops:
+  description: "Webhooks, usuarios, logs de sistema"
+  intents: [admin_management]
+  agent_enabled: true
+  agent_budget: 15000
+  agent_max_iterations: 6
+  tools: [get_users, create_webhook, update_webhook, delete_webhook,
+          test_webhook, search_knowledge]
+
+auditor:
+  description: "Auditoria de arquivos INI (appserver, dbaccess)"
+  intents: [ini_audit]
+  agent_enabled: false
+  agent_budget: 15000
+  agent_max_iterations: 6
+  tools: [get_auditor_history, get_audit_detail, search_knowledge,
+          get_db_connections, get_environments, get_server_variables]
+
+general:
+  description: "Conversacao geral, contexto e perguntas sobre o sistema"
+  intents: [general, user_context, environment_status]
+  agent_enabled: false
+  agent_budget: 20000
+  agent_max_iterations: 6
+  tools: [search_knowledge, get_system_overview, get_environments,
+          get_pipelines, get_alerts, get_services, get_server_variables,
+          get_db_connections, get_users, get_schedules, get_repositories,
+          get_dictionary_history, get_alerts_timeline, list_log_monitors,
+          get_auditor_history, get_audit_detail]
+
+proactive:
+  description: "Monitoramento autonomo e alertas proativos"
+  intents: []
+  agent_enabled: true
+  agent_budget: 15000
+  agent_max_iterations: 6
+  tools: [get_alerts, get_recurring_errors, get_system_overview, get_alerts_timeline]
+
+# ── Origem: ExtraiRPO (Joni) ──
+
+dicionarista:
+  description: "Analise profunda de dicionario de dados (SX2, SX3, SIX, SX7, SX5, SX6, SX9)"
+  intents: [table_info, dictionary_analysis]
+  agent_enabled: true
+  agent_budget: 25000
+  agent_max_iterations: 6
+  tools: [analyze_impact, list_vinculos, search_knowledge]
+  prompt_file: "prompt/specialists/dicionarista.md"
+
+analista_fontes:
+  description: "Dissecacao de codigo-fonte ADVPL/TLPP — funcoes, PEs, call graph, operacoes de escrita"
+  intents: [source_analysis, code_review]
+  agent_enabled: true
+  agent_budget: 25000
+  agent_max_iterations: 6
+  tools: [parse_source_code, build_dependency_graph, list_vinculos, analyze_impact, search_knowledge]
+  prompt_file: "prompt/specialists/analista_fontes.md"
+
+documentador:
+  description: "Geracao de documentacao tecnica (19 secoes + Mermaid) a partir de analises"
+  intents: [documentation_generation]
+  agent_enabled: true
+  agent_budget: 30000
+  agent_max_iterations: 4
+  tools: [search_knowledge]
+  prompt_file: "prompt/specialists/documentador.md"
+
+campo_agent:
+  description: "Analise de demandas de criacao/alteracao de campos SX3"
+  intents: [field_change_request]
+  agent_enabled: true
+  agent_budget: 20000
+  agent_max_iterations: 6
+  tools: [analyze_impact, list_vinculos, search_knowledge]
+  prompt_file: "prompt/specialists/campo_agent.md"
+
+bug_agent:
+  description: "Diagnostico de erros ADVPL (FATAL ERROR, logs, programa travado)"
+  intents: [bug_diagnosis, error_analysis]
+  agent_enabled: true
+  agent_budget: 20000
+  agent_max_iterations: 6
+  tools: [parse_source_code, analyze_impact, list_vinculos, search_knowledge]
+  prompt_file: "prompt/specialists/bug_agent.md"
+
+projeto_agent:
+  description: "Analise de novas funcionalidades — viabilidade, artefatos, riscos"
+  intents: [project_analysis, feature_request]
+  agent_enabled: true
+  agent_budget: 25000
+  agent_max_iterations: 8
+  tools: [build_dependency_graph, analyze_impact, list_vinculos, parse_source_code, search_knowledge]
+  prompt_file: "prompt/specialists/projeto_agent.md"
