@@ -53,8 +53,8 @@ htmlcov/
 .pytest_cache/
 
 # Workspace data (dados de cliente — nunca commitar)
-workspace/
-clients/
+/workspace/
+/clients/
 
 # PyArmor
 .pyarmor/

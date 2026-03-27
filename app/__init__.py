@@ -36,7 +36,5 @@ def create_app(config_override=None):
 
 def _register_blueprints(app):
     """Registra blueprints da aplicacao."""
-    # TODO: Registrar blueprints conforme forem portados
-    # from app.routes.workspace import workspace_bp
-    # app.register_blueprint(workspace_bp, url_prefix="/api/workspace")
-    pass
+    from app.routes.workspace import workspace_bp
+    app.register_blueprint(workspace_bp, url_prefix="/api/workspace")

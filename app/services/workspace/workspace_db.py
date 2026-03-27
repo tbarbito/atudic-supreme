@@ -1,0 +1,406 @@
+# -*- coding: utf-8 -*-
+"""Origem: ExtraiRPO (Joni) — Schema SQLite e classe Database para workspace."""
+
+import sqlite3
+from pathlib import Path
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS tabelas (
+    codigo      TEXT PRIMARY KEY,
+    nome        TEXT,
+    modo        TEXT,
+    custom      INTEGER DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS campos (
+    tabela      TEXT REFERENCES tabelas(codigo),
+    campo       TEXT,
+    tipo        TEXT,
+    tamanho     INTEGER,
+    decimal     INTEGER DEFAULT 0,
+    titulo      TEXT,
+    descricao   TEXT,
+    validacao   TEXT DEFAULT '',
+    inicializador TEXT DEFAULT '',
+    obrigatorio INTEGER DEFAULT 0,
+    custom      INTEGER DEFAULT 0,
+    f3          TEXT DEFAULT '',
+    cbox        TEXT DEFAULT '',
+    vlduser     TEXT DEFAULT '',
+    when_expr   TEXT DEFAULT '',
+    proprietario TEXT DEFAULT 'S',
+    browse      TEXT DEFAULT '',
+    trigger_flag TEXT DEFAULT '',
+    visual      TEXT DEFAULT '',
+    context     TEXT DEFAULT '',
+    folder      TEXT DEFAULT '',
+    PRIMARY KEY (tabela, campo)
+);
+
+CREATE TABLE IF NOT EXISTS indices (
+    tabela      TEXT,
+    ordem       TEXT,
+    chave       TEXT,
+    descricao   TEXT,
+    proprietario TEXT DEFAULT 'S',
+    f3          TEXT DEFAULT '',
+    nickname    TEXT DEFAULT '',
+    showpesq    TEXT DEFAULT 'S',
+    custom      INTEGER DEFAULT 0,
+    PRIMARY KEY (tabela, ordem)
+);
+
+CREATE TABLE IF NOT EXISTS gatilhos (
+    campo_origem TEXT,
+    sequencia   TEXT,
+    campo_destino TEXT,
+    regra       TEXT DEFAULT '',
+    tipo        TEXT DEFAULT '',
+    tabela      TEXT DEFAULT '',
+    condicao    TEXT DEFAULT '',
+    proprietario TEXT DEFAULT 'S',
+    seek        TEXT DEFAULT '',
+    alias       TEXT DEFAULT '',
+    ordem       TEXT DEFAULT '',
+    chave       TEXT DEFAULT '',
+    custom      INTEGER DEFAULT 0,
+    PRIMARY KEY (campo_origem, sequencia)
+);
+
+CREATE TABLE IF NOT EXISTS perguntas (
+    grupo       TEXT,
+    ordem       TEXT,
+    pergunta    TEXT,
+    variavel    TEXT,
+    tipo        TEXT,
+    tamanho     INTEGER,
+    decimal     INTEGER,
+    f3          TEXT,
+    validacao   TEXT,
+    conteudo_padrao TEXT,
+    PRIMARY KEY (grupo, ordem)
+);
+
+CREATE TABLE IF NOT EXISTS tabelas_genericas (
+    filial      TEXT,
+    tabela      TEXT,
+    chave       TEXT,
+    descricao   TEXT,
+    custom      INTEGER DEFAULT 0,
+    PRIMARY KEY (filial, tabela, chave)
+);
+
+CREATE TABLE IF NOT EXISTS parametros (
+    filial      TEXT,
+    variavel    TEXT,
+    tipo        TEXT,
+    descricao   TEXT,
+    conteudo    TEXT,
+    proprietario TEXT,
+    custom      INTEGER DEFAULT 0,
+    PRIMARY KEY (filial, variavel)
+);
+
+CREATE TABLE IF NOT EXISTS relacionamentos (
+    tabela_origem TEXT,
+    identificador TEXT,
+    tabela_destino TEXT,
+    expressao_origem TEXT,
+    expressao_destino TEXT,
+    proprietario TEXT,
+    condicao_sql TEXT,
+    custom       INTEGER DEFAULT 0,
+    PRIMARY KEY (tabela_origem, identificador, tabela_destino)
+);
+
+CREATE TABLE IF NOT EXISTS pastas (
+    alias       TEXT,
+    ordem       TEXT,
+    descricao   TEXT,
+    proprietario TEXT,
+    agrupamento TEXT,
+    PRIMARY KEY (alias, ordem)
+);
+
+CREATE TABLE IF NOT EXISTS consultas (
+    alias       TEXT,
+    tipo        TEXT,
+    sequencia   TEXT,
+    coluna      TEXT,
+    descricao   TEXT,
+    conteudo    TEXT,
+    PRIMARY KEY (alias, sequencia, coluna)
+);
+
+CREATE TABLE IF NOT EXISTS fontes (
+    arquivo     TEXT PRIMARY KEY,
+    caminho     TEXT,
+    tipo        TEXT,
+    modulo      TEXT,
+    funcoes     TEXT,
+    user_funcs  TEXT,
+    pontos_entrada TEXT,
+    tabelas_ref TEXT,
+    write_tables TEXT,
+    includes    TEXT,
+    calls_u     TEXT DEFAULT '',
+    calls_execblock TEXT DEFAULT '',
+    fields_ref  TEXT DEFAULT '',
+    lines_of_code INTEGER DEFAULT 0,
+    hash        TEXT
+);
+
+CREATE TABLE IF NOT EXISTS chat_history (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    role        TEXT,
+    content     TEXT,
+    sources     TEXT,
+    doc_updated TEXT,
+    created_at  TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS fonte_chunks (
+    id          TEXT PRIMARY KEY,
+    arquivo     TEXT REFERENCES fontes(arquivo),
+    funcao      TEXT,
+    content     TEXT,
+    modulo      TEXT
+);
+
+CREATE TABLE IF NOT EXISTS operacoes_escrita (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    arquivo     TEXT NOT NULL,
+    funcao      TEXT NOT NULL,
+    tipo        TEXT NOT NULL,
+    tabela      TEXT NOT NULL,
+    campos      TEXT DEFAULT '[]',
+    origens     TEXT DEFAULT '{}',
+    condicao    TEXT DEFAULT '',
+    linha       INTEGER DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_oe_tabela ON operacoes_escrita(tabela);
+CREATE INDEX IF NOT EXISTS idx_oe_arquivo ON operacoes_escrita(arquivo);
+
+CREATE TABLE IF NOT EXISTS ingest_progress (
+    item        TEXT PRIMARY KEY,
+    fase        INTEGER,
+    status      TEXT,
+    error_msg   TEXT,
+    updated_at  TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS vinculos (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo         TEXT NOT NULL,
+    origem_tipo  TEXT NOT NULL,
+    origem       TEXT NOT NULL,
+    destino_tipo TEXT NOT NULL,
+    destino      TEXT NOT NULL,
+    modulo       TEXT DEFAULT '',
+    contexto     TEXT DEFAULT '',
+    peso         INTEGER DEFAULT 1
+);
+
+CREATE INDEX IF NOT EXISTS idx_vinculos_tipo ON vinculos(tipo);
+CREATE INDEX IF NOT EXISTS idx_vinculos_origem ON vinculos(origem);
+CREATE INDEX IF NOT EXISTS idx_vinculos_destino ON vinculos(destino);
+CREATE INDEX IF NOT EXISTS idx_vinculos_modulo ON vinculos(modulo);
+
+CREATE TABLE IF NOT EXISTS menus (
+    modulo   TEXT,
+    rotina   TEXT,
+    nome     TEXT,
+    menu     TEXT,
+    ordem    INTEGER,
+    PRIMARY KEY (modulo, rotina)
+);
+
+-- Padrão (standard) SX tables for diff comparison
+CREATE TABLE IF NOT EXISTS padrao_tabelas (
+    codigo      TEXT PRIMARY KEY,
+    nome        TEXT,
+    modo        TEXT,
+    custom      INTEGER DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS padrao_campos (
+    tabela      TEXT,
+    campo       TEXT,
+    tipo        TEXT,
+    tamanho     INTEGER,
+    decimal     INTEGER DEFAULT 0,
+    titulo      TEXT,
+    descricao   TEXT,
+    validacao   TEXT DEFAULT '',
+    inicializador TEXT DEFAULT '',
+    obrigatorio INTEGER DEFAULT 0,
+    custom      INTEGER DEFAULT 0,
+    f3          TEXT DEFAULT '',
+    cbox        TEXT DEFAULT '',
+    vlduser     TEXT DEFAULT '',
+    when_expr   TEXT DEFAULT '',
+    proprietario TEXT DEFAULT 'S',
+    browse      TEXT DEFAULT '',
+    trigger_flag TEXT DEFAULT '',
+    visual      TEXT DEFAULT '',
+    context     TEXT DEFAULT '',
+    folder      TEXT DEFAULT '',
+    PRIMARY KEY (tabela, campo)
+);
+
+CREATE TABLE IF NOT EXISTS padrao_indices (
+    tabela      TEXT,
+    ordem       TEXT,
+    chave       TEXT,
+    descricao   TEXT,
+    proprietario TEXT DEFAULT 'S',
+    f3          TEXT DEFAULT '',
+    nickname    TEXT DEFAULT '',
+    showpesq    TEXT DEFAULT 'S',
+    custom      INTEGER DEFAULT 0,
+    PRIMARY KEY (tabela, ordem)
+);
+
+CREATE TABLE IF NOT EXISTS padrao_gatilhos (
+    campo_origem TEXT,
+    sequencia   TEXT,
+    campo_destino TEXT,
+    regra       TEXT DEFAULT '',
+    tipo        TEXT DEFAULT '',
+    tabela      TEXT DEFAULT '',
+    condicao    TEXT DEFAULT '',
+    proprietario TEXT DEFAULT 'S',
+    seek        TEXT DEFAULT '',
+    alias       TEXT DEFAULT '',
+    ordem       TEXT DEFAULT '',
+    chave       TEXT DEFAULT '',
+    custom      INTEGER DEFAULT 0,
+    PRIMARY KEY (campo_origem, sequencia)
+);
+
+CREATE TABLE IF NOT EXISTS padrao_parametros (
+    filial      TEXT,
+    variavel    TEXT,
+    tipo        TEXT,
+    descricao   TEXT,
+    conteudo    TEXT,
+    proprietario TEXT,
+    custom      INTEGER DEFAULT 0,
+    PRIMARY KEY (filial, variavel)
+);
+
+CREATE TABLE IF NOT EXISTS diff (
+    tipo_sx      TEXT,
+    tabela       TEXT,
+    chave        TEXT,
+    acao         TEXT,
+    campo_diff   TEXT,
+    valor_padrao TEXT,
+    valor_cliente TEXT,
+    modulo       TEXT,
+    PRIMARY KEY (tipo_sx, tabela, chave, acao, campo_diff)
+);
+
+CREATE TABLE IF NOT EXISTS funcao_docs (
+    arquivo     TEXT,
+    funcao      TEXT,
+    tipo        TEXT,
+    assinatura  TEXT,
+    resumo      TEXT,
+    tabelas_ref TEXT,
+    campos_ref  TEXT,
+    chama       TEXT,
+    chamada_por TEXT,
+    retorno     TEXT,
+    params      TEXT,
+    fonte       TEXT DEFAULT 'auto',
+    updated_at  TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (arquivo, funcao)
+);
+
+CREATE TABLE IF NOT EXISTS anotacoes (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo        TEXT,
+    chave       TEXT,
+    texto       TEXT,
+    autor       TEXT DEFAULT 'consultor',
+    tags        TEXT DEFAULT '[]',
+    data        TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_anotacoes_tipo_chave ON anotacoes(tipo, chave);
+CREATE INDEX IF NOT EXISTS idx_tabelas_custom ON tabelas(custom);
+CREATE INDEX IF NOT EXISTS idx_campos_custom ON campos(custom);
+CREATE INDEX IF NOT EXISTS idx_campos_tabela ON campos(tabela);
+CREATE INDEX IF NOT EXISTS idx_indices_custom ON indices(custom);
+CREATE INDEX IF NOT EXISTS idx_gatilhos_custom ON gatilhos(custom);
+CREATE INDEX IF NOT EXISTS idx_fontes_modulo ON fontes(modulo);
+CREATE INDEX IF NOT EXISTS idx_diff_tipo_acao ON diff(tipo_sx, acao);
+CREATE INDEX IF NOT EXISTS idx_diff_tabela ON diff(tabela);
+CREATE INDEX IF NOT EXISTS idx_menus_rotina ON menus(rotina);
+
+CREATE TABLE IF NOT EXISTS jobs (
+    arquivo_ini  TEXT,
+    sessao       TEXT,
+    rotina       TEXT,
+    refresh_rate INTEGER,
+    parametros   TEXT DEFAULT '',
+    PRIMARY KEY (arquivo_ini, sessao)
+);
+CREATE INDEX IF NOT EXISTS idx_jobs_rotina ON jobs(rotina);
+
+CREATE TABLE IF NOT EXISTS schedules (
+    codigo              TEXT,
+    rotina              TEXT,
+    empresa_filial      TEXT,
+    environment         TEXT DEFAULT '',
+    modulo              INTEGER DEFAULT 0,
+    status              TEXT DEFAULT '',
+    tipo_recorrencia    TEXT DEFAULT '',
+    detalhe_recorrencia TEXT DEFAULT '',
+    execucoes_dia       INTEGER,
+    intervalo           TEXT DEFAULT '',
+    hora_inicio         TEXT DEFAULT '',
+    data_criacao        TEXT DEFAULT '',
+    ultima_execucao     TEXT DEFAULT '',
+    ultima_hora         TEXT DEFAULT '',
+    recorrencia_raw     TEXT DEFAULT '',
+    PRIMARY KEY (codigo, empresa_filial)
+);
+CREATE INDEX IF NOT EXISTS idx_schedules_rotina ON schedules(rotina);
+CREATE INDEX IF NOT EXISTS idx_schedules_status ON schedules(status);
+"""
+
+_initialized_dbs: set[str] = set()
+
+class Database:
+    def __init__(self, db_path: Path):
+        self.db_path = db_path
+        self._conn = None
+
+    def initialize(self):
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._conn = sqlite3.connect(str(self.db_path))
+        key = str(self.db_path)
+        if key not in _initialized_dbs:
+            self._conn.executescript(SCHEMA)
+            self._conn.commit()
+            _initialized_dbs.add(key)
+
+    def execute(self, sql: str, params: tuple = ()):
+        return self._conn.execute(sql, params)
+
+    def executemany(self, sql: str, params_list: list):
+        self._conn.executemany(sql, params_list)
+        self._conn.commit()
+
+    def commit(self):
+        self._conn.commit()
+
+    def get_raw_conn(self) -> sqlite3.Connection:
+        """Return raw sqlite3 connection for bulk operations with custom PRAGMAs."""
+        return self._conn
+
+    def close(self):
+        if self._conn:
+            self._conn.close()
