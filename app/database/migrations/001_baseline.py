@@ -44,9 +44,8 @@ INDICES = [
 def _table_exists(cursor, table):
     cursor.execute(
         "SELECT 1 FROM information_schema.tables WHERE table_name = %s",
-        (table
-        )
-        )
+        (table,)
+    )
     return cursor.fetchone() is not None
 
 
