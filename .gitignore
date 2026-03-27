@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite3
+!memory/.gitkeep
+
+# ChromaDB
+chroma/
+
+# Build artifacts
+*.exe
+*.msi
+*.spec
+output/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+htmlcov/
+.coverage
+.pytest_cache/
+
+# Workspace data (dados de cliente — nunca commitar)
+workspace/
+clients/
+
+# PyArmor
+.pyarmor/
+
+# Planos (analises locais)
+planos/
+
+# Temporary
+tmp/
+temp/
