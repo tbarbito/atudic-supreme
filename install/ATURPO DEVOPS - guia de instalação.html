@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATURPO DEVOPS - Guia de Instalação</title>
+    <style>
+        /* --- Configurações Globais --- */
+        :root {
+            --cor-primaria: #007bff;
+            --cor-texto: #333;
+            --cor-fundo: #ffffff;
+            --cor-fundo-bloco: #f8f9fa;
+            --cor-borda: #dee2e6;
+            --cor-aviso-fundo: #fffbe6;
+            --cor-aviso-borda: #ffc107;
+            --fonte-padrao: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --fonte-codigo: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: var(--fonte-padrao);
+            line-height: 1.7;
+            color: var(--cor-texto);
+            background-color: var(--cor-fundo);
+            margin: 0;
+            padding: 0;
+        }
+
+        /* --- Contêiner Principal --- */
+        .container {
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px 40px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        /* --- Tipografia --- */
+        h1, h2, h3, h4, h5, h6 {
+            font-weight: 700;
+            margin-top: 2.5em;
+            margin-bottom: 1em;
+            line-height: 1.3;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            text-align: center;
+            border-bottom: 2px solid var(--cor-borda);
+            padding-bottom: 20px;
+            margin-top: 1em;
+        }
+
+        h2 {
+            font-size: 2em;
+            color: var(--cor-primaria);
+            border-bottom: 1px solid var(--cor-borda);
+            padding-bottom: 10px;
+        }
+
+        /* Ajuste de âncora para o scroll */
+        h2[id] {
+            scroll-margin-top: 20px;
+        }
+
+        h3 {
+            font-size: 1.5em;
+            color: #333;
+        }
+
+        p {
+            margin-bottom: 1.2em;
+        }
+
+        a {
+            color: var(--cor-primaria);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        strong {
+            font-weight: 700;
+        }
+
+        hr {
+            border: 0;
+            border-top: 2px solid var(--cor-borda);
+            margin: 2.5em 0;
+        }
+
+        /* --- Listas --- */
+        ul, ol {
+            padding-left: 2em;
+            margin-bottom: 1.2em;
+        }
+
+        li {
+            margin-bottom: 0.5em;
+        }
+
+        /* Índice */
+        .toc ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        .toc li {
+            font-size: 1.1em;
+            margin-bottom: 0.5em;
+        }
+
+        /* --- Blocos de Código --- */
+        pre {
+            background-color: #2d2d2d;
+            color: #f1f1f1;
+            padding: 1.2em;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: var(--fonte-codigo);
+            font-size: 0.95em;
+            line-height: 1.5;
+        }
+
+        code {
+            font-family: var(--fonte-codigo);
+        }
+
+        /* Código inline */
+        :not(pre) > code {
+            background-color: var(--cor-fundo-bloco);
+            color: #c7254e;
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        
+        /* --- Destaques / Callouts --- */
+        .callout {
+            padding: 1.2em 1.5em;
+            margin: 1.5em 0;
+            border-radius: 8px;
+            border-left: 5px solid;
+        }
+
+        .callout.warning {
+            background-color: var(--cor-aviso-fundo);
+            border-color: var(--cor-aviso-borda);
+        }
+        
+        .callout.warning strong {
+            color: #a67c00;
+        }
+
+        /* --- Footer --- */
+        footer {
+            text-align: center;
+            margin-top: 3em;
+            color: #777;
+            font-size: 0.9em;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+
+        <h1>🚀 ATURPO DEVOPS - Guia de Instalação</h1>
+
+        <div class="toc">
+            <h2 id="índice">📋 Índice</h2>
+            <ul>
+                <li><a href="#pré-requisitos">Pré-requisitos</a></li>
+                <li><a href="#instalação-linux">Instalação Linux</a></li>
+                <li><a href="#instalação-windows">Instalação Windows</a></li>
+                <li><a href="#pós-instalação">Pós-Instalação</a></li>
+                <li><a href="#gerenciamento-do-serviço">Gerenciamento do Serviço</a></li>
+                <li><a href="#desinstalação">Desinstalação</a></li>
+                <li><a href="#troubleshooting">Troubleshooting</a></li>
+                <li><a href="#suporte">Suporte</a></li>
+                <li><a href="#notas-de-versão">Notas de Versão</a></li>
+            </ul>
+        </div>
+
+        <hr>
+
+        <section>
+            <h2 id="pré-requisitos">🔧 Pré-requisitos</h2>
+
+            <h3>Linux (Ubuntu/Debian/CentOS/RHEL)</h3>
+            <ul>
+                <li><strong>Sistema Operacional</strong>: Ubuntu 20.04+, Debian 11+, CentOS 8+, RHEL 8+</li>
+                <li><strong>Acesso</strong>: Usuário com privilégios sudo</li>
+                <li><strong>Conexão</strong>: Internet (para download de dependências)</li>
+            </ul>
+
+            <h3>Windows</h3>
+            <ul>
+                <li><strong>Sistema Operacional</strong>: Windows 10/11 ou Windows Server 2016+</li>
+                <li><strong>Python</strong>: 3.9 ou superior (<a href="https://www.python.org/downloads/">Download</a>)</li>
+                <li><strong>PostgreSQL</strong>: 13 ou superior (<a href="https://www.postgresql.org/download/windows/">Download</a>)</li>
+                <li><strong>Acesso</strong>: Conta com privilégios de Administrador</li>
+            </ul>
+        </section>
+
+        <hr>
+
+        <section>
+            <h2 id="instalação-linux">🐧 Instalação Linux</h2>
+
+            <h3>Passo 1: Download dos Arquivos</h3>
+            <p>Coloque os seguintes arquivos no mesmo diretório:</p>
+<pre><code>aturpo-devops/
+├── app.py
+├── index.html
+├── integration.js
+├── api-client.js
+└── install_linux.sh
+</code></pre>
+
+            <h3>Passo 2: Dar Permissão de Execução</h3>
+<pre><code>chmod +x install_linux.sh
+</code></pre>
+
+            <h3>Passo 3: Executar o Instalador</h3>
+<pre><code>sudo ./install_linux.sh
+</code></pre>
+
+            <h3>Passo 4: Seguir as Instruções</h3>
+            <p>O instalador irá:</p>
+            <ol>
+                <li>✅ Detectar a distribuição Linux</li>
+                <li>✅ Instalar Python 3, PostgreSQL, Git, Nginx</li>
+                <li>✅ Criar usuário do sistema <code>aturpo</code></li>
+                <li>✅ Configurar ambiente virtual Python</li>
+                <li>✅ Criar banco de dados PostgreSQL</li>
+                <li>✅ Instalar como serviço systemd</li>
+                <li>✅ (Opcional) Configurar Nginx como reverse proxy</li>
+                <li>✅ (Opcional) Configurar firewall</li>
+            </ol>
+
+            <h3>Passo 5: Acessar o Sistema</h3>
+            <p>Após a instalação, acesse:</p>
+<pre><code>http://localhost:5000
+ou
+http://SEU_IP:5000
+</code></pre>
+            <p><strong>Credenciais padrão:</strong></p>
+            <ul>
+                <li>Usuário: <code>admin</code></li>
+                <li>Senha: <code>admin123</code></li>
+            </ul>
+
+            <div class="callout warning">
+                <strong>⚠️ IMPORTANTE</strong>: Altere a senha padrão no primeiro acesso!
+            </div>
+        </section>
+
+        <hr>
+
+        <section>
+            <h2 id="instalação-windows">🪟 Instalação Windows</h2>
+
+            <h3>Passo 1: Pré-requisitos</h3>
+            
+            <h4>Instalar Python</h4>
+            <ol>
+                <li>Acesse: <a href="https://www.python.org/downloads/">https://www.python.org/downloads/</a></li>
+                <li>Baixe Python 3.11 ou superior</li>
+                <li>Durante a instalação, <strong>MARQUE</strong> a opção:
+                   <br> ☑️ <strong>"Add Python to PATH"</strong></li>
+            </ol>
+
+            <h4>Instalar PostgreSQL</h4>
+            <ol>
+                <li>Acesse: <a href="https://www.postgresql.org/download/windows/">https://www.postgresql.org/download/windows/</a></li>
+                <li>Baixe PostgreSQL 13 ou superior</li>
+                <li>Durante a instalação, anote a senha do usuário <code>postgres</code></li>
+            </ol>
+
+            <h3>Passo 2: Download dos Arquivos</h3>
+            <p>Coloque os seguintes arquivos no mesmo diretório:</p>
+<pre><code>aturpo-devops\
+├── app.py
+├── index.html
+├── integration.js
+├── api-client.js
+└── install_windows.ps1
+</code></pre>
+
+            <h3>Passo 3: Executar o Instalador</h3>
+            <ol>
+                <li>Clique com botão direito no arquivo <code>install_windows.ps1</code></li>
+                <li>Selecione <strong>"Executar com PowerShell"</strong></li>
+                <li>Se aparecer aviso de segurança, selecione <strong>"Executar mesmo assim"</strong></li>
+            </ol>
+            <p><strong>OU</strong> abra PowerShell como Administrador e execute:</p>
+<pre><code>cd "C:\caminho\para\aturpo-devops"
+.\install_windows.ps1
+</code></pre>
+
+            <h3>Passo 4: Seguir as Instruções</h3>
+            <p>O instalador irá:</p>
+            <ol>
+                <li>✅ Verificar Python e PostgreSQL</li>
+                <li>✅ Baixar e instalar NSSM (Service Manager)</li>
+                <li>✅ Criar diretório <code>C:\AturpoDevOps</code></li>
+                <li>✅ Configurar ambiente virtual Python</li>
+                <li>✅ Configurar banco de dados PostgreSQL</li>
+                <li>✅ Instalar como serviço Windows</li>
+                <li>✅ (Opcional) Configurar Windows Firewall</li>
+            </ol>
+
+            <h3>Passo 5: Acessar o Sistema</h3>
+            <p>Após a instalação, acesse:</p>
+<pre><code>http://localhost:5000
+</code></pre>
+            <p><strong>Credenciais padrão:</strong></p>
+            <ul>
+                <li>Usuário: <code>admin</code></li>
+                <li>Senha: <code>admin123</code></li>
+            </ul>
+            
+            <div class="callout warning">
+                <strong>⚠️ IMPORTANTE</strong>: Altere a senha padrão no primeiro acesso!
+            </div>
+        </section>
+
+        <hr>
+
+        <section>
+            <h2 id="pós-instalação">🎯 Pós-Instalação</h2>
+
+            <h3>Configurações Importantes</h3>
+
+            <h4>1. Alterar Senha Padrão</h4>
+            <ol>
+                <li>Faça login com <code>admin</code> / <code>admin123</code></li>
+                <li>Clique no ícone de usuário no canto superior direito</li>
+                <li>Selecione <strong>"Alterar Senha"</strong></li>
+                <li>Digite a nova senha</li>
+            </ol>
+
+            <h4>2. Configurar GitHub (Opcional)</h4>
+            <p>Se você vai usar integração com GitHub:</p>
+            <ol>
+                <li>Acesse <strong>Configurações</strong> → <strong>GitHub</strong></li>
+                <li>Gere um Personal Access Token no GitHub</li>
+                <li>Configure usuário e token</li>
+            </ol>
+
+            <h4>3. Criar Ambientes</h4>
+            <ol>
+                <li>Acesse <strong>Ambientes</strong></li>
+                <li>Crie ambientes (DEV, HML, PRD)</li>
+                <li>Configure variáveis de ambiente específicas</li>
+            </ol>
+
+            <h4>4. Configurar Variáveis de Servidor</h4>
+            <ol>
+                <li>Acesse <strong>Variáveis de Servidor</strong></li>
+                <li>Adicione as variáveis necessárias para seus scripts</li>
+            </ol>
+        </section>
+
+        <hr>
+
+        <section>
+            <h2 id="gerenciamento-do-serviço">🔄 Gerenciamento do Serviço</h2>
+
+            <h3>Linux</h3>
+
+            <h4>Ver Status</h4>
+<pre><code>sudo systemctl status aturpo-devops
+</code></pre>
+
+            <h4>Parar Serviço</h4>
+<pre><code>sudo systemctl stop aturpo-devops
+</code></pre>
+
+            <h4>Iniciar Serviço</h4>
+<pre><code>sudo systemctl start aturpo-devops
+</code></pre>
+
+            <h4>Reiniciar Serviço</h4>
+<pre><code>sudo systemctl restart aturpo-devops
+</code></pre>
+
+            <h4>Ver Logs em Tempo Real</h4>
+<pre><code>sudo journalctl -u aturpo-devops -f
+</code></pre>
+
+            <h4>Desabilitar Inicialização Automática</h4>
+<pre><code>sudo systemctl disable aturpo-devops
+</code></pre>
+
+            <h4>Habilitar Inicialização Automática</h4>
+<pre><code>sudo systemctl enable aturpo-devops
+</code></pre>
+
+            <h3>Windows</h3>
+
+            <h4>Ver Status</h4>
+<pre><code>Get-Service -Name AturpoDevOps
+</code></pre>
+
+            <h4>Parar Serviço</h4>
+<pre><code>Stop-Service -Name AturpoDevOps
+</code></pre>
+
+            <h4>Iniciar Serviço</h4>
+<pre><code>Start-Service -Name AturpoDevOps
+</code></pre>
+
+            <h4>Reiniciar Serviço</h4>
+<pre><code>Restart-Service -Name AturpoDevOps
+</code></pre>
+
+            <h4>Ver Logs</h4>
+<pre><code>Get-Content C:\AturpoDevOps\logs\*.log -Tail 50 -Wait
+</code></pre>
+
+            <h4>Gerenciar via Interface Gráfica</h4>
+            <ol>
+                <li>Pressione <code>Win + R</code></li>
+                <li>Digite <code>services.msc</code></li>
+                <li>Procure por <strong>"ATURPO DevOps Dashboard"</strong></li>
+            </ol>
+        </section>
+
+        <hr>
+
+        <section>
+            <h2 id="desinstalação">🗑️ Desinstalação</h2>
+
+            <h3>Linux</h3>
+<pre><code>sudo chmod +x uninstall_linux.sh
+sudo ./uninstall_linux.sh
+</code></pre>
+            <p>O desinstalador irá:</p>
+            <ul>
+                <li>✅ Parar e remover o serviço</li>
+                <li>✅ Remover arquivos de <code>/opt/aturpo-devops</code></li>
+                <li>✅ (Opcional) Remover usuário do sistema</li>
+                <li>✅ (Opcional) Remover banco de dados</li>
+                <li>✅ (Opcional) Remover configuração Nginx</li>
+            </ul>
+
+            <h3>Windows</h3>
+            <ol>
+                <li>Clique com botão direito no arquivo <code>uninstall_windows.ps1</code></li>
+                <li>Selecione <strong>"Executar com PowerShell"</strong></li>
+            </ol>
+            <p><strong>OU</strong> execute como Administrador:</p>
+<pre><code>.\uninstall_windows.ps1
+</code></pre>
+            <p>O desinstalador irá:</p>
+            <ul>
+                <li>✅ Parar e remover o serviço</li>
+                <li>✅ Remover arquivos de <code>C:\AturpoDevOps</code></li>
+                <li>✅ (Opcional) Remover banco de dados</li>
+                <li>✅ (Opcional) Remover regra de firewall</li>
+            </ul>
+        </section>
+
+        <hr>
+
+        <section>
+            <h2 id="troubleshooting">🔍 Troubleshooting</h2>
+
+            <h3>Linux</h3>
+
+            <h4>Erro: "Porta 5000 já está em uso"</h4>
+<pre><code># Verificar processo usando porta 5000
+sudo lsof -i :5000
+
+# Matar processo se necessário
+sudo kill -9 &lt;PID&gt;
+</code></pre>
+
+            <h4>Erro: "Permissão negada ao acessar banco"</h4>
+<pre><code># Verificar se PostgreSQL está rodando
+sudo systemctl status postgresql
+
+# Verificar permissões do usuário
+sudo -u postgres psql -c "\du"
+</code></pre>
+
+            <h4>Logs não aparecem</h4>
+<pre><code># Verificar permissões do diretório de logs
+ls -la /opt/aturpo-devops/logs/
+
+# Ajustar permissões se necessário
+sudo chown -R aturpo:aturpo /opt/aturpo-devops/logs/
+</code></pre>
+
+            <h3>Windows</h3>
+
+            <h4>Erro: "NSSM não encontrado"</h4>
+            <p>O instalador baixa automaticamente o NSSM. Se houver erro:</p>
+            <ol>
+                <li>Baixe manually: <a href="https://nssm.cc/download">https://nssm.cc/download</a></li>
+                <li>Extraia <code>nssm.exe</code> para <code>C:\Windows\System32\</code></li>
+            </ol>
+
+            <h4>Erro: "Python não encontrado"</h4>
+            <ol>
+                <li>Verifique se Python está no PATH:
+<pre><code>python --version
+</code></pre>
+                </li>
+                <li>Se não estiver, reinstale Python marcando "Add to PATH"</li>
+            </ol>
+
+            <h4>Serviço não inicia</h4>
+            <ol>
+                <li>Verifique logs:
+<pre><code>Get-Content C:\AturpoDevOps\logs\service-error.log
+</code></pre>
+                </li>
+                <li>Teste manualmente:
+<pre><code>cd C:\AturpoDevOps
+.\venv\Scripts\activate
+python app.py
+</code></pre>
+                </li>
+            </ol>
+
+            <h4>Erro de conexão com PostgreSQL</h4>
+            <ol>
+                <li>Verifique se PostgreSQL está rodando:
+<pre><code>Get-Service postgresql*
+</code></pre>
+                </li>
+                <li>Teste conexão:
+<pre><code>psql -U aturpo_user -d aturpo_devops -h localhost
+</code></pre>
+                </li>
+                <li>Verifique arquivo <code>.env</code>:
+<pre><code>Get-Content C:\AturpoDevOps\.env
+</code></pre>
+                </li>
+            </ol>
+        </section>
+
+        <hr>
+
+        <section>
+            <h2 id="suporte">📞 Suporte</h2>
+            <p>Para mais informações ou suporte:</p>
+            <ul>
+                <li>📧 Email: <code>suporte@aturpo.com.br</code></li>
+                <li>📖 Documentação: [Link para documentação]</li>
+                <li>🐛 Issues: [Link para issues]</li>
+            </ul>
+        </section>
+        
+        <hr>
+
+        <section>
+            <h2 id="notas-de-versão">📝 Notas de Versão</h2>
+
+            <h3>Versão 1.0.0</h3>
+            <ul>
+                <li>✅ Instalação automatizada Linux e Windows</li>
+                <li>✅ Instalação como serviço em ambos SO</li>
+                <li>✅ Configuração automática de PostgreSQL</li>
+                <li>✅ Scripts de desinstalação</li>
+                <li>✅ Suporte para múltiplas distribuições Linux</li>
+                <li>✅ Integração com Nginx (opcional)</li>
+                <li>✅ Configuração de firewall (opcional)</li>
+            </ul>
+        </section>
+
+        <footer>
+            <hr>
+            <p><strong>Desenvolvido por ATURPO</strong> | Versão 1.0.0</p>
+        </footer>
+
+    </div>
+
+</body>
+</html>

@@ -1,60 +1,116 @@
-# AtuDIC Supreme
+# AtuDIC DevOps
 
-Plataforma unificada de inteligencia Protheus — DevOps, Engenharia Reversa e Agente IA.
+Orquestrador CI/CD + Observabilidade para ERP TOTVS Protheus.
 
-## Origem
+Plataforma web para automação de builds, deploys, controle de serviços e monitoramento de logs do Protheus, com interface responsiva (desktop e mobile).
 
-Merge de dois projetos complementares:
+## Funcionalidades
 
-- **AtuDIC** (Barbito) — DevOps, dicionario Protheus, agente GolIAs com 59 tools e 389K chunks TDN
-- **ExtraiRPO** (Joni) — Engenharia reversa, parser de fontes ADVPL/TLPP, grafo de vinculos, docs IA
+- **Pipelines CI/CD** — Criação, execução e agendamento (cron) de pipelines de build e deploy
+- **Controle de Serviços** — Start/Stop/Restart de serviços Protheus remotos via SSH
+- **Repositórios GitHub** — Integração com GitHub API para clonar, gerenciar branches e tags
+- **Controle de Versão** — Explorador de arquivos e histórico de commits dos repositórios
+- **Observabilidade** — Parser inteligente de logs do Protheus (15+ categorias de erros: SSL, TopConnect, RPO, Thread Error, ORA, etc.)
+- **Dashboard** — Visão geral com KPIs de pipelines, serviços e saúde do ambiente
+- **Ambientes** — Gestão de múltiplos ambientes (Produção, Homologação, Desenvolvimento)
+- **Notificações** — Email e WhatsApp (Evolution API / Z-API) para alertas de pipeline e serviços
+- **Webhooks** — Dispatcher de eventos para integrações externas
+- **API REST** — API externa autenticada via API Keys para integração com ferramentas de terceiros
+- **Agendamento** — Scheduler cron-like para execução automática de pipelines
+- **Licenciamento** — Sistema de licenças por hardware ID
 
-## O que faz
+## Stack Tecnológica
 
-```
-1. DESCOBRIR   -> Workspace analisa fontes + dicionario (offline CSV ou live DB)
-2. COMPARAR    -> Dictionary compare/validate (19 camadas de integridade)
-3. ENTENDER    -> GolIAs Supreme com grafos + analise de impacto + TDN
-4. DOCUMENTAR  -> Pipeline 3 agentes gera docs automaticas (19 secoes + Mermaid)
-5. CORRIGIR    -> Equalize aplica no banco com rollback atomico
-6. MONITORAR   -> Alertas + pipelines CI/CD + proactive agent
-```
+| Camada | Tecnologia |
+|--------|-----------|
+| Backend | Python 3.12, Flask 3.0, Gunicorn + Gevent |
+| Banco de Dados | PostgreSQL 16 (produção), SQLite (fallback) |
+| Frontend | HTML5, Vanilla JS, Bootstrap 5.3, CSS customizado |
+| Segurança | Bcrypt (12 rounds), Fernet (cryptography), Rate Limiting |
+| Infra | Docker, Docker Compose, GitHub Actions CI/CD |
 
-## Arquitetura Hibrida
+## Configuração para Desenvolvimento
 
-| Camada | Banco | Uso |
-|--------|-------|-----|
-| Plataforma | PostgreSQL | Config, users, historico, TDN, alertas |
-| Workspace | SQLite (por workspace) | Dicionario, fontes, vinculos, chunks |
-| Protheus | Conexao direta (MSSQL/Oracle/PG) | Compare, validate, equalize |
+### Pré-requisitos
 
-## Stack
+- Python 3.10+
+- PostgreSQL 16 (ou SQLite para desenvolvimento local)
+- Git
 
-- **Backend:** Python 3.12+ / Flask
-- **Frontend:** HTML/CSS/JS vanilla (lazy-loaded)
-- **Agente IA:** 63+ tools, 15 specialists, 10+ LLM providers
-- **Deploy:** PyInstaller + Inno Setup (Windows), Docker (Linux)
-
-## Quick Start
+### Setup
 
 ```bash
-# Clonar
-git clone https://github.com/tbarbito/atudic-supreme.git
-cd atudic-supreme
+# Clonar o repositório
+git clone https://github.com/tbarbito/aturpo_2.git
+cd aturpo_2
+git checkout develop
 
-# Setup
-python -m venv venv && source venv/bin/activate
+# Criar ambiente virtual
+python -m venv venv
+source venv/bin/activate        # Linux/macOS
+# venv\Scripts\activate         # Windows
+
+# Instalar dependências
 pip install -r requirements.txt
 
-# Rodar
-python run.py  # http://localhost:5000
+# Configurar variáveis de ambiente
+# Criar arquivo .env ou config.env com:
+#   DB_HOST=localhost
+#   DB_PORT=5432
+#   DB_NAME=atudic
+#   DB_USER=atudic
+#   DB_PASSWORD=atudic
+
+# Iniciar a aplicação
+python run.py
 ```
 
-## Desenvolvedores
+A aplicação ficará acessível em `http://localhost:5000`.
 
-- **Barbito** (Tiago Barbieri) — [@tbarbito](https://github.com/tbarbito)
-- **Joni** (Joni Praia) — [@JoniPraia](https://github.com/JoniPraia)
+### Docker
 
-## Licenca
+```bash
+docker compose up -d            # Iniciar (PostgreSQL + App)
+docker compose logs -f app      # Ver logs
+docker compose down             # Parar
+```
 
-Proprietario — Normatel / Todimo
+## Testes e Lint
+
+```bash
+# Rodar todos os testes com coverage
+pytest
+
+# Apenas testes unitários ou de integração
+pytest tests/unit/ -v
+pytest tests/integration/ -v
+
+# Teste específico
+pytest tests/unit/test_crypto.py -v
+pytest -k "test_login" -v
+
+# Lint e formatação
+black --check --line-length 120 app/ run.py
+flake8 app/ run.py
+```
+
+O CI (GitHub Actions) exige: `black --check`, `flake8` e `pytest --cov-fail-under=58`.
+
+## Build Windows (.exe)
+
+```bash
+# Requer Windows com PyInstaller e Inno Setup instalados
+python build_installer.py
+```
+
+Artefatos gerados em `aturpo_win/dist/` (executável) e `aturpo_win/Output/` (instalador).
+
+## Documentação da API
+
+A documentação completa da API REST externa está em [API_DOCS.md](API_DOCS.md).
+
+Autenticação via header `x-api-key: at_XXXXXXXXX` ou `Authorization: Bearer at_XXXXXXXXX`.
+
+## Licença
+
+Software proprietário. Todos os direitos reservados.

@@ -1,0 +1,49 @@
+# VCS
+.git
+.gitignore
+
+# Python
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+htmlcov/
+.coverage
+.pytest_cache/
+
+# Build Windows
+aturpo_win/dist/
+aturpo_win/Output/
+aturpo_win/build/
+aturpo_win/obfuscated/
+
+# IDE e config
+.vscode/
+*.code-workspace
+*.ini
+
+# Dados locais
+*.db*
+*.sqlite3
+*.log
+logs/
+backups*/
+cloned_repos/
+patches/
+planos/
+tests/
+
+# Segredos
+.env
+config.env
+token_github.txt
+.encryption_key
+*.key
+hardware_id.dat
+
+# Docs e scripts de admin
+postman/
+migrate/
+reset_admin_password.py
+zera_banco.sh

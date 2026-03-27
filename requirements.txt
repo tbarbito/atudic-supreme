@@ -1,45 +1,78 @@
-# === Framework ===
+# =====================================================================
+# FRAMEWORK WEB
+# =====================================================================
 Flask==3.0.0
 Werkzeug==3.0.1
 
-# === Banco de dados — Plataforma ===
+# =====================================================================
+# SEGURANÇA E CRIPTOGRAFIA
+# =====================================================================
+
+# Criptografia para tokens sensíveis (Fernet)
+cryptography==46.0.5
+
+# Hashing de senhas (bcrypt 12 rounds)
+bcrypt==5.0.0
+
+# CORS headers
+flask-cors==4.0.0
+
+# =====================================================================
+# BANCO DE DADOS
+# =====================================================================
+
+# Driver PostgreSQL (banco principal)
 psycopg2-binary==2.9.11
 
-# === Banco de dados — Conexoes externas (Protheus) ===
+# Drivers para integração com bancos externos (módulo Banco de Dados)
+# Nota: pymssql no Python 3.14+ pode exigir: pip install "setuptools_scm<9" antes
 pymssql>=2.3.4
 PyMySQL>=1.1.1
 oracledb>=3.1.0
 
-# === Web Server ===
+# =====================================================================
+# SERVIDOR DE PRODUÇÃO
+# =====================================================================
+
+# WSGI server — Linux (gunicorn+gevent para Docker/SSE)
 gunicorn==25.1.0
 gevent==25.9.1
+
+# WSGI server — Windows (waitress para .exe em produção)
 waitress==3.0.2
 
-# === LLM Providers ===
-openai>=1.30.0
-anthropic>=0.25.0
-google-generativeai>=0.5.0
+# =====================================================================
+# UTILITÁRIOS
+# =====================================================================
 
-# === Embeddings / Vector (opcional — dev/Linux) ===
-# chromadb==0.5.0
-# sentence-transformers>=2.2.0
-
-# === Parsing e Encoding ===
-chardet==5.2.0
-pyyaml==6.0.2
-
-# === Seguranca ===
-cryptography==46.0.5
-bcrypt==5.0.0
-
-# === HTTP e Scraping ===
+# Requisições HTTP (GitHub API, webhooks)
 requests==2.32.5
+
+# Parsing de datas
+python-dateutil==2.9.0.post0
+
+# HTML parsing (TDN ingestor — scraping de documentação TOTVS)
 beautifulsoup4==4.13.4
 
-# === Utilitarios ===
-python-dotenv==1.0.1
-markdown>=3.6
+# =====================================================================
+# TESTES
+# =====================================================================
+pytest==9.0.2
+pytest-cov==7.0.0
+pytest-flask==1.3.0
+pytest-mock==3.15.1
+pytz==2025.2
 
-# === Testes ===
-pytest>=8.0.0
-pytest-cov>=5.0.0
+# =====================================================================
+# BUILD E DESENVOLVIMENTO
+# =====================================================================
+
+# Minificação de assets JS/CSS (scripts/minify_assets.py)
+rjsmin==1.2.5
+rcssmin==1.2.2
+
+# Linting, formatação, type checking
+flake8==7.3.0
+black==26.1.0
+pylint==4.0.4
+mypy==1.19.1

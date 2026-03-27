@@ -1,67 +1,81 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-*.egg-info/
-dist/
-build/
-*.egg
-
-# Virtual environment
+# Arquivos de ambiente virtual do Python e windows
 venv/
-.venv/
 env/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# Environment
 .env
-.env.local
-.env.production
-
-# Logs
-*.log
-logs/
-
-# Database
-*.db
-*.sqlite3
-!memory/.gitkeep
-
-# ChromaDB
-chroma/
-
-# Build artifacts
-*.exe
-*.msi
-*.spec
-output/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Coverage
-htmlcov/
+hardware_id.dat
+aturpo_win/dist/
+aturpo_win/Output/
+aturpo_win/build/
+aturpo_win/build/ATUDIC/
+aturpo_win/obfuscated/
+*.ini
+*.code-workspace
+tests/
 .coverage
-.pytest_cache/
-
-# Workspace data (dados de cliente — nunca commitar)
-/workspace/
-/clients/
-
-# PyArmor
-.pyarmor/
-
-# Planos (analises locais)
+ATUDIC.spec
 planos/
+# Prompt: ignorar planos e docs internos, manter skills, contexto e config do agente
+prompt/*
+!prompt/skills/
+!prompt/ATUDIC_AGENT_CONTEXT.md
+!prompt/ATUDIC_AGENT_CONTEXT_CORE.md
+!prompt/specialists.yml
+!prompt/specialists/
+!prompt/ATUDIC_AGENT_CONTEXT_CORE.md
+.claude/
 
-# Temporary
-tmp/
-temp/
+# Arquivos de cache e compilados do Python
+__pycache__/
+*.pyc
+
+# Banco de dados - NUNCA envie o banco para o repositório!
+*.db*
+*.sqlite3
+*.log
+compila.ini
+
+# Arquivos de configuração do editor
+.vscode/
+logs/
+backups*/
+migrate/
+postman/
+
+# Repositórios clonados pelo sistema - é conteúdo gerado
+cloned_repos/
+patches/
+
+# Script de recuperação de senha - ferramenta de admin, não parte do app
+reset_admin_password.py
+zera_banco.sh
+verify_fix.sh
+fix.py
+fix.sh
+
+# Arquivo de token - contém credenciais sensíveis
+token_github.txt
+.encryption_key
+*.key
+
+# Assets minificados (gerados por scripts/minify_assets.py)
+static/js/app.min.js
+static/js/*.min.js
+static/css/app.min.css
+htmlcov/
+
+# Arquivos de configuração com credenciais
+config.env
+install/*.txt
+build/compila.txt
+aturpo_win/build/ATUDIC/Analysis-00.toc
+aturpo_win/dist/ATUDIC.exe
+aturpo_win/ATUDIC.spec
+
+# Memória do agente - sessões, logs e bases TDN são gerados em runtime
+memory/sessions/*.md
+memory/logs/*.md
+memory/tdn_*.md
+memory/memory.db*
+
+# Claude Code
+CLAUDE.md

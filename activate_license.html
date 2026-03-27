@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ativar Licença - AtuDIC</title>
+    <link rel="icon" type="image/x-icon" href="static/favicon.ico">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .license-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        .license-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .license-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+        }
+
+        .hardware-id-box {
+            background: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            word-break: break-all;
+        }
+
+        .btn-activate {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            border-radius: 10px;
+            transition: transform 0.2s;
+        }
+
+        .btn-activate:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .trial-info {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .success-message {
+            background: #d1e7dd;
+            border-left: 4px solid #198754;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="license-card">
+        <div class="license-header">
+            <div class="license-icon">🔐</div>
+            <h2>Ativar Licença</h2>
+            <p class="text-muted">AtuDIC</p>
+        </div>
+
+        <!-- Informação de Trial -->
+        <div id="trialInfo" class="trial-info" style="display: none;">
+            <strong>⏰ Modo Trial:</strong>
+            <p class="mb-0" id="trialMessage"></p>
+        </div>
+
+        <!-- Hardware ID -->
+        <div>
+            <label class="form-label"><strong>💻 Hardware ID desta máquina:</strong></label>
+            <div class="hardware-id-box" id="hardwareId">
+                <div class="text-center">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    Carregando...
+                </div>
+            </div>
+            <small class="text-muted">
+                ℹ️ Envie este código ao fornecedor para receber sua chave de licença
+            </small>
+        </div>
+
+        <!-- Formulário de Ativação -->
+        <form id="activateForm">
+            <div class="mb-3 mt-4">
+                <label for="licenseKey" class="form-label"><strong>🔑 Chave de Licença:</strong></label>
+                <input type="text" class="form-control form-control-lg" id="licenseKey"
+                    placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" maxlength="24" required
+                    style="font-family: 'Courier New', monospace; text-transform: uppercase;">
+                <small class="text-muted">Formato: XXXX-XXXX-XXXX-XXXX-XXXX</small>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-activate w-100">
+                ✨ Ativar Licença
+            </button>
+        </form>
+
+        <!-- Loading -->
+        <div class="loading" id="loading">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Validando...</span>
+            </div>
+            <p class="mt-2">🔄 Validando licença com o servidor...</p>
+        </div>
+
+        <!-- Mensagens de Sucesso/Erro -->
+        <div id="successMessage" class="success-message" style="display: none;">
+            <h5>✅ Licença Ativada com Sucesso!</h5>
+            <div id="licenseDetails"></div>
+            <p class="mb-0 mt-3">
+                <strong>🎉 Sistema liberado!</strong>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="showActivateForm()">
+                    🔄 Trocar Licença
+                </button>
+            </p>
+        </div>
+
+        <div id="errorMessage" class="error-message" style="display: none;">
+            <h5>❌ Falha na Ativação</h5>
+            <p id="errorDetails"></p>
+            <small>
+                <strong>Possíveis causas:</strong>
+                <ul class="mb-0">
+                    <li>Chave de licença inválida</li>
+                    <li>Licença expirada</li>
+                    <li>Licença já vinculada a outra máquina</li>
+                    <li>Sem conexão com o servidor</li>
+                </ul>
+            </small>
+        </div>
+
+        <!-- Link para Dashboard (se já tiver licença) -->
+        <div class="text-center mt-4">
+            <a href="/" class="text-decoration-none">← Voltar ao Dashboard</a>
+        </div>
+    </div>
+
+    <script>
+        // Carregar informações ao abrir a página
+        document.addEventListener('DOMContentLoaded', function () {
+            loadLicenseInfo();
+        });
+
+        // Carregar informações de licença e hardware ID
+        async function loadLicenseInfo() {
+            try {
+                const response = await fetch('/api/license/info');
+                const data = await response.json();
+
+                // Exibir Hardware ID
+                document.getElementById('hardwareId').textContent = data.hardware_id;
+
+                // Exibir informações de trial
+                if (data.trial) {
+                    const trialInfo = document.getElementById('trialInfo');
+                    const trialMessage = document.getElementById('trialMessage');
+
+                    if (data.trial.active) {
+                        trialMessage.innerHTML = `
+                            Você está em modo trial com <strong>${data.trial.days_remaining} dias restantes</strong>.<br>
+                            Expira em: ${new Date(data.trial.expires_at).toLocaleDateString('pt-BR')}
+                        `;
+                    } else {
+                        trialMessage.innerHTML = `
+                            <strong style="color: #dc3545;">Trial expirado!</strong> 
+                            Ative uma licença para continuar usando o sistema.
+                        `;
+                    }
+
+                    trialInfo.style.display = 'block';
+                }
+
+                // Se já tem licença ativa, mostrar informação MAS manter opção de trocar
+                if (data.license && data.license.active && data.license.customer_name) {
+                    // Esconder mensagem de trial quando tem licença válida
+                    document.getElementById('trialInfo').style.display = 'none';
+
+                    const successMessage = document.getElementById('successMessage');
+                    const licenseDetails = document.getElementById('licenseDetails');
+
+                    licenseDetails.innerHTML = `
+                        <p><strong>🔑 Chave:</strong> <code>${data.license_key || 'N/A'}</code></p>
+                        <p><strong>👤 Cliente:</strong> ${data.license.customer_name || 'N/A'}</p>
+                        <p><strong>🏢 Empresa:</strong> ${data.license.company_name || 'N/A'}</p>
+                        <p><strong>📦 Plano:</strong> ${data.license.plan_type || 'N/A'}</p>
+                        <p><strong>📅 Válida até:</strong> ${data.license.expires_at ? new Date(data.license.expires_at).toLocaleDateString('pt-BR') : 'N/A'}</p>
+                    `;
+
+                    successMessage.style.display = 'block';
+                    // NÃO esconder o formulário se os dados estiverem incompletos
+                    if (data.license.customer_name && data.license.company_name) {
+                        document.getElementById('activateForm').style.display = 'none';
+                    }
+                }
+
+            } catch (error) {
+                console.error('Erro ao carregar informações:', error);
+            }
+        }
+
+        // Formatar chave enquanto digita (adicionar hífens automaticamente)
+        document.getElementById('licenseKey').addEventListener('input', function (e) {
+            let value = e.target.value.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+            let formatted = value.match(/.{1,4}/g)?.join('-') || value;
+            e.target.value = formatted;
+        });
+
+        // Submit do formulário
+        document.getElementById('activateForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const licenseKey = document.getElementById('licenseKey').value;
+            const loading = document.getElementById('loading');
+            const successMessage = document.getElementById('successMessage');
+            const errorMessage = document.getElementById('errorMessage');
+            const form = document.getElementById('activateForm');
+
+            // Limpar mensagens anteriores
+            successMessage.style.display = 'none';
+            errorMessage.style.display = 'none';
+
+            // Mostrar loading
+            form.style.display = 'none';
+            loading.style.display = 'block';
+
+            try {
+                const response = await fetch('/api/license/activate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ license_key: licenseKey })
+                });
+
+                const data = await response.json();
+
+                loading.style.display = 'none';
+
+                if (data.success) {
+                    // Esconder mensagem de trial
+                    document.getElementById('trialInfo').style.display = 'none';
+
+                    // Sucesso!
+                    const licenseDetails = document.getElementById('licenseDetails');
+                    licenseDetails.innerHTML = `
+                        <p><strong>🔑 Chave:</strong> <code>${licenseKey}</code></p>
+                        <p><strong>👤 Cliente:</strong> ${data.license.customer_name}</p>
+                        <p><strong>🏢 Empresa:</strong> ${data.license.company_name}</p>
+                        <p><strong>📦 Plano:</strong> ${data.license.plan_type}</p>
+                        <p><strong>📅 Válida até:</strong> ${new Date(data.license.expires_at).toLocaleDateString('pt-BR')}</p>
+                    `;
+                    successMessage.style.display = 'block';
+
+                    // Redirecionar após 3 segundos
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 3000);
+
+                } else {
+                    // Erro
+                    document.getElementById('errorDetails').textContent = data.error || 'Erro desconhecido';
+                    errorMessage.style.display = 'block';
+                    form.style.display = 'block';
+                }
+
+            } catch (error) {
+                loading.style.display = 'none';
+                document.getElementById('errorDetails').textContent = 'Erro ao conectar com o servidor: ' + error.message;
+                errorMessage.style.display = 'block';
+                form.style.display = 'block';
+            }
+        });
+        // Função para mostrar formulário de ativação novamente
+        function showActivateForm() {
+            document.getElementById('successMessage').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('activateForm').style.display = 'block';
+            document.getElementById('licenseKey').value = '';
+            document.getElementById('licenseKey').focus();
+        }
+    </script>
+</body>
+
+</html>

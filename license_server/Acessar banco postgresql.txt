@@ -1,0 +1,8 @@
+Acessar banco postgresql
+
+psql -h localhost -p 5432 -d licenses -U licenseuser
+
+SELECT * FROM licenses;
+
+para sair:
+\q

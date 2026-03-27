@@ -1,0 +1,1840 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
+        style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com;
+        font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com;
+        img-src 'self' data: https:;
+        connect-src 'self' https://api.github.com;
+        frame-ancestors 'none';
+        base-uri 'self';
+        form-action 'self';
+    ">
+
+    <!-- NOVO: Proteção adicional contra clickjacking -->
+    <meta http-equiv="X-Frame-Options" content="DENY">
+
+    <!-- NOVO: Proteção contra MIME type sniffing -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+
+    <!-- NOVO: Forçar HTTPS em navegadores modernos -->
+    <meta http-equiv="Strict-Transport-Security" content="max-age=31536000; includeSubDomains">
+    <title>AtuDIC - Monitoramento e Banco de Dados</title>
+    <link rel="icon" type="image/x-icon" href="static/favicon.ico">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet"
+        integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg=="
+        crossorigin="anonymous">
+
+    <!-- NOVO TEMA VISUAL -->
+    <link href="theme.css" rel="stylesheet">
+    <link href="static/css/app-inline.css" rel="stylesheet">
+
+    <!-- CSS inline extraído para static/css/app-inline.css (1505 linhas) -->
+    <!-- Em produção, usar static/css/app.min.css que inclui theme.css + app-inline.css -->
+
+</head>
+
+<body>
+    <!-- Login Container -->
+    <div id="login-container" class="login-container">
+        <div class="login-card">
+            <h1><img src="/static/favicon.ico" alt="AtuDIC" style="height:1.2em;vertical-align:middle;margin-right:8px">AtuDIC</h1>
+
+
+            <form id="loginForm" autocomplete="off">
+                <div class="mb-3">
+                    <label for="username" class="form-label">Usuário</label>
+                    <input type="text" class="form-control" id="username" name="username"
+                        placeholder="Digite seu usuário" autocomplete="off" required>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Senha</label>
+                    <div class="position-relative">
+                        <input type="password" class="form-control" id="password" name="password"
+                            placeholder="Digite sua senha" autocomplete="new-password" required>
+                        <button type="button" class="btn position-absolute" id="togglePassword"
+                            style="right: 10px; top: 50%; transform: translateY(-50%); border: none; background: none; color: var(--color-text-secondary);">
+                            <i class="fas fa-eye" id="togglePasswordIcon"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="loginError" class="alert notification-error mb-3 hidden"></div>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-sign-in-alt me-2"></i>Entrar
+                </button>
+            </form>
+            <div class="text-center mt-2">
+                <a href="#" id="btnForgotPassword" class="text-muted small"
+                    style="text-decoration: none; cursor: pointer;">
+                    <i class="fas fa-unlock-alt me-1"></i>Esqueci minha senha
+                </a>
+            </div>
+            <div class="text-center mt-2">
+                <a href="#" id="btnFirstAccess" class="text-muted small me-3"
+                    style="text-decoration: none; cursor: pointer; display: none;">
+                    <i class="fas fa-user-plus me-1"></i>Primeiro Acesso
+                </a>
+                <a href="#" id="btnActivateLicense" class="text-muted small"
+                    style="text-decoration: none; cursor: pointer;">
+                    <i class="fas fa-key me-1"></i>Ativar Licença
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Autenticação para Ativar Licença -->
+    <div id="activateLicenseModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h5><i class="fas fa-key me-2"></i>Autenticação Necessária</h5>
+                <button class="close" id="closeActivateModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">
+                    Acesso restrito a administradores do sistema.
+                </p>
+                <form id="activateLicenseForm">
+                    <div class="mb-3">
+                        <label for="activateUsername" class="form-label">Usuário</label>
+                        <input type="text" class="form-control" id="activateUsername" placeholder="Digite seu usuário"
+                            required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="activatePassword" class="form-label">Senha</label>
+                        <input type="password" class="form-control" id="activatePassword" placeholder="Digite sua senha"
+                            required>
+                    </div>
+                    <div id="activateError" class="alert alert-danger mb-3" style="display: none;"></div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-unlock me-2"></i>Acessar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Primeiro Acesso -->
+    <div id="firstAccessModal" class="modal">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header">
+                <h5><i class="fas fa-user-plus me-2"></i>Primeiro Acesso</h5>
+                <button class="close" id="closeFirstAccessModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Crie seu usuário administrador para começar a usar o sistema.
+                </p>
+                <form id="firstAccessForm">
+                    <div class="mb-3">
+                        <label for="firstAccessUsername" class="form-label">Usuário <span
+                                class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="firstAccessUsername"
+                            placeholder="Digite o nome de usuário" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="firstAccessName" class="form-label">Nome Completo <span
+                                class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="firstAccessName"
+                            placeholder="Digite seu nome completo" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="firstAccessEmail" class="form-label">E-mail <span
+                                class="text-danger">*</span></label>
+                        <input type="email" class="form-control" id="firstAccessEmail" placeholder="Digite seu e-mail"
+                            required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="firstAccessPassword" class="form-label">Senha <span
+                                class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="firstAccessPassword"
+                            placeholder="Mínimo 6 caracteres" required minlength="6">
+                    </div>
+                    <div class="mb-3">
+                        <label for="firstAccessPasswordConfirm" class="form-label">Confirmar Senha <span
+                                class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="firstAccessPasswordConfirm"
+                            placeholder="Repita a senha" required>
+                    </div>
+                    <div id="firstAccessError" class="alert alert-danger mb-3" style="display: none;"></div>
+                    <div id="firstAccessSuccess" class="alert alert-success mb-3" style="display: none;"></div>
+                    <button type="submit" class="btn btn-primary w-100" id="btnFirstAccessSubmit">
+                        <i class="fas fa-check me-2"></i>Criar Administrador
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Esqueci Minha Senha -->
+    <div id="forgotPasswordModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h5><i class="fas fa-unlock-alt me-2"></i>Recuperar Senha</h5>
+                <button class="close" id="closeForgotPasswordModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Informe o e-mail cadastrado para receber o código de recuperação.
+                </p>
+                <form id="forgotPasswordForm">
+                    <div class="mb-3">
+                        <label for="forgotPasswordEmail" class="form-label">E-mail <span
+                                class="text-danger">*</span></label>
+                        <input type="email" class="form-control" id="forgotPasswordEmail"
+                            placeholder="Digite seu e-mail" required>
+                    </div>
+                    <div id="forgotPasswordError" class="alert alert-danger mb-3" style="display: none;"></div>
+                    <div id="forgotPasswordSuccess" class="alert alert-success mb-3" style="display: none;"></div>
+                    <button type="submit" class="btn btn-primary w-100" id="btnForgotPasswordSubmit">
+                        <i class="fas fa-paper-plane me-2"></i>Enviar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Redefinir Senha -->
+    <div id="resetPasswordModal" class="modal">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header">
+                <h5><i class="fas fa-key me-2"></i>Redefinir Senha</h5>
+                <button class="close" id="closeResetPasswordModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Insira o código recebido por e-mail e defina sua nova senha.
+                </p>
+                <form id="resetPasswordForm">
+                    <div class="mb-3">
+                        <label for="resetPasswordToken" class="form-label">Código de Recuperação <span
+                                class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="resetPasswordToken"
+                            placeholder="Cole o código recebido por e-mail" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="resetPasswordNew" class="form-label">Nova Senha <span
+                                class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="resetPasswordNew"
+                            placeholder="Mínimo 6 caracteres" required minlength="6">
+                    </div>
+                    <div class="mb-3">
+                        <label for="resetPasswordConfirm" class="form-label">Confirmar Senha <span
+                                class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="resetPasswordConfirm"
+                            placeholder="Repita a nova senha" required>
+                    </div>
+                    <div id="resetPasswordError" class="alert alert-danger mb-3" style="display: none;"></div>
+                    <div id="resetPasswordSuccess" class="alert alert-success mb-3" style="display: none;"></div>
+                    <button type="submit" class="btn btn-primary w-100" id="btnResetPasswordSubmit">
+                        <i class="fas fa-check me-2"></i>Redefinir Senha
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container para Notificações -->
+    <div class="toast-container-footer"></div>
+
+    <!-- App Container -->
+    <div id="app-container" class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-top">
+                <div class="header-left">
+                    <button class="btn btn-link text-white me-2 d-md-none" data-action="toggleSidebar" title="Menu">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h4 class="mb-0 header-logo">
+                        <img src="/static/favicon.ico" alt="AtuDIC" style="height:1.2em;vertical-align:middle;margin-right:8px">
+                        <span class="header-logo-text">AtuDIC</span>
+                    </h4>
+                </div>
+                <nav class="header-tabs" id="headerTabs">
+                    <!-- Renderizado por renderHeaderTabs() -->
+                </nav>
+                <div class="header-right">
+                    <div id="environment-selector-container" class="d-flex align-items-center">
+                        <label for="environmentSelector" class="text-white me-2 small env-label">Ambiente:</label>
+                        <select id="environmentSelector" class="form-select form-select-sm" style="width:200px;"></select>
+                    </div>
+                    <button class="theme-toggle" id="themeToggleBtn" title="Alternar tema claro/escuro">
+                        <i class="fas fa-moon" id="theme-icon"></i>
+                    </button>
+                    <div class="dropdown">
+                        <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle"
+                            id="dropdownUser1" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-user me-2"></i>
+                            <strong id="current-user">Carregando...</strong>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark text-small shadow dropdown-menu-end"
+                            aria-labelledby="dropdownUser1">
+                            <li><a class="dropdown-item" href="#" data-action="showChangePasswordModal">
+                                <i class="fas fa-key me-2"></i>Alterar Senha</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" data-action="logout" data-params='{"mode":false}'>
+                                <i class="fas fa-sign-out-alt me-2"></i>Sair</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Sidebar Backdrop (mobile) -->
+        <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+        <!-- Sidebar Contextual (renderizado por JS) -->
+        <nav class="sidebar" id="contextualSidebar">
+            <div class="nav nav-pills flex-column">
+                <!-- Renderizado dinamicamente por renderContextualSidebar() -->
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div id="content-area">
+                <!-- Content will be loaded here dynamically -->
+            </div>
+            <!-- Página de Execução do Pipeline Run -->
+            <div id="pipelineRunView" class="container-fluid d-none" style="padding-top: 20px; margin-top: 0;">
+                <div class="row mb-4">
+                    <div class="col">
+                        <button class="btn btn-outline-secondary" data-action="backToPipelines">
+                            <i class="fas fa-arrow-left"></i> Voltar para Pipelines
+                        </button>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-primary text-white">
+                                <h4 class="mb-0">
+                                    <i class="fas fa-play-circle"></i>
+                                    <span id="runPipelineName"></span>
+                                    <span class="badge bg-light text-dark ms-2" id="runNumber"></span>
+                                </h4>
+                            </div>
+                            <div class="card-body">
+                                <!-- Status da Execução -->
+                                <div class="row mb-4">
+                                    <div class="col-md-3">
+                                        <div class="card text-center">
+                                            <div class="card-body">
+                                                <h6 class="text-muted mb-2">Status</h6>
+                                                <h3 id="runStatus" class="mb-0">
+                                                    <span class="badge bg-primary">
+                                                        <i class="fas fa-spinner fa-spin"></i> Executando
+                                                    </span>
+                                                </h3>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card text-center">
+                                            <div class="card-body">
+                                                <h6 class="text-muted mb-2">Início</h6>
+                                                <p id="runStartTime" class="mb-0">--</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card text-center">
+                                            <div class="card-body">
+                                                <h6 class="text-muted mb-2">Duração</h6>
+                                                <p id="runDuration" class="mb-0">--</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card text-center">
+                                            <div class="card-body">
+                                                <h6 class="text-muted mb-2">Executado por</h6>
+                                                <p id="runExecutedBy" class="mb-0">--</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Ações -->
+                                <div class="row mb-4">
+                                    <div class="col-12">
+                                        <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                                            <button class="btn btn-success btn-lg" id="btnRelease"
+                                                data-action="openReleaseFromRun" disabled>
+                                                <i class="fas fa-rocket"></i> Release
+                                            </button>
+                                            <button class="btn btn-primary btn-lg" id="btnViewLogs"
+                                                data-action="viewRunLogs">
+                                                <i class="fas fa-file-alt"></i> Ver Logs
+                                            </button>
+                                            <button class="btn btn-info btn-lg d-none" id="btnOpenStream"
+                                                data-action="openBuildStream">
+                                                <i class="fas fa-satellite-dish"></i> Ver Execução
+                                            </button>
+                                            <button class="btn btn-outline-secondary btn-lg" id="btnRefreshRun"
+                                                data-action="refreshRunStatus">
+                                                <i class="fas fa-sync-alt"></i> Atualizar
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Lista de Comandos Executados -->
+                                <div class="row">
+                                    <div class="col-12">
+                                        <h5 class="mb-3"><i class="fas fa-list"></i> Comandos</h5>
+                                        <div id="runCommandsList" class="list-group">
+                                            <!-- Comandos serão preenchidos via JS -->
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Mensagem de Erro (se houver) -->
+                                <div id="runErrorContainer" class="row mt-4 d-none">
+                                    <div class="col-12">
+                                        <div class="alert alert-danger">
+                                            <h5><i class="fas fa-exclamation-triangle"></i> Erro na Execução</h5>
+                                            <pre id="runErrorMessage" class="mb-0" style="white-space: pre-wrap;"></pre>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- TODOS OS MODALS NECESSÁRIOS -->
+
+    <!-- Modal Criar Pipeline -->
+    <div class="modal fade" id="createPipelineModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-plus text-primary me-2"></i>Nova Pipeline</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createPipelineForm">
+                        <div class="mb-3">
+                            <label class="form-label">Nome da Pipeline</label>
+                            <input type="text" class="form-control" id="pipelineName" required
+                                placeholder="Ex: Build e Deploy Protheus">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="pipelineDescription" rows="2"
+                                placeholder="Descreva o objetivo desta pipeline"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Comandos Selecionados (Build)</label>
+                            <div id="selectedCommands" class="border rounded p-3 bg-light">
+                                <p class="text-muted mb-0">Nenhum comando selecionado</p>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-primary mt-2" data-action="showCommandSelector"
+                                data-params='{"mode":"create","categoryFilter":"build"}'>
+                                <i class="fas fa-plus"></i> Adicionar Comandos de Build
+                            </button>
+                        </div>
+                        <div class="mb-3">
+                            <!-- 🆕 MUDOU: de pipelineDeployId para pipelineDeployCommandId -->
+                            <label class="form-label">Comando de Deploy (Opcional)</label>
+                            <select class="form-select" id="pipelineDeployCommandId">
+                                <option value="">Nenhuma</option>
+                            </select>
+                            <small class="text-muted">Selecione um comando de deploy para ser executado após o sucesso
+                                do build</small>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="createNewPipeline">Criar
+                        Pipeline</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Editar Pipeline -->
+    <div class="modal fade" id="editPipelineModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit text-primary me-2"></i>Editar Pipeline</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editPipelineForm">
+                        <input type="hidden" id="editPipelineId">
+                        <div class="mb-3">
+                            <label class="form-label">Nome da Pipeline</label>
+                            <input type="text" class="form-control" id="editPipelineName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="editPipelineDescription" rows="2"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Comandos Selecionados (Build)</label>
+                            <div id="editSelectedCommands" class="border rounded p-3 bg-light"></div>
+                            <button type="button" class="btn btn-sm btn-primary mt-2" data-action="showCommandSelector"
+                                data-params='{"mode":"edit","categoryFilter":"build"}'>
+                                <i class="fas fa-plus"></i> Adicionar/Remover Comandos de Build
+                            </button>
+                        </div>
+                        <div class="mb-3">
+                            <!-- 🆕 MUDOU: de editPipelineDeployId para editPipelineDeployCommandId -->
+                            <label class="form-label">Comando de Deploy (Opcional)</label>
+                            <select class="form-select" id="editPipelineDeployCommandId">
+                                <option value="">Nenhuma</option>
+                            </select>
+                            <small class="text-muted">Selecione um comando de deploy para ser executado após o sucesso
+                                do build</small>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="saveEditedPipeline">Salvar
+                        Alterações</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Visualizar Log da Pipeline -->
+    <div class="modal fade" id="pipelineLogModal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="pipelineLogTitle"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-dark text-light font-monospace">
+                    <pre id="pipelineLogOutput" class="mb-0"
+                        style="white-space: pre-wrap; word-wrap: break-word;"></pre>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Stream Logs -->
+    <div class="modal fade" id="runLogsModal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-terminal"></i>
+                        <span id="runLogsTitle">Logs da Execução</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-dark text-light font-monospace p-0">
+                    <div id="runLogsContent"
+                        style="padding: 1rem; min-height: 400px; max-height: 600px; overflow-y: auto;">
+                        <!-- Logs serão preenchidos via JS -->
+                    </div>
+                </div>
+                <div class="modal-footer bg-dark border-top border-secondary">
+                    <button type="button" class="btn btn-outline-light btn-sm" data-action="downloadRunLogs">
+                        <i class="fas fa-download"></i> Download
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Seletor Comandos -->
+    <div class="modal fade" id="commandSelectorModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-terminal text-primary me-2"></i>Selecionar Comandos</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="availableCommands"><!-- Comandos carregados aqui --></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-action="confirmCommandSelection">Confirmar
+                        Seleção</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Criar Comando -->
+    <div class="modal fade" id="createCommandModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-plus text-primary me-2"></i>Novo Comando</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createCommandForm">
+                        <div class="row mb-3">
+                            <div class="col-md-8">
+                                <label class="form-label">Nome do Comando</label>
+                                <input type="text" class="form-control" id="commandName" required
+                                    placeholder="Ex: Compilar Fontes Protheus">
+                            </div>
+                            <!-- 🆕 NOVO CAMPO: Categoria do Comando -->
+                            <div class="col-md-4">
+                                <label class="form-label">Categoria do Comando <span
+                                        class="text-danger">*</span></label>
+                                <select class="form-select" id="commandCategory" required>
+                                    <option value="">Selecione a categoria</option>
+                                    <option value="build">🔨 Build (Compilação)</option>
+                                    <option value="deploy">🚀 Deploy (Implantação)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <label class="form-label">Tipo de Script</label>
+                                <select class="form-select" id="commandType" required>
+                                    <option value="">Selecione o tipo</option>
+                                    <option value="powershell">PowerShell (.ps1)</option>
+                                    <option value="batch">Batch/CMD (.bat/.cmd)</option>
+                                    <option value="bash">Bash/Linux (.sh)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="commandDescription" rows="2"
+                                placeholder="Descreva o que este comando faz"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label mb-0">Script</label>
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    data-action="importScript">
+                                    <i class="fas fa-upload me-2"></i>Importar Script
+                                </button>
+                                <input type="file" id="scriptFileInput" style="display: none;">
+                            </div>
+                            <textarea class="form-control font-monospace" id="commandScript" rows="10" required
+                                placeholder="Cole ou digite seu script aqui..."></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="createNewCommand">Salvar Comando</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Editar Comando -->
+    <div class="modal fade" id="editCommandModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit text-primary me-2"></i>Editar Comando</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editCommandForm">
+                        <input type="hidden" id="editCommandId">
+                        <div class="row mb-3">
+                            <div class="col-md-8">
+                                <label class="form-label">Nome do Comando</label>
+                                <input type="text" class="form-control" id="editCommandName" required>
+                            </div>
+                            <!-- 🆕 NOVO CAMPO: Categoria do Comando -->
+                            <div class="col-md-4">
+                                <label class="form-label">Categoria do Comando <span
+                                        class="text-danger">*</span></label>
+                                <select class="form-select" id="editCommandCategory" required>
+                                    <option value="build">🔨 Build (Compilação)</option>
+                                    <option value="deploy">🚀 Deploy (Implantação)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <label class="form-label">Tipo de Script</label>
+                                <select class="form-select" id="editCommandType" required>
+                                    <option value="powershell">PowerShell</option>
+                                    <option value="batch">Batch/CMD</option>
+                                    <option value="bash">Bash/Linux</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="editCommandDescription" rows="2"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Script</label>
+                            <textarea class="form-control font-monospace" id="editCommandScript" rows="15"
+                                required></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="saveEditedCommand">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Ver Script -->
+    <div class="modal fade" id="viewScriptModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-code text-primary me-2"></i>Visualizar Script</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="scriptContent"><!-- Script será exibido aqui --></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Variáveis -->
+    <!-- DEPRECATED: Modal antigo - Usar createVariableModal e editVariableModal
+<div class="modal fade" id="variableModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="variableModalTitle"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="variableForm">
+                        <input type="hidden" id="variableId">
+                        <div class="mb-3">
+                            <label class="form-label">Nome da Variável</label>
+                            <input type="text" class="form-control" id="variableName" required placeholder="Ex: BASE_DIR">
+                            <div class="form-text">O nome é único e não pode ser alterado após a criação.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Valor</label>
+                            <input type="text" class="form-control" id="variableValue" required placeholder="Ex: /srv/devops/repos">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="variableDescription" rows="2" placeholder="Descreva o propósito desta variável"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="saveVariable">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+-->
+
+    <!-- Modal de Serviços -->
+    <!-- DEPRECATED: Modal antigo - Usar createServiceModal e editServiceModal
+<div class="modal fade" id="serviceModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="serviceModalTitle"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="serviceForm">
+                        <input type="hidden" id="serviceId">
+                        <div class="mb-3">
+                            <label class="form-label">Nome do Serviço</label>
+                            <input type="text" class="form-control" id="serviceName" required placeholder="Ex: Protheus AppServer">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="serviceDescription" rows="3" placeholder="Descreva este serviço"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="saveService">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+-->
+
+    <!-- GitHub Auth Modal -->
+    <div id="githubAuthModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5><i class="fab fa-github me-2"></i>Configurar GitHub</h5>
+                <button type="button" class="close" data-action="closeModal"
+                    data-params='{"modalId":"githubAuthModal"}'>&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <div class="alert notification-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Como obter um Personal Access Token:</strong>
+                        <ol class="mb-0 mt-2">
+                            <li>Acesse <a href="https://github.com/settings/tokens" target="_blank">GitHub Settings →
+                                    Tokens</a></li>
+                            <li>Clique em "Generate new token (classic)"</li>
+                            <li>Selecione os scopes: <code>repo</code>, <code>read:user</code></li>
+                            <li>Copie o token gerado</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <form id="githubAuthForm">
+                    <div class="mb-3">
+                        <label class="form-label">Usuário GitHub</label>
+                        <input type="text" class="form-control" id="githubUser" placeholder="seu-usuario-github"
+                            required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Personal Access Token</label>
+                        <div class="position-relative">
+                            <input type="password" class="form-control" id="githubToken"
+                                placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" required>
+                            <button class="btn position-absolute" type="button" data-action="toggleGithubToken"
+                                style="right: 10px; top: 50%; transform: translateY(-50%); border: none; background: none;">
+                                <i class="fas fa-eye" id="githubTokenToggle"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-outline-primary" data-action="testGithubConnection">
+                            <i class="fas fa-flask me-2"></i>Testar Conexão
+                        </button>
+                        <div id="connectionStatus" class="mt-2"></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-action="closeModal"
+                    data-params='{"modalId":"githubAuthModal"}'>Cancelar</button>
+                <button type="button" class="btn btn-primary" data-action="saveGithubSettings">
+                    <i class="fas fa-save me-2"></i>Salvar Configuração
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Alterar Senha -->
+    <div class="modal fade" id="changePasswordModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-key me-2"></i>Alterar Minha Senha</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="changePasswordForm">
+                        <div class="mb-3">
+                            <label class="form-label">Senha Atual</label>
+                            <input type="password" class="form-control" id="currentPassword" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Nova Senha</label>
+                            <input type="password" class="form-control" id="newPassword" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" id="newPasswordConfirmLabel">Confirmar Nova Senha</label>
+                            <input type="password" class="form-control" id="newPasswordConfirm" required>
+                            <small id="newPasswordFeedback" class="text-danger" style="display: none;">
+                                <i class="fas fa-exclamation-circle me-1"></i>As senhas não conferem
+                            </small>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="changeOwnPassword">Salvar Nova
+                        Senha</button>
+                    Senha</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Criar Nova Variável -->
+    <div class="modal fade" id="createVariableModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-plus-circle text-primary me-2"></i>Nova Variável do Servidor
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createVariableForm">
+                        <div class="mb-3">
+                            <label for="variableName" class="form-label">Nome da Variável</label>
+                            <input type="text" class="form-control" id="variableName"
+                                placeholder="Ex: BASE_DIR, API_URL" required>
+                            <div class="form-text">Apenas MAIÚSCULAS, números e underscore (_)</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="variableValue" class="form-label">Valor</label>
+                            <input type="text" class="form-control" id="variableValue"
+                                placeholder="Ex: /home/user/repos" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="variableDescription" class="form-label">Descrição</label>
+                            <textarea class="form-control" id="variableDescription" rows="2"
+                                placeholder="Descreva para que serve esta variável"></textarea>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="variableIsPassword">
+                            <label class="form-check-label" for="variableIsPassword">
+                                <i class="fas fa-key text-warning me-1"></i>É uma senha (valor será ocultado)
+                            </label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <!-- ✅ CORRETO: Chama createNewVariable -->
+                    <button type="button" class="btn btn-primary" data-action="createNewVariable">
+                        <i class="fas fa-save me-2"></i>Salvar Variável
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Editar Variável -->
+    <div class="modal fade" id="editVariableModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit text-primary me-2"></i>Editar Variável
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editVariableForm">
+                        <div class="mb-3">
+                            <label for="editVariableName" class="form-label">Nome da Variável</label>
+                            <input type="text" class="form-control" id="editVariableName" readonly
+                                style="background-color: var(--bg-tertiary); cursor: not-allowed;">
+                            <div class="form-text">⚠️ O nome da variável não pode ser alterado</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editVariableValue" class="form-label">Valor</label>
+                            <input type="text" class="form-control" id="editVariableValue" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editVariableDescription" class="form-label">Descrição</label>
+                            <textarea class="form-control" id="editVariableDescription" rows="2"></textarea>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="editVariableIsPassword">
+                            <label class="form-check-label" for="editVariableIsPassword">
+                                <i class="fas fa-key text-warning me-1"></i>É uma senha (valor será ocultado)
+                            </label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <!-- ✅ CORRIGIDO: Agora chama saveEditedVariable -->
+                    <button type="button" class="btn btn-primary" data-action="saveEditedVariable">
+                        <i class="fas fa-save me-2"></i>Salvar Alterações
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Criar Novo Serviço -->
+    <div class="modal fade" id="createServiceModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-plus-circle text-primary me-2"></i>Novo Serviço do Servidor
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createServiceForm">
+                        <div class="mb-3">
+                            <label for="serviceEnvironment" class="form-label">Ambiente *</label>
+                            <select class="form-select" id="serviceEnvironment" required>
+                                <option value="">Selecione o ambiente</option>
+                                <!-- Preenchido dinamicamente -->
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="serviceName" class="form-label">Nome do Serviço (Windows) *</label>
+                            <input type="text" class="form-control" id="serviceName"
+                                placeholder="Ex: TOTVS_Appserver_01" required>
+                            <div class="form-text">Nome exato do serviço no Windows (Get-Service)</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="serviceDisplayName" class="form-label">Nome de Exibição</label>
+                            <input type="text" class="form-control" id="serviceDisplayName"
+                                placeholder="Ex: AppServer Produção 01">
+                            <div class="form-text">Nome amigável para exibição no sistema</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="serviceServerName" class="form-label">Servidor (IP ou Nome) *</label>
+                            <input type="text" class="form-control" id="serviceServerName"
+                                placeholder="Ex: 192.168.1.100 ou ${PROTHEUS_SERVER_PRD}" required>
+                            <div class="form-text">IP, hostname ou variável ${VAR} do servidor remoto</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="serviceDescription" class="form-label">Descrição</label>
+                            <textarea class="form-control" id="serviceDescription" rows="2"
+                                placeholder="Descreva o serviço e sua função"></textarea>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="serviceIsActive" checked>
+                            <label class="form-check-label" for="serviceIsActive">Serviço Ativo</label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <!-- ✅ CORRETO: Chama createNewService -->
+                    <button type="button" class="btn btn-primary" data-action="createNewService">
+                        <i class="fas fa-save me-2"></i>Salvar Serviço
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Editar Serviço -->
+    <div class="modal fade" id="editServiceModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit text-primary me-2"></i>Editar Serviço
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editServiceForm">
+                        <div class="mb-3">
+                            <label for="editServiceEnvironment" class="form-label">Ambiente *</label>
+                            <select class="form-select" id="editServiceEnvironment" required>
+                                <option value="">Selecione o ambiente</option>
+                                <!-- Preenchido dinamicamente -->
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editServiceName" class="form-label">Nome do Serviço (Windows) *</label>
+                            <input type="text" class="form-control" id="editServiceName" required>
+                            <div class="form-text">Nome exato do serviço no Windows (Get-Service)</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editServiceDisplayName" class="form-label">Nome de Exibição</label>
+                            <input type="text" class="form-control" id="editServiceDisplayName">
+                        </div>
+                        <div class="mb-3">
+                            <label for="editServiceServerName" class="form-label">Servidor (IP ou Nome) *</label>
+                            <input type="text" class="form-control" id="editServiceServerName" required>
+                            <div class="form-text">IP, hostname ou variável ${VAR} do servidor remoto</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editServiceDescription" class="form-label">Descrição</label>
+                            <textarea class="form-control" id="editServiceDescription" rows="2"></textarea>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="editServiceIsActive">
+                            <label class="form-check-label" for="editServiceIsActive">Serviço Ativo</label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <!-- ✅ CORRIGIDO: Agora chama saveEditedService -->
+                    <button type="button" class="btn btn-primary" data-action="saveEditedService">
+                        <i class="fas fa-save me-2"></i>Salvar Alterações
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Criar Ambiente -->
+    <div class="modal fade" id="createEnvironmentModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-plus text-primary me-2"></i>Novo Ambiente</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createEnvironmentForm">
+                        <div class="mb-3">
+                            <label class="form-label">Nome do Ambiente</label>
+                            <input type="text" class="form-control" id="envName" required
+                                placeholder="Ex: Produção, Desenvolvimento, Homologação">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="envDescription" rows="3"
+                                placeholder="Descreva o propósito deste ambiente"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="createNewEnvironment">Criar
+                        Ambiente</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editEnvironmentModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit text-primary me-2"></i>Editar Ambiente</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editEnvironmentForm">
+                        <input type="hidden" id="editEnvId">
+                        <div class="mb-3">
+                            <label class="form-label">Nome do Ambiente</label>
+                            <input type="text" class="form-control" id="editEnvName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="editEnvDescription" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="saveEditedEnvironment">Salvar
+                        Alterações</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Validação do Bootstrap -->
+    <script>
+        if (typeof bootstrap === 'undefined') {
+            console.error('❌ ERRO: Bootstrap não foi carregado!');
+            alert('Erro ao carregar componentes. Recarregue a página.');
+        } else {
+            console.log('✓ Bootstrap carregado com sucesso');
+        }
+    </script>
+    <!-- Bibliotecas auxiliares -->
+    <script src="static/js/lib/chart.min.js"></script>
+    <script src="static/js/lib/dagre.min.js"></script>
+    <script src="static/js/lib/marked.min.js"></script>
+
+    <!-- Módulos essenciais (carregados no boot) -->
+    <script src="static/js/api-client.js"></script>
+    <script src="static/js/integration-core.js"></script>
+    <script src="static/js/integration-auth.js"></script>
+    <script src="static/js/integration-environments.js"></script>
+    <!-- Módulos de página (carregados sob demanda pelo router via loadModule):
+         integration-commands.js, integration-pipelines.js, integration-ci-cd.js,
+         integration-schedules.js, integration-repositories.js,
+         integration-source-control.js, integration-ui.js -->
+
+    <!-- Script para verificar conexão com backend -->
+
+    <script>
+        // Verificar se backend está online
+        async function checkBackendConnection() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/health`);
+                if (response.ok) {
+                    console.log('✓ Backend conectado');
+                    return true;
+                }
+            } catch (error) {
+                console.error('❌ Backend não está respondendo:', error);
+                showNotification('Erro: Não foi possível conectar ao servidor. Verifique se o backend está rodando.', 'error', 5000);
+                return false;
+            }
+        }
+
+        // Verificar conexão ao carregar a página
+        window.addEventListener('load', async () => {
+            await checkBackendConnection();
+        });
+
+    </script>
+
+    <!-- Modal de Logs de Build -->
+
+
+    <!-- Modal de Logs de Release -->
+
+
+    <!-- Página de Build History -->
+    <div id="pipeline-builds-section" class="content-section" style="display: none;">
+        <div class="container-fluid py-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="fas fa-code-branch"></i> Build History</h2>
+                    <p class="text-muted mb-0">Histórico de execuções de pipeline (CI)</p>
+                </div>
+                <button class="btn btn-outline-secondary" data-action="navigate" data-params='{"page": "pipelines"}'>
+                    <i class="fas fa-arrow-left"></i> Voltar para Pipelines
+                </button>
+            </div>
+
+            <div id="buildsContainer">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Carregando builds...</span>
+                    </div>
+                </div>
+            </div>
+
+            <nav id="buildsPagination" aria-label="Paginação de builds"></nav>
+        </div>
+    </div>
+
+    <!-- Página de Release History -->
+    <div id="pipeline-releases-section" class="content-section" style="display: none;">
+        <div class="container-fluid py-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="fas fa-rocket"></i> Release History</h2>
+                    <p class="text-muted mb-0">Histórico de deploys (CD)</p>
+                </div>
+                <button class="btn btn-outline-secondary" data-action="navigate" data-params='{"page": "pipelines"}'>
+                    <i class="fas fa-arrow-left"></i> Voltar para Pipelines
+                </button>
+            </div>
+
+            <div id="releasesContainer">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-success" role="status">
+                        <span class="visually-hidden">Carregando releases...</span>
+                    </div>
+                </div>
+            </div>
+
+            <nav id="releasesPagination" aria-label="Paginação de releases"></nav>
+        </div>
+    </div>
+    <!-- ===================================================================== -->
+    <!-- MODAL: HISTÓRICO DE BUILDS -->
+    <!-- ===================================================================== -->
+    <div class="modal fade" id="buildHistoryModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="buildHistoryTitle">📊 Histórico de Builds</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="buildHistoryContent">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL: DETALHES DO BUILD -->
+    <!-- ===================================================================== -->
+    <div class="modal fade" id="buildDetailsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="buildDetailsTitle">🔍 Detalhes do Build</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="buildDetailsContent">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL: HISTÓRICO DE RELEASES -->
+    <!-- ===================================================================== -->
+    <div class="modal fade" id="releaseHistoryModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="releaseHistoryTitle">🚀 Histórico de Releases</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="releaseHistoryContent">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL: DETALHES DO RELEASE -->
+    <!-- ===================================================================== -->
+    <div class="modal fade" id="releaseDetailsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="releaseDetailsTitle">🔍 Detalhes do Release</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="releaseDetailsContent">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL: LOGS DE RELEASE EM TEMPO REAL -->
+    <!-- ===================================================================== -->
+    <div class="modal fade" id="releaseLogsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="releaseLogsTitle">🚀 Logs do Release</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <pre id="releaseLogsOutput" class="bg-dark text-light p-3"
+                        style="max-height: 500px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.9em;"></pre>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Logs do Build (Stream Real-Time) -->
+    <div class="modal fade" id="buildLogsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title" id="buildLogsTitle">
+                        <i class="fas fa-hammer me-2"></i>Build - Logs
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <pre id="buildLogsOutput" class="m-0 p-3"
+                        style="background: #1a1a2e; color: #00ff88; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.85rem; min-height: 400px; max-height: 60vh; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;"></pre>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <div class="d-flex align-items-center me-auto">
+                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status"
+                            id="buildLogsSpinner">
+                            <span class="visually-hidden">Executando...</span>
+                        </div>
+                        <small class="text-muted">Streaming em tempo real...</small>
+                    </div>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Importação de Variáveis CSV -->
+    <div class="modal fade" id="importVariablesModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-file-csv me-2"></i>Importar Variáveis (CSV)
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <strong>Formato esperado:</strong><br>
+                        <code>name,value,description,is_password</code><br>
+                        <small>Exemplo: BASE_DIR_DEV,/home/dev/repos,Diretório de desenvolvimento,false</small><br>
+                        <small>Exemplo: PROTHEUS_PASSWORD_DEV,minhaSenha123,Senha do ambiente
+                            DEV,<strong>true</strong></small><br>
+                        <small class="text-muted"><i class="fas fa-info-circle me-1"></i>is_password: true/false, 1/0,
+                            yes/no ou sim/não (opcional, padrão: false)</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Arquivo CSV</label>
+                        <input type="file" class="form-control" id="csvFileInput" accept=".csv">
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="replaceExistingVars" checked>
+                        <label class="form-check-label" for="replaceExistingVars">
+                            Substituir variáveis existentes (se houver conflito)
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="importVariablesBtn">
+                        <i class="fas fa-upload me-2"></i>Importar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Criar Ação de Serviço -->
+    <div class="modal fade" id="createServiceActionModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-cog me-2"></i>Nova Ação de Serviço</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createServiceActionForm">
+                        <div class="mb-3">
+                            <label class="form-label">Nome da Ação *</label>
+                            <input type="text" class="form-control" id="serviceActionName"
+                                placeholder="Ex: Reiniciar AppServer" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="serviceActionDescription" rows="2"></textarea>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Tipo de Ação *</label>
+                                <select class="form-select" id="serviceActionType" required>
+                                    <option value="">Selecione</option>
+                                    <option value="start">▶️ Start (Iniciar)</option>
+                                    <option value="stop">⏹️ Stop (Parar)</option>
+                                    <option value="restart">🔄 Restart (Reiniciar)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Sistema Operacional *</label>
+                                <select class="form-select" id="serviceActionOS" required>
+                                    <option value="">Selecione</option>
+                                    <option value="windows">🪟 Windows</option>
+                                    <option value="linux">🐧 Linux</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="serviceActionForceStop">
+                                <label class="form-check-label" for="serviceActionForceStop">
+                                    <strong>Forçar parada</strong> (-Force)
+                                    <small class="text-muted d-block">Força a parada do serviço mesmo com processos
+                                        dependentes</small>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Serviços (selecione um ou mais) *</label>
+                            <div id="serviceActionServicesList" class="border rounded p-3"
+                                style="max-height: 200px; overflow-y: auto;">
+                                <!-- Será preenchido dinamicamente -->
+                            </div>
+                            <small class="text-muted">Os serviços serão executados na ordem selecionada.</small>
+                        </div>
+                        <!-- Seção de Agendamento Opcional -->
+                        <hr class="my-4">
+                        <div class="mb-3">
+                            <h6 class="mb-3">📅 Agendamento (Opcional)</h6>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="serviceActionEnableSchedule">
+                                <label class="form-check-label" for="serviceActionEnableSchedule">
+                                    Habilitar agendamento automático para esta ação
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="serviceActionScheduleConfig" style="display: none;">
+                            <div class="mb-3">
+                                <label class="form-label">Tipo de Agendamento *</label>
+                                <select class="form-select" id="serviceActionScheduleType">
+                                    <option value="">Selecione o tipo</option>
+                                    <option value="once">⏱️ Execução Única</option>
+                                    <option value="daily">📅 Diária</option>
+                                    <option value="weekly">📆 Semanal</option>
+                                    <option value="monthly">🗓️ Mensal</option>
+                                </select>
+                            </div>
+
+                            <!-- Configurações Dinâmicas -->
+                            <div id="serviceActionScheduleConfigArea"></div>
+
+                            <div class="alert alert-info mt-3">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>Importante:</strong> O agendamento será criado <strong>INATIVO</strong>.
+                                Você precisará ativá-lo manualmente após a criação.
+                            </div>
+                        </div>
+
+                        <!-- Notificações -->
+                        <hr class="my-4">
+                        <div class="mb-3">
+                            <h6 class="mb-3">🔔 Notificações da Execução (Opcional)</h6>
+                            <div class="mb-2">
+                                <label class="form-label text-muted small mb-1">E-mails (separados por vírgula)</label>
+                                <input type="text" class="form-control form-control-sm" id="serviceActionNotifyEmails"
+                                    placeholder="exemplo@empresa.com, admin@empresa.com">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label text-muted small mb-1">WhatsApp (separados por vírgula)</label>
+                                <input type="text" class="form-control form-control-sm" id="serviceActionNotifyWhatsapp"
+                                    placeholder="5511999999999, 5511888888888">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="saveNewServiceAction">Criar Ação</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Editar Ação de Serviço -->
+    <div class="modal fade" id="editServiceActionModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Editar Ação de Serviço</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editServiceActionForm">
+                        <input type="hidden" id="editServiceActionId">
+                        <div class="mb-3">
+                            <label class="form-label">Nome da Ação *</label>
+                            <input type="text" class="form-control" id="editServiceActionName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="editServiceActionDescription" rows="2"></textarea>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Tipo de Ação *</label>
+                                <select class="form-select" id="editServiceActionType" required>
+                                    <option value="start">▶️ Start (Iniciar)</option>
+                                    <option value="stop">⏹️ Stop (Parar)</option>
+                                    <option value="restart">🔄 Restart (Reiniciar)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Sistema Operacional *</label>
+                                <select class="form-select" id="editServiceActionOS" required>
+                                    <option value="windows">🪟 Windows</option>
+                                    <option value="linux">🐧 Linux</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="editServiceActionForceStop">
+                                <label class="form-check-label" for="editServiceActionForceStop">
+                                    <strong>Forçar parada</strong> (-Force)
+                                    <small class="text-muted d-block">Força a parada do serviço mesmo com processos
+                                        dependentes</small>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Serviços (selecione um ou mais) *</label>
+                            <div id="editServiceActionServicesList" class="border rounded p-3"
+                                style="max-height: 200px; overflow-y: auto;">
+                                <!-- Será preenchido dinamicamente -->
+                            </div>
+                        </div>
+                        <!-- Seção de Agendamento Opcional -->
+                        <hr class="my-4">
+                        <div class="mb-3">
+                            <h6 class="mb-3">📅 Agendamento (Opcional)</h6>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="editServiceActionEnableSchedule">
+                                <label class="form-check-label" for="editServiceActionEnableSchedule">
+                                    Habilitar agendamento automático para esta ação
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="editServiceActionScheduleConfig" style="display: none;">
+                            <div class="mb-3">
+                                <label class="form-label">Tipo de Agendamento *</label>
+                                <select class="form-select" id="editServiceActionScheduleType">
+                                    <option value="">Selecione o tipo</option>
+                                    <option value="once">⏱️ Execução Única</option>
+                                    <option value="daily">📅 Diária</option>
+                                    <option value="weekly">📆 Semanal</option>
+                                    <option value="monthly">🗓️ Mensal</option>
+                                </select>
+                            </div>
+
+                            <!-- Configurações Dinâmicas -->
+                            <div id="editServiceActionScheduleConfigArea"></div>
+                        </div>
+
+                        <!-- Notificações -->
+                        <hr class="my-4">
+                        <div class="mb-3">
+                            <h6 class="mb-3">🔔 Notificações da Execução (Opcional)</h6>
+                            <div class="mb-2">
+                                <label class="form-label text-muted small mb-1">E-mails (separados por vírgula)</label>
+                                <input type="text" class="form-control form-control-sm"
+                                    id="editServiceActionNotifyEmails">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label text-muted small mb-1">WhatsApp (separados por vírgula)</label>
+                                <input type="text" class="form-control form-control-sm"
+                                    id="editServiceActionNotifyWhatsapp">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="saveEditedServiceAction">Salvar
+                        Alterações</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Modal Criar Agendamento de Pipeline -->
+    <div class="modal fade" id="createScheduleModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-clock me-2"></i>Novo Agendamento</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createScheduleForm">
+                        <div class="mb-3">
+                            <label class="form-label">Nome do Agendamento *</label>
+                            <input type="text" class="form-control" id="scheduleName" placeholder="Ex: Deploy Diário"
+                                required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="scheduleDescription" rows="2"
+                                placeholder="Descrição opcional"></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Pipeline *</label>
+                            <select class="form-select" id="schedulePipelineId" required>
+                                <option value="">Selecione uma pipeline</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Tipo de Agendamento *</label>
+                            <select class="form-select" id="scheduleType" required>
+                                <option value="">Selecione o tipo</option>
+                                <option value="once">⏱️ Execução Única</option>
+                                <option value="daily">📅 Diária</option>
+                                <option value="weekly">📆 Semanal</option>
+                                <option value="monthly">🗓️ Mensal</option>
+                            </select>
+                        </div>
+
+                        <!-- Configurações Dinâmicas -->
+                        <div id="scheduleConfigArea"></div>
+
+                        <div class="alert alert-info mt-3">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Importante:</strong> O agendamento será criado <strong>INATIVO</strong>.
+                            Você precisará ativá-lo manualmente após a criação.
+                        </div>
+
+                        <!-- Notificações -->
+                        <hr class="my-4">
+                        <div class="mb-3">
+                            <h6 class="mb-3">🔔 Notificações (Opcional)</h6>
+                            <div class="mb-2">
+                                <label class="form-label text-muted small mb-1">E-mails (separados por vírgula)</label>
+                                <input type="text" class="form-control form-control-sm" id="scheduleNotifyEmails"
+                                    placeholder="exemplo@empresa.com, root@empresa.com">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label text-muted small mb-1">WhatsApp (separados por vírgula)</label>
+                                <input type="text" class="form-control form-control-sm" id="scheduleNotifyWhatsapp"
+                                    placeholder="5511999999999">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="saveNewSchedule">Criar
+                        Agendamento</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Editar Agendamento de Pipeline -->
+    <div class="modal fade" id="editScheduleModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Editar Agendamento</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editScheduleForm">
+                        <input type="hidden" id="editScheduleId">
+
+                        <div class="mb-3">
+                            <label class="form-label">Nome do Agendamento *</label>
+                            <input type="text" class="form-control" id="editScheduleName" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="editScheduleDescription" rows="2"></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Pipeline *</label>
+                            <select class="form-select" id="editSchedulePipelineId" disabled required>
+                                <option value="">Selecione uma pipeline</option>
+                            </select>
+                            <small class="text-muted">Pipeline não pode ser alterada após criação</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Tipo de Agendamento *</label>
+                            <select class="form-select" id="editScheduleType" required>
+                                <option value="once">⏱️ Execução Única</option>
+                                <option value="daily">📅 Diária</option>
+                                <option value="weekly">📆 Semanal</option>
+                                <option value="monthly">🗓️ Mensal</option>
+                            </select>
+                        </div>
+
+                        <!-- Configurações Dinâmicas -->
+                        <div id="editScheduleConfigArea"></div>
+
+                        <!-- Notificações -->
+                        <hr class="my-4">
+                        <div class="mb-3">
+                            <h6 class="mb-3">🔔 Notificações (Opcional)</h6>
+                            <div class="mb-2">
+                                <label class="form-label text-muted small mb-1">E-mails (separados por vírgula)</label>
+                                <input type="text" class="form-control form-control-sm" id="editScheduleNotifyEmails">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label text-muted small mb-1">WhatsApp (separados por vírgula)</label>
+                                <input type="text" class="form-control form-control-sm" id="editScheduleNotifyWhatsapp">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="saveEditSchedule">Salvar
+                        Alterações</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Toggle de Tema Claro/Escuro
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme') || 'light';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('atudc-theme', newTheme);
+
+            const icon = document.getElementById('theme-icon');
+            if (icon) {
+                icon.className = newTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+            }
+        }
+
+        // Carregar tema salvo
+        (function () {
+            const savedTheme = localStorage.getItem('atudc-theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+
+            document.addEventListener('DOMContentLoaded', function () {
+                const icon = document.getElementById('theme-icon');
+                if (icon) {
+                    icon.className = savedTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+                }
+            });
+        })();
+    </script>
+
+
+</body>
+
+</html>

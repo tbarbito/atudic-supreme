@@ -1,0 +1,145 @@
+# BLOCO DE CORREÇÃO 12: Requirements.txt com dependências de segurança
+# Localização: Raiz do projeto
+
+# =====================================================================
+# FRAMEWORK WEB
+# =====================================================================
+Flask==3.0.0
+Werkzeug==3.0.1
+
+# =====================================================================
+# SEGURANÇA E CRIPTOGRAFIA
+# =====================================================================
+
+# Criptografia para tokens sensíveis
+cryptography>=41.0.0
+
+# Hashing de senhas
+bcrypt>=5.0.0
+
+# CORS e headers de segurança
+flask-cors==4.0.0
+flask_cors
+
+# Proteção CSRF
+flask-wtf==1.2.1
+
+# Sanitização de HTML (se necessário)
+bleach>=6.1.0
+
+# =====================================================================
+# BANCO DE DADOS
+# =====================================================================
+
+# Driver PostgreSQL (banco principal)
+psycopg2-binary>=2.9.9
+
+# Drivers para integração com bancos externos (módulo Banco de Dados)
+pymssql>=2.3.4
+PyMySQL>=1.1.1
+oracledb>=3.1.0
+
+# =====================================================================
+# RATE LIMITING
+# =====================================================================
+
+# Rate limiting com Redis (para produção)
+# flask-limiter>=3.5.0
+# redis>=5.0.0
+
+# =====================================================================
+# VALIDAÇÃO E SANITIZAÇÃO
+# =====================================================================
+
+# Validação de dados
+python-dotenv>=1.0.0
+email-validator>=2.1.0
+
+# Validação de schemas
+marshmallow>=3.20.0
+
+# =====================================================================
+# SERVIDOR DE PRODUÇÃO
+# =====================================================================
+
+# WSGI server para produção
+gunicorn>=21.2.0
+gevent>=23.9.1
+
+# =====================================================================
+# MONITORAMENTO E LOGGING
+# =====================================================================
+
+# Logging avançado
+python-json-logger>=2.0.7
+
+# =====================================================================
+# TESTES (desenvolvimento)
+# =====================================================================
+
+# Framework de testes
+pytest>=7.4.3
+pytest-cov>=4.1.0
+pytest-flask>=1.3.0
+pytz
+
+# Mocking
+pytest-mock>=3.12.0
+
+# =====================================================================
+# DESENVOLVIMENTO
+# =====================================================================
+
+# Linting e formatação
+flake8>=6.1.0
+black>=23.12.0
+pylint>=3.0.3
+
+# Type checking
+mypy>=1.7.1
+
+# =====================================================================
+# UTILITÁRIOS
+# =====================================================================
+
+# Requisições HTTP
+requests>=2.31.0
+requests
+
+# Parsing de datas
+python-dateutil>=2.8.2
+
+# =====================================================================
+# NOTAS DE INSTALAÇÃO
+# =====================================================================
+
+
+#INSTALAÇÃO:
+
+#1. Criar ambiente virtual:
+#   python -m venv venv
+
+#2. Ativar ambiente:
+#   - Windows: venv\Scripts\activate
+#   - Linux/Mac: source venv/bin/activate
+
+#3. Instalar dependências:
+#   pip install -r requirements.txt
+
+#4. Instalar dependências de desenvolvimento (opcional):
+#   pip install -r requirements-dev.txt
+
+#UPGRADE DE SEGURANÇA:
+
+#Para atualizar todas as dependências:
+#pip install --upgrade -r requirements.txt
+
+#Para verificar vulnerabilidades:
+#pip install safety
+#safety check
+
+#PRODUÇÃO:
+
+#Para gerar requirements com versões fixas:
+#pip freeze > requirements-lock.txt
+ 

@@ -1,0 +1,16 @@
+# 1. Baixar PostgreSQL Installer
+# https://www.postgresql.org/download/windows/
+# Versão recomendada: 16.x
+
+# 2. Durante instalação:
+# - Porta: 5432 (padrão)
+# - Senha do postgres: atudic_2024
+# - Locale: Portuguese_Brazil
+
+# 3. Após instalação, abrir pgAdmin 4 ou SQL Shell e executar:
+CREATE USER atudic_user WITH PASSWORD 'atudic_2024';
+CREATE DATABASE atudic_devops OWNER atudic_user;
+GRANT ALL PRIVILEGES ON DATABASE atudic_devops TO atudic_user;
+
+# 4. Instalar driver Python
+pip install psycopg2-binary python-dotenv

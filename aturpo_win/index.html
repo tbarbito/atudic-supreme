@@ -1,0 +1,3293 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
+        style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com;
+        font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com;
+        img-src 'self' data: https:;
+        connect-src 'self' https://api.github.com;
+        frame-ancestors 'none';
+        base-uri 'self';
+        form-action 'self';
+    ">
+
+    <!-- NOVO: Proteção adicional contra clickjacking -->
+    <meta http-equiv="X-Frame-Options" content="DENY">
+
+    <!-- NOVO: Proteção contra MIME type sniffing -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+
+    <!-- NOVO: Forçar HTTPS em navegadores modernos -->
+    <meta http-equiv="Strict-Transport-Security" content="max-age=31536000; includeSubDomains">
+    <title>AtuRPO DevOps - Sistema de Automação</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet"
+        integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg=="
+        crossorigin="anonymous">
+
+    <!-- NOVO TEMA VISUAL -->
+    <link href="theme.css" rel="stylesheet">
+
+    <style>
+        :root {
+            /* Primitive Color Tokens */
+            --color-white: rgba(255, 255, 255, 1);
+            --color-black: rgba(0, 0, 0, 1);
+            --color-cream-50: rgba(252, 252, 249, 1);
+            --color-cream-100: rgba(255, 255, 253, 1);
+            --color-gray-200: rgba(245, 245, 245, 1);
+            --color-gray-300: rgba(167, 169, 169, 1);
+            --color-gray-400: rgba(119, 124, 124, 1);
+            --color-slate-500: rgba(98, 108, 113, 1);
+            --color-brown-600: rgba(94, 82, 64, 1);
+            --color-charcoal-700: rgba(31, 33, 33, 1);
+            --color-charcoal-800: rgba(38, 40, 40, 1);
+            --color-slate-900: rgba(19, 52, 59, 1);
+            --color-teal-300: rgba(50, 184, 198, 1);
+            --color-teal-400: rgba(45, 166, 178, 1);
+            --color-teal-500: rgba(33, 128, 141, 1);
+            --color-teal-600: rgba(29, 116, 128, 1);
+            --color-teal-700: rgba(26, 104, 115, 1);
+            --color-teal-800: rgba(41, 150, 161, 1);
+            --color-red-400: rgba(255, 84, 89, 1);
+            --color-red-500: rgba(192, 21, 47, 1);
+            --color-orange-400: rgba(230, 129, 97, 1);
+            --color-orange-500: rgba(168, 75, 47, 1);
+
+            /* RGB versions for opacity control */
+            --color-brown-600-rgb: 94, 82, 64;
+            --color-teal-500-rgb: 33, 128, 141;
+            --color-slate-900-rgb: 19, 52, 59;
+            --color-slate-500-rgb: 98, 108, 113;
+            --color-red-500-rgb: 192, 21, 47;
+            --color-red-400-rgb: 255, 84, 89;
+            --color-orange-500-rgb: 168, 75, 47;
+            --color-orange-400-rgb: 230, 129, 97;
+
+            /* Background color tokens (Light Mode) */
+            --color-bg-1: rgba(59, 130, 246, 0.08);
+            --color-bg-2: rgba(245, 158, 11, 0.08);
+            --color-bg-3: rgba(34, 197, 94, 0.08);
+            --color-bg-4: rgba(239, 68, 68, 0.08);
+            --color-bg-5: rgba(147, 51, 234, 0.08);
+            --color-bg-6: rgba(249, 115, 22, 0.08);
+            --color-bg-7: rgba(236, 72, 153, 0.08);
+            --color-bg-8: rgba(6, 182, 212, 0.08);
+
+            /* Semantic Color Tokens (Light Mode) */
+            --color-background: var(--color-cream-50);
+            --color-surface: var(--color-cream-100);
+            --color-text: var(--color-slate-900);
+            --color-text-secondary: var(--color-slate-500);
+            --color-primary: var(--color-teal-500);
+            --color-primary-hover: var(--color-teal-600);
+            --color-primary-active: var(--color-teal-700);
+            --color-secondary: rgba(var(--color-brown-600-rgb), 0.12);
+            --color-secondary-hover: rgba(var(--color-brown-600-rgb), 0.2);
+            --color-secondary-active: rgba(var(--color-brown-600-rgb), 0.25);
+            --color-border: rgba(var(--color-brown-600-rgb), 0.2);
+            --color-btn-primary-text: var(--color-cream-50);
+            --color-card-border: rgba(var(--color-brown-600-rgb), 0.12);
+            --color-card-border-inner: rgba(var(--color-brown-600-rgb), 0.12);
+            --color-error: var(--color-red-500);
+            --color-success: var(--color-teal-500);
+            --color-warning: var(--color-orange-500);
+            --color-info: var(--color-slate-500);
+            --color-focus-ring: rgba(var(--color-teal-500-rgb), 0.4);
+            --color-select-caret: rgba(var(--color-slate-900-rgb), 0.8);
+
+            /* Common style patterns */
+            --focus-ring: 0 0 0 3px var(--color-focus-ring);
+            --focus-outline: 2px solid var(--color-primary);
+            --status-bg-opacity: 0.15;
+            --status-border-opacity: 0.25;
+
+            /* RGB versions for opacity control */
+            --color-success-rgb: 33, 128, 141;
+            --color-error-rgb: 192, 21, 47;
+            --color-warning-rgb: 168, 75, 47;
+            --color-info-rgb: 98, 108, 113;
+
+            /* Typography */
+            --font-family-base: "FKGroteskNeue", "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-family-mono: "Berkeley Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            --font-size-xs: 11px;
+            --font-size-sm: 12px;
+            --font-size-base: 14px;
+            --font-size-md: 14px;
+            --font-size-lg: 16px;
+            --font-size-xl: 18px;
+            --font-size-2xl: 20px;
+            --font-size-3xl: 24px;
+            --font-size-4xl: 30px;
+            --font-weight-normal: 400;
+            --font-weight-medium: 500;
+            --font-weight-semibold: 550;
+            --font-weight-bold: 600;
+            --line-height-tight: 1.2;
+            --line-height-normal: 1.5;
+            --letter-spacing-tight: -0.01em;
+
+            /* Spacing */
+            --space-0: 0;
+            --space-1: 1px;
+            --space-2: 2px;
+            --space-4: 4px;
+            --space-6: 6px;
+            --space-8: 8px;
+            --space-10: 10px;
+            --space-12: 12px;
+            --space-16: 16px;
+            --space-20: 20px;
+            --space-24: 24px;
+            --space-32: 32px;
+
+            /* Border Radius */
+            --radius-sm: 6px;
+            --radius-base: 8px;
+            --radius-md: 10px;
+            --radius-lg: 12px;
+            --radius-full: 9999px;
+
+            /* Shadows */
+            --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.02);
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.04), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.04), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
+            --shadow-inset-sm: inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.03);
+
+            /* Animation */
+            --duration-fast: 150ms;
+            --duration-normal: 250ms;
+            --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+
+            /* Layout */
+            --container-sm: 640px;
+            --container-md: 768px;
+            --container-lg: 1024px;
+            --container-xl: 1280px;
+        }
+
+        body {
+            font-family: var(--font-family-base);
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            color: var(--color-text);
+        }
+
+        /* Tabela ordenável */
+        .sortable-header {
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.2s;
+        }
+
+        .sortable-header:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+
+        /* Redimensionamento visual (opcional) */
+        .resizable-table th {
+            position: relative;
+            border-right: 2px solid #dee2e6;
+        }
+
+        /* Faz o container dos links ocupar 100% da altura da sidebar */
+        .sidebar .nav {
+            height: 100%;
+            display: flex;
+            /* Garante o comportamento flex */
+            flex-direction: column;
+            /* Garante a direção vertical */
+        }
+
+        .sidebar-footer {
+            margin-top: auto;
+            /* A mágica que empurra o rodapé para baixo! */
+            padding: var(--space-16) var(--space-24);
+            border-top: 1px solid var(--color-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* LOGIN STYLES */
+        .login-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .login-card {
+            background: var(--color-surface);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .login-card h1 {
+            color: var(--color-primary);
+            margin-bottom: 30px;
+            font-size: var(--font-size-3xl);
+            font-weight: var(--font-weight-bold);
+        }
+
+        .login-card .form-control {
+            padding: var(--space-12);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-base);
+            font-size: var(--font-size-base);
+            transition: border-color var(--duration-fast);
+            margin-bottom: var(--space-16);
+        }
+
+        .login-card .form-control:focus {
+            border-color: var(--color-primary);
+            outline: none;
+            box-shadow: var(--focus-ring);
+        }
+
+        .login-card .btn-primary {
+            background: var(--color-primary);
+            color: var(--color-btn-primary-text);
+            border: none;
+            padding: var(--space-12) var(--space-24);
+            border-radius: var(--radius-base);
+            font-weight: var(--font-weight-medium);
+            width: 100%;
+            transition: all var(--duration-normal);
+        }
+
+        .login-card .btn-primary:hover {
+            background: var(--color-primary-hover);
+        }
+
+        /* APP STYLES */
+        .app-container {
+            display: none;
+            background: var(--color-background);
+            min-height: 100vh;
+        }
+
+        .header {
+            background: var(--color-primary);
+            color: var(--color-btn-primary-text);
+            padding: var(--space-16) var(--space-24);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .sidebar {
+            position: fixed;
+            top: 70px;
+            left: 0;
+            width: 280px;
+            height: calc(100vh - 70px);
+            background: var(--color-surface);
+            border-right: 1px solid var(--color-border);
+            padding: var(--space-16) 0;
+            overflow-y: auto;
+            z-index: 999;
+        }
+
+        .sidebar,
+        .main-content {
+            transition: all var(--duration-normal) var(--ease-standard);
+        }
+
+        body.sidebar-collapsed .sidebar {
+            transform: translateX(-100%);
+        }
+
+        body.sidebar-collapsed .main-content {
+            margin-left: 0;
+        }
+
+        .sidebar .nav-link {
+            padding: var(--space-12) var(--space-24);
+            color: var(--color-text);
+            border-radius: 0;
+            border: none;
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+            transition: all var(--duration-fast);
+            margin: 0 var(--space-16);
+            border-radius: var(--radius-base);
+        }
+
+        .sidebar .nav-link:hover {
+            background-color: var(--color-secondary);
+            color: var(--color-primary);
+        }
+
+        .sidebar .nav-link.active {
+            background-color: var(--color-primary);
+            color: var(--color-btn-primary-text);
+        }
+
+        .sidebar .nav-link i {
+            width: 20px;
+            margin-right: var(--space-12);
+            text-align: center;
+        }
+
+        .main-content {
+            margin-left: 280px;
+            margin-top: 70px;
+            padding: var(--space-24);
+            min-height: calc(100vh - 70px);
+        }
+
+        /* DASHBOARD STYLES */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: var(--space-24);
+            margin-bottom: var(--space-32);
+        }
+
+        .stat-card {
+            background: var(--color-surface);
+            padding: var(--space-24);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--color-card-border);
+            box-shadow: var(--shadow-sm);
+            text-align: center;
+            transition: transform var(--duration-fast), box-shadow var(--duration-fast);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .stat-card h3 {
+            font-size: var(--font-size-4xl);
+            color: var(--color-primary);
+            margin-bottom: var(--space-8);
+            font-weight: var(--font-weight-bold);
+        }
+
+        .stat-card p {
+            color: var(--color-text-secondary);
+            font-size: var(--font-size-sm);
+            margin: 0;
+        }
+
+        .activities {
+            background: var(--color-surface);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--color-card-border);
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+        }
+
+        .activities-header {
+            padding: var(--space-16) var(--space-24);
+            background-color: var(--color-bg-1);
+            border-bottom: 1px solid var(--color-border);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-text);
+        }
+
+        .activity-item {
+            padding: var(--space-16) var(--space-24);
+            border-bottom: 1px solid var(--color-border);
+            display: flex;
+            align-items: center;
+            gap: var(--space-12);
+        }
+
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+
+        .activity-item i {
+            color: var(--color-primary);
+            font-size: var(--font-size-lg);
+        }
+
+        /* REPOSITORY STYLES */
+        .repo-card {
+            background: var(--color-surface);
+            border: 1px solid var(--color-card-border);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--space-16);
+            box-shadow: var(--shadow-sm);
+            transition: all var(--duration-fast);
+        }
+
+        .repo-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .repo-card .repo-body {
+            padding: var(--space-24);
+        }
+
+        .repo-card.text-center {
+            padding: var(--space-24);
+            text-align: center;
+        }
+
+        .repo-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-16);
+            margin-bottom: var(--space-16);
+        }
+
+        .repo-icon {
+            color: var(--color-primary);
+            font-size: var(--font-size-3xl);
+        }
+
+        .repo-info h5 {
+            margin: 0;
+            color: var(--color-text);
+            font-weight: var(--font-weight-semibold);
+        }
+
+        .repo-info p {
+            margin: var(--space-4) 0 0 0;
+            color: var(--color-text-secondary);
+            font-size: var(--font-size-sm);
+        }
+
+        .repo-stats {
+            display: flex;
+            gap: var(--space-16);
+            margin-top: var(--space-12);
+        }
+
+        .repo-stats span {
+            color: var(--color-text-secondary);
+            font-size: var(--font-size-sm);
+        }
+
+        .repo-actions {
+            display: flex;
+            gap: var(--space-8);
+            justify-content: flex-end;
+        }
+
+        /* BUTTONS */
+        .btn {
+            padding: var(--space-8) var(--space-16);
+            border-radius: var(--radius-base);
+            font-size: var(--font-size-base);
+            font-weight: var(--font-weight-medium);
+            cursor: pointer;
+            transition: all var(--duration-normal);
+            border: none;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-8);
+        }
+
+        .btn:focus {
+            outline: var(--focus-outline);
+            outline-offset: 2px;
+        }
+
+        .btn-primary {
+            background: var(--color-primary);
+            color: var(--color-btn-primary-text);
+        }
+
+        .btn-primary:hover {
+            background: var(--color-primary-hover);
+        }
+
+        .btn-success {
+            background: var(--color-success);
+            color: var(--color-btn-primary-text);
+        }
+
+        .btn-success:hover {
+            background: var(--color-teal-600);
+        }
+
+        .btn-outline-primary {
+            background: transparent;
+            color: var(--color-primary);
+            border: 1px solid var(--color-primary);
+        }
+
+        .btn-outline-primary:hover {
+            background: var(--color-primary);
+            color: var(--color-btn-primary-text);
+        }
+
+        .btn-outline-secondary {
+            background: transparent;
+            color: var(--color-text-secondary);
+            border: 1px solid var(--color-border);
+        }
+
+        .btn-outline-secondary:hover {
+            background: var(--color-secondary);
+            color: var(--color-text);
+        }
+
+        .btn-sm {
+            padding: var(--space-6) var(--space-12);
+            font-size: var(--font-size-sm);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* BADGES */
+        .badge {
+            padding: var(--space-4) var(--space-8);
+            border-radius: var(--radius-full);
+            font-size: var(--font-size-xs);
+            font-weight: var(--font-weight-medium);
+            text-transform: uppercase;
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-4);
+        }
+
+        .badge-success {
+            background-color: rgba(var(--color-success-rgb), var(--status-bg-opacity));
+            color: var(--color-success);
+            border: 1px solid rgba(var(--color-success-rgb), var(--status-border-opacity));
+        }
+
+        .badge-warning {
+            background-color: rgba(var(--color-warning-rgb), var(--status-bg-opacity));
+            color: var(--color-warning);
+            border: 1px solid rgba(var(--color-warning-rgb), var(--status-border-opacity));
+        }
+
+        .badge-info {
+            background-color: rgba(var(--color-info-rgb), var(--status-bg-opacity));
+            color: var(--color-info);
+            border: 1px solid rgba(var(--color-info-rgb), var(--status-border-opacity));
+        }
+
+        .badge-primary {
+            background-color: rgba(var(--color-teal-500-rgb), var(--status-bg-opacity));
+            color: var(--color-primary);
+            border: 1px solid rgba(var(--color-teal-500-rgb), var(--status-border-opacity));
+        }
+
+        /* FORM CONTROLS */
+        .form-control {
+            display: block;
+            width: 100%;
+            padding: var(--space-8) var(--space-12);
+            font-size: var(--font-size-base);
+            line-height: var(--line-height-normal);
+            color: var(--color-text);
+            background-color: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-base);
+            transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
+        }
+
+        .form-control:focus {
+            border-color: var(--color-primary);
+            outline: none;
+            box-shadow: var(--focus-ring);
+        }
+
+        /* MODAL STYLES */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: var(--color-surface);
+            margin: 5% auto;
+            padding: 0;
+            border-radius: var(--radius-lg);
+            width: 90%;
+            max-width: 600px;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modal-header {
+            padding: var(--space-20);
+            border-bottom: 1px solid var(--color-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-body {
+            padding: var(--space-20);
+        }
+
+        .modal-footer {
+            padding: var(--space-20);
+            border-top: 1px solid var(--color-border);
+            display: flex;
+            justify-content: flex-end;
+            gap: var(--space-12);
+        }
+
+        .close {
+            color: var(--color-text-secondary);
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 1;
+            background: none;
+            border: none;
+        }
+
+        .close:hover {
+            color: var(--color-text);
+        }
+
+        /* PIPELINES STYLES */
+        .pipeline-stages {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .stage-item {
+            text-align: center;
+        }
+
+        .stage-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border: 2px solid #dee2e6;
+            margin: 0 auto;
+        }
+
+        .stage-arrow {
+            padding: 0 15px;
+            display: flex;
+            align-items: center;
+        }
+
+        .stage-item small {
+            display: block;
+            line-height: 1.2;
+        }
+
+        /* PAGINATION STYLES */
+        .page-link {
+            color: #007bff;
+        }
+
+        .page-item.active .page-link {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+
+        .pagination {
+            display: flex;
+            list-style: none;
+            border-radius: var(--radius-base);
+            margin: 0;
+            padding: 0;
+        }
+
+        .page-item {
+            display: flex;
+        }
+
+        .page-item .page-link {
+            padding: var(--space-8) var(--space-12);
+            margin: 0 var(--space-2);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-base);
+            text-decoration: none;
+            transition: all var(--duration-fast);
+        }
+
+        .page-item .page-link:hover {
+            background-color: var(--color-secondary);
+        }
+
+        .page-item.disabled .page-link {
+            color: var(--color-text-secondary);
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        /* UTILITIES */
+        .d-flex {
+            display: flex;
+        }
+
+        .align-items-center {
+            align-items: center;
+        }
+
+        .justify-content-between {
+            justify-content: space-between;
+        }
+
+        .justify-content-end {
+            justify-content: flex-end;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-muted {
+            color: var(--color-text-secondary);
+        }
+
+        .mb-3 {
+            margin-bottom: var(--space-16);
+        }
+
+        .mb-4 {
+            margin-bottom: var(--space-24);
+        }
+
+        .me-2 {
+            margin-right: var(--space-8);
+        }
+
+        .ms-2 {
+            margin-left: var(--space-8);
+        }
+
+        .w-100 {
+            width: 100%;
+        }
+
+        .small {
+            font-size: var(--font-size-sm);
+        }
+
+        .fw-bold {
+            font-weight: var(--font-weight-bold);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .gap-3 {
+            gap: var(--space-12);
+        }
+
+        .text-end {
+            text-align: end;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: var(--space-4);
+        }
+
+        .flex-grow-1 {
+            flex-grow: 1;
+        }
+
+        /* ARTIFACTS STYLES */
+        .artifacts-interface {
+            background: var(--color-bg-1);
+            border-radius: var(--radius-base);
+            padding: var(--space-16);
+            border: 1px solid var(--color-border);
+        }
+
+        .artifacts-list {
+            background: var(--color-surface);
+            border-radius: var(--radius-base);
+            border: 1px solid var(--color-border);
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .list-group {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 0;
+        }
+
+        .list-group-item {
+            padding: var(--space-12) var(--space-16);
+            border-bottom: 1px solid var(--color-border);
+            background-color: var(--color-surface);
+            border-left: none;
+            border-right: none;
+        }
+
+        .list-group-item:first-child {
+            border-top: none;
+        }
+
+        .list-group-item:last-child {
+            border-bottom: none;
+        }
+
+        .list-group-item-action {
+            transition: background-color var(--duration-fast);
+        }
+
+        .list-group-item-action:hover {
+            background-color: var(--color-secondary);
+        }
+
+        .breadcrumb-path {
+            font-family: var(--font-family-mono);
+            font-size: var(--font-size-sm);
+            color: var(--color-text-secondary);
+        }
+
+        .btn-link {
+            color: var(--color-primary);
+            text-decoration: none;
+            background: none;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+        }
+
+        .btn-link:hover {
+            color: var(--color-primary-hover);
+            text-decoration: underline;
+        }
+
+        .repo-body {
+            padding: var(--space-20);
+        }
+
+        .btn-outline-danger {
+            background: transparent;
+            color: var(--color-error);
+            border: 1px solid var(--color-error);
+        }
+
+        .btn-outline-danger:hover {
+            background: var(--color-error);
+            color: var(--color-btn-primary-text);
+        }
+
+        .btn-outline-success {
+            background: transparent;
+            color: var(--color-success);
+            border: 1px solid var(--color-success);
+        }
+
+        .btn-outline-success:hover {
+            background: var(--color-success);
+            color: var(--color-btn-primary-text);
+        }
+
+        .alert {
+            padding: var(--space-12) var(--space-16);
+            border-radius: var(--radius-base);
+            border: 1px solid;
+            margin-bottom: var(--space-16);
+        }
+
+        .alert-warning {
+            background-color: rgba(var(--color-warning-rgb), var(--status-bg-opacity));
+            color: var(--color-warning);
+            border-color: rgba(var(--color-warning-rgb), var(--status-border-opacity));
+        }
+
+        .alert-danger {
+            background-color: rgba(var(--color-error-rgb), var(--status-bg-opacity));
+            color: var(--color-error);
+            border-color: rgba(var(--color-error-rgb), var(--status-border-opacity));
+        }
+
+        .spinner-border {
+            display: inline-block;
+            width: 2rem;
+            height: 2rem;
+            vertical-align: text-bottom;
+            border: 0.25em solid currentColor;
+            border-right-color: transparent;
+            border-radius: 50%;
+            animation: spinner-border 0.75s linear infinite;
+        }
+
+        @keyframes spinner-border {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* COMMANDS GRID */
+        .commands-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: var(--space-20);
+            margin-top: var(--space-20);
+        }
+
+        .command-card {
+            background: var(--color-surface);
+            border: 1px solid var(--color-card-border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-20);
+            box-shadow: var(--shadow-sm);
+            transition: all var(--duration-fast);
+        }
+
+        .command-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .command-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: var(--space-12);
+        }
+
+        .command-category {
+            padding: var(--space-4) var(--space-8);
+            border-radius: var(--radius-sm);
+            font-size: var(--font-size-xs);
+            font-weight: var(--font-weight-medium);
+        }
+
+        .command-category-build {
+            background: var(--color-bg-1);
+            color: var(--color-primary);
+        }
+
+        .command-category-deploy {
+            background: var(--color-bg-3);
+            color: var(--color-success);
+        }
+
+        .command-category-maintenance {
+            background: var(--color-bg-2);
+            color: var(--color-warning);
+        }
+
+        .command-category-test {
+            background: var(--color-bg-4);
+            color: var(--color-error);
+        }
+
+        /* TABS */
+        .nav-tabs {
+            border-bottom: 1px solid var(--color-border);
+            margin-bottom: var(--space-20);
+            display: flex;
+            gap: 0;
+        }
+
+        .nav-tabs .nav-link {
+            padding: var(--space-12) var(--space-20);
+            color: var(--color-text-secondary);
+            text-decoration: none;
+            border: 1px solid transparent;
+            border-bottom: none;
+            border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+            background: transparent;
+            transition: all var(--duration-fast);
+        }
+
+        .nav-tabs .nav-link.active {
+            color: var(--color-primary);
+            border-color: var(--color-border) var(--color-border) var(--color-surface);
+            background: var(--color-surface);
+            position: relative;
+        }
+
+        .nav-tabs .nav-link:hover {
+            border-color: var(--color-border);
+        }
+
+        /* SISTEMA DE NOTIFICAÇÕES ROBUSTO - CSS GARANTIDO */
+        .toast-container-footer {
+            position: fixed !important;
+            bottom: 20px !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            z-index: 99999 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            gap: 10px !important;
+            max-height: 80vh !important;
+            overflow-y: visible !important;
+            pointer-events: none !important;
+        }
+
+        .toast-container-footer .toast {
+            position: relative !important;
+            margin: 0 !important;
+            pointer-events: auto !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+            animation: slideInUp 0.3s ease-out !important;
+            min-width: 300px !important;
+            max-width: 500px !important;
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideOutDown {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            to {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+        }
+
+        /* Garantir que toast seja visível */
+        .toast {
+            display: block !important;
+            opacity: 1 !important;
+        }
+
+        .toast.show {
+            display: block !important;
+            opacity: 1 !important;
+        }
+
+        .toast.fade-out {
+            animation: slideOutDown 0.3s ease-in forwards !important;
+        }
+
+        /* Toast hover effects */
+        .toast-container-footer .toast:hover {
+            opacity: 1 !important;
+            transform: translateY(-2px) !important;
+            transition: transform 0.2s ease !important;
+        }
+
+        /* Fallback notification styles */
+        .fallback-notification {
+            position: fixed !important;
+            bottom: 20px !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            z-index: 2000 !important;
+            min-width: 300px !important;
+            max-width: 500px !important;
+            padding: 12px 16px !important;
+            border-radius: 8px !important;
+            color: white !important;
+            font-family: system-ui, -apple-system, sans-serif !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+            animation: slideUp 0.3s ease-out !important;
+            pointer-events: auto !important;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+
+        /* Garantir override de estilos conflitantes */
+        .toast-container-footer * {
+            box-sizing: border-box !important;
+        }
+
+        /* Estilos específicos para toasts Bootstrap */
+        .toast-container-footer .toast.bg-success {
+            background-color: #28a745 !important;
+            color: white !important;
+        }
+
+        .toast-container-footer .toast.bg-danger {
+            background-color: #dc3545 !important;
+            color: white !important;
+        }
+
+        .toast-container-footer .toast.bg-warning {
+            background-color: #ffc107 !important;
+            color: #212529 !important;
+        }
+
+        .toast-container-footer .toast.bg-info {
+            background-color: #17a2b8 !important;
+            color: white !important;
+        }
+
+        /* Botão de fechar customizado */
+        .toast .btn-close-white {
+            filter: invert(1) grayscale(100%) brightness(200%) !important;
+        }
+
+        .toast .btn-close {
+            padding: 0 !important;
+            margin: 0 !important;
+            background: none !important;
+            border: none !important;
+            font-size: 16px !important;
+            line-height: 1 !important;
+            opacity: 0.8 !important;
+        }
+
+        .toast .btn-close:hover {
+            opacity: 1 !important;
+        }
+
+        /* Media queries para mobile */
+        @media (max-width: 768px) {
+            .toast-container-footer {
+                left: 10px !important;
+                right: 10px !important;
+                transform: none !important;
+                width: auto !important;
+            }
+
+            .toast-container-footer .toast {
+                min-width: auto !important;
+                width: 100% !important;
+                max-width: none !important;
+            }
+
+            .fallback-notification {
+                left: 10px !important;
+                right: 10px !important;
+                transform: none !important;
+                width: auto !important;
+                min-width: auto !important;
+            }
+        }
+
+        /* RESPONSIVE */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform var(--duration-normal);
+            }
+
+            .sidebar.show {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .col-md-3,
+            .col-md-4,
+            .col-md-2 {
+                flex: 0 0 100%;
+                max-width: 100%;
+                margin-bottom: var(--space-16);
+            }
+
+            .btn-group {
+                flex-direction: column;
+            }
+        }
+
+        /* ===================================================================== */
+        /* AZURE DEVOPS STYLE - BUILD & RELEASE                                 */
+        /* ===================================================================== */
+
+        .log-entry {
+            border-left: 3px solid var(--color-primary);
+            padding-left: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .log-entry pre {
+            font-family: var(--font-family-mono);
+            font-size: 0.875rem;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin: 0;
+        }
+
+        .pagination {
+            margin-top: 2rem;
+        }
+
+        .page-item.active .page-link {
+            background-color: var(--color-primary);
+            border-color: var(--color-primary);
+        }
+
+        .page-link {
+            color: var(--color-primary);
+        }
+
+        .page-link:hover {
+            color: var(--color-primary-hover);
+        }
+
+        .badge {
+            font-size: 0.875rem;
+            padding: 0.5rem 1rem;
+            font-weight: var(--font-weight-medium);
+        }
+
+        .card.border-success {
+            border-left: 4px solid var(--color-success) !important;
+        }
+
+        .card.border-danger {
+            border-left: 4px solid var(--color-error) !important;
+        }
+
+        .card.border-warning {
+            border-left: 4px solid var(--color-warning) !important;
+        }
+
+        .card.border-info {
+            border-left: 4px solid var(--color-info) !important;
+        }
+
+        .btn-group.w-100 .btn {
+            flex: 1;
+        }
+
+        #buildLogsContent,
+        #releaseLogsContent {
+            max-height: 600px;
+            overflow-y: auto;
+            min-height: 200px;
+        }
+
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+
+        /* 🎯 Estilos para Run View */
+        #pipelineRunView {
+            position: relative;
+            z-index: 1;
+            background-color: #f8f9fa;
+            margin-top: 0 !important;
+            padding-top: 30px;
+            padding-bottom: 30px;
+            min-height: calc(100vh - 150px);
+        }
+
+        #pipelineRunView .card {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border: none;
+        }
+
+        #pipelineRunView .btn-lg {
+            padding: 12px 30px;
+            font-size: 1.1rem;
+        }
+
+        #runCommandsList .list-group-item {
+            border-left: 4px solid #dee2e6;
+            transition: border-color 0.3s ease;
+        }
+
+        #runCommandsList .list-group-item:hover {
+            border-left-color: #0d6efd;
+        }
+
+        #runLogsContent {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        #runStatus .badge {
+            font-size: 1.1rem;
+            padding: 0.5rem 1rem;
+        }
+
+        details summary {
+            list-style: none;
+        }
+
+        details summary::-webkit-details-marker {
+            display: none;
+        }
+
+
+        /* ===================================================================== */
+        /* DASHBOARD STYLES                                                      */
+        /* ===================================================================== */
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: var(--space-20);
+            margin-bottom: var(--space-24);
+        }
+
+        .dashboard-card {
+            background: var(--color-surface);
+            border: 1px solid var(--color-card-border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-20);
+            box-shadow: var(--shadow-sm);
+            transition: all var(--duration-fast);
+        }
+
+        .dashboard-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .dashboard-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-16);
+        }
+
+        .dashboard-card-title {
+            font-size: var(--font-size-lg);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-text);
+            margin: 0;
+        }
+
+        .dashboard-card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        .dashboard-card-icon.bg-primary {
+            background: rgba(var(--color-teal-500-rgb), 0.15);
+            color: var(--color-primary);
+        }
+
+        .dashboard-card-icon.bg-success {
+            background: rgba(var(--color-success-rgb), 0.15);
+            color: var(--color-success);
+        }
+
+        .dashboard-card-icon.bg-warning {
+            background: rgba(var(--color-warning-rgb), 0.15);
+            color: var(--color-warning);
+        }
+
+        .dashboard-card-icon.bg-info {
+            background: rgba(var(--color-info-rgb), 0.15);
+            color: var(--color-info);
+        }
+
+        .dashboard-stat-value {
+            font-size: var(--font-size-3xl);
+            font-weight: var(--font-weight-bold);
+            color: var(--color-text);
+            line-height: 1;
+            margin-bottom: var(--space-4);
+        }
+
+        .dashboard-stat-label {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-secondary);
+        }
+
+        .dashboard-stat-row {
+            display: flex;
+            gap: var(--space-16);
+            margin-top: var(--space-12);
+        }
+
+        .dashboard-stat-item {
+            text-align: center;
+            flex: 1;
+        }
+
+        .dashboard-stat-item .value {
+            font-size: var(--font-size-xl);
+            font-weight: var(--font-weight-semibold);
+        }
+
+        .dashboard-stat-item .label {
+            font-size: var(--font-size-xs);
+            color: var(--color-text-secondary);
+            text-transform: uppercase;
+        }
+
+        .dashboard-stat-item.success .value {
+            color: var(--color-success);
+        }
+
+        .dashboard-stat-item.failed .value {
+            color: var(--color-error);
+        }
+
+        .dashboard-stat-item.running .value {
+            color: var(--color-warning);
+        }
+
+        .dashboard-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .dashboard-list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-12) 0;
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .dashboard-list-item:last-child {
+            border-bottom: none;
+        }
+
+        .dashboard-list-item-title {
+            font-weight: var(--font-weight-medium);
+            color: var(--color-text);
+        }
+
+        .dashboard-list-item-subtitle {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-secondary);
+        }
+
+        .dashboard-section {
+            margin-bottom: var(--space-24);
+        }
+
+        .dashboard-section-title {
+            font-size: var(--font-size-lg);
+            font-weight: var(--font-weight-semibold);
+            margin-bottom: var(--space-16);
+            display: flex;
+            align-items: center;
+            gap: var(--space-8);
+        }
+
+        .dashboard-empty {
+            text-align: center;
+            padding: var(--space-20);
+            color: var(--color-text-secondary);
+        }
+
+        .badge-danger {
+            background-color: rgba(var(--color-error-rgb), var(--status-bg-opacity));
+            color: var(--color-error);
+            border: 1px solid rgba(var(--color-error-rgb), var(--status-border-opacity));
+        }
+
+        .badge-secondary {
+            background-color: rgba(var(--color-info-rgb), var(--status-bg-opacity));
+            color: var(--color-info);
+            border: 1px solid rgba(var(--color-info-rgb), var(--status-border-opacity));
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Login Container -->
+    <div id="login-container" class="login-container">
+        <div class="login-card">
+            <h1><i class="fas fa-cube me-2"></i>AtuRPO DevOps</h1>
+
+
+            <form id="loginForm" autocomplete="off">
+                <div class="mb-3">
+                    <label for="username" class="form-label">Usuário</label>
+                    <input type="text" class="form-control" id="username" name="username"
+                        placeholder="Digite seu usuário" autocomplete="off" required>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Senha</label>
+                    <div class="position-relative">
+                        <input type="password" class="form-control" id="password" name="password"
+                            placeholder="Digite sua senha" autocomplete="new-password" required>
+                        <button type="button" class="btn position-absolute" id="togglePassword"
+                            style="right: 10px; top: 50%; transform: translateY(-50%); border: none; background: none; color: var(--color-text-secondary);">
+                            <i class="fas fa-eye" id="togglePasswordIcon"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="loginError" class="alert notification-error mb-3 hidden"></div>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-sign-in-alt me-2"></i>Entrar
+                </button>
+            </form>
+            <div class="text-center mt-3">
+                <a href="#" id="btnFirstAccess" class="text-muted small me-3"
+                    style="text-decoration: none; cursor: pointer; display: none;">
+                    <i class="fas fa-user-plus me-1"></i>Primeiro Acesso
+                </a>
+                <a href="#" id="btnActivateLicense" class="text-muted small"
+                    style="text-decoration: none; cursor: pointer;">
+                    <i class="fas fa-key me-1"></i>Ativar Licença
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Autenticação para Ativar Licença -->
+    <div id="activateLicenseModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h5><i class="fas fa-key me-2"></i>Autenticação Necessária</h5>
+                <button class="close" id="closeActivateModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">
+                    Acesso restrito a administradores do sistema.
+                </p>
+                <form id="activateLicenseForm">
+                    <div class="mb-3">
+                        <label for="activateUsername" class="form-label">Usuário</label>
+                        <input type="text" class="form-control" id="activateUsername" placeholder="Digite seu usuário"
+                            required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="activatePassword" class="form-label">Senha</label>
+                        <input type="password" class="form-control" id="activatePassword" placeholder="Digite sua senha"
+                            required>
+                    </div>
+                    <div id="activateError" class="alert alert-danger mb-3" style="display: none;"></div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-unlock me-2"></i>Acessar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Primeiro Acesso -->
+    <div id="firstAccessModal" class="modal">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header">
+                <h5><i class="fas fa-user-plus me-2"></i>Primeiro Acesso</h5>
+                <button class="close" id="closeFirstAccessModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Crie seu usuário administrador para começar a usar o sistema.
+                </p>
+                <form id="firstAccessForm">
+                    <div class="mb-3">
+                        <label for="firstAccessUsername" class="form-label">Usuário <span
+                                class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="firstAccessUsername"
+                            placeholder="Digite o nome de usuário" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="firstAccessName" class="form-label">Nome Completo <span
+                                class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="firstAccessName"
+                            placeholder="Digite seu nome completo" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="firstAccessEmail" class="form-label">E-mail <span
+                                class="text-danger">*</span></label>
+                        <input type="email" class="form-control" id="firstAccessEmail" placeholder="Digite seu e-mail"
+                            required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="firstAccessPassword" class="form-label">Senha <span
+                                class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="firstAccessPassword"
+                            placeholder="Mínimo 6 caracteres" required minlength="6">
+                    </div>
+                    <div class="mb-3">
+                        <label for="firstAccessPasswordConfirm" class="form-label">Confirmar Senha <span
+                                class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="firstAccessPasswordConfirm"
+                            placeholder="Repita a senha" required>
+                    </div>
+                    <div id="firstAccessError" class="alert alert-danger mb-3" style="display: none;"></div>
+                    <div id="firstAccessSuccess" class="alert alert-success mb-3" style="display: none;"></div>
+                    <button type="submit" class="btn btn-primary w-100" id="btnFirstAccessSubmit">
+                        <i class="fas fa-check me-2"></i>Criar Administrador
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container para Notificações -->
+    <div class="toast-container-footer"></div>
+
+    <!-- App Container -->
+    <div id="app-container" class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div>
+                <button class="btn btn-link text-white me-2" data-action="toggleSidebar" title="Ocultar/Mostrar Menu">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h4 class="mb-0"><i class="fas fa-cube me-2"></i>AtuRPO DevOps</h4>
+            </div>
+            <div id="environment-selector-container" class="d-flex align-items-center">
+                <label for="environmentSelector" class="text-white me-2 small">Ambiente:</label>
+                <select id="environmentSelector" class="form-select form-select-sm" style="width: 200px;"></select>
+            </div>
+            <div class="d-flex align-items-center">
+                <button class="theme-toggle" onclick="toggleTheme()" title="Alternar tema claro/escuro">
+                    <i class="fas fa-moon" id="theme-icon"></i>
+                </button>
+                <div class="dropdown">
+                    <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle"
+                        id="dropdownUser1" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-user me-2"></i>
+                        <strong id="current-user">Carregando...</strong>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-dark text-small shadow dropdown-menu-end"
+                        aria-labelledby="dropdownUser1">
+                        <li><a class="dropdown-item" href="#" data-action="showChangePasswordModal"><i
+                                    class="fas fa-key me-2"></i>Alterar Senha</a></li>
+                    </ul>
+                </div>
+            </div>
+        </header>
+
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="nav nav-pills flex-column">
+                <a class="nav-link" href="#" data-page="dashboard">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a class="nav-link" href="#" data-page="repositories">
+                    <i class="fas fa-folder"></i>
+                    <span>Repositórios</span>
+                </a>
+                <a class="nav-link" href="#" data-page="source-control">
+                    <i class="fas fa-code-branch"></i>
+                    <span>Controle de Versão</span>
+                </a>
+                <a class="nav-link" href="#" data-page="pipelines">
+                    <i class="fas fa-cogs"></i>
+                    <span>Pipelines</span>
+                </a>
+                <a class="nav-link" href="#" data-page="schedules">
+                    <i class="fas fa-clock"></i>
+                    <span>Schedule</span>
+                </a>
+                <a class="nav-link" href="#" data-page="commands">
+                    <i class="fas fa-terminal"></i>
+                    <span>Comandos</span>
+                </a>
+                <a class="nav-link" href="#" data-page="users">
+                    <i class="fas fa-users"></i>
+                    <span>Usuários</span>
+                </a>
+                <a class="nav-link" href="#" data-page="settings">
+                    <i class="fas fa-cog"></i>
+                    <span>Configurações</span>
+                </a>
+
+                <div class="sidebar-footer">
+                    <div class="user-info">
+                        <strong><i class="fas fa-user me-2"></i><span
+                                id="sidebar-user-name">Carregando...</span></strong>
+                        <small id="sidebar-user-profile" class="text-muted d-block"></small>
+                    </div>
+                    <button class="btn btn-outline-secondary btn-sm" data-action="logout" data-params='{"mode":false}'
+                        title="Sair">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div id="content-area">
+                <!-- Content will be loaded here dynamically -->
+            </div>
+            <!-- Página de Execução do Pipeline Run -->
+            <div id="pipelineRunView" class="container-fluid d-none" style="padding-top: 20px; margin-top: 0;">
+                <div class="row mb-4">
+                    <div class="col">
+                        <button class="btn btn-outline-secondary" data-action="backToPipelines">
+                            <i class="fas fa-arrow-left"></i> Voltar para Pipelines
+                        </button>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-primary text-white">
+                                <h4 class="mb-0">
+                                    <i class="fas fa-play-circle"></i>
+                                    <span id="runPipelineName"></span>
+                                    <span class="badge bg-light text-dark ms-2" id="runNumber"></span>
+                                </h4>
+                            </div>
+                            <div class="card-body">
+                                <!-- Status da Execução -->
+                                <div class="row mb-4">
+                                    <div class="col-md-3">
+                                        <div class="card text-center">
+                                            <div class="card-body">
+                                                <h6 class="text-muted mb-2">Status</h6>
+                                                <h3 id="runStatus" class="mb-0">
+                                                    <span class="badge bg-primary">
+                                                        <i class="fas fa-spinner fa-spin"></i> Executando
+                                                    </span>
+                                                </h3>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card text-center">
+                                            <div class="card-body">
+                                                <h6 class="text-muted mb-2">Início</h6>
+                                                <p id="runStartTime" class="mb-0">--</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card text-center">
+                                            <div class="card-body">
+                                                <h6 class="text-muted mb-2">Duração</h6>
+                                                <p id="runDuration" class="mb-0">--</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card text-center">
+                                            <div class="card-body">
+                                                <h6 class="text-muted mb-2">Executado por</h6>
+                                                <p id="runExecutedBy" class="mb-0">--</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Ações -->
+                                <div class="row mb-4">
+                                    <div class="col-12">
+                                        <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                                            <button class="btn btn-success btn-lg" id="btnRelease"
+                                                data-action="openReleaseFromRun" disabled>
+                                                <i class="fas fa-rocket"></i> Release
+                                            </button>
+                                            <button class="btn btn-primary btn-lg" id="btnViewLogs"
+                                                data-action="viewRunLogs">
+                                                <i class="fas fa-file-alt"></i> Ver Logs
+                                            </button>
+                                            <button class="btn btn-info btn-lg d-none" id="btnOpenStream"
+                                                data-action="openBuildStream">
+                                                <i class="fas fa-satellite-dish"></i> Ver Execução
+                                            </button>
+                                            <button class="btn btn-outline-secondary btn-lg" id="btnRefreshRun"
+                                                data-action="refreshRunStatus">
+                                                <i class="fas fa-sync-alt"></i> Atualizar
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Lista de Comandos Executados -->
+                                <div class="row">
+                                    <div class="col-12">
+                                        <h5 class="mb-3"><i class="fas fa-list"></i> Comandos</h5>
+                                        <div id="runCommandsList" class="list-group">
+                                            <!-- Comandos serão preenchidos via JS -->
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Mensagem de Erro (se houver) -->
+                                <div id="runErrorContainer" class="row mt-4 d-none">
+                                    <div class="col-12">
+                                        <div class="alert alert-danger">
+                                            <h5><i class="fas fa-exclamation-triangle"></i> Erro na Execução</h5>
+                                            <pre id="runErrorMessage" class="mb-0" style="white-space: pre-wrap;"></pre>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- TODOS OS MODALS NECESSÁRIOS -->
+
+    <!-- Modal Criar Pipeline -->
+    <div class="modal fade" id="createPipelineModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-plus text-primary me-2"></i>Nova Pipeline</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createPipelineForm">
+                        <div class="mb-3">
+                            <label class="form-label">Nome da Pipeline</label>
+                            <input type="text" class="form-control" id="pipelineName" required
+                                placeholder="Ex: Build e Deploy Protheus">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="pipelineDescription" rows="2"
+                                placeholder="Descreva o objetivo desta pipeline"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Comandos Selecionados (Build)</label>
+                            <div id="selectedCommands" class="border rounded p-3 bg-light">
+                                <p class="text-muted mb-0">Nenhum comando selecionado</p>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-primary mt-2" data-action="showCommandSelector"
+                                data-params='{"mode":"create","categoryFilter":"build"}'>
+                                <i class="fas fa-plus"></i> Adicionar Comandos de Build
+                            </button>
+                        </div>
+                        <div class="mb-3">
+                            <!-- 🆕 MUDOU: de pipelineDeployId para pipelineDeployCommandId -->
+                            <label class="form-label">Comando de Deploy (Opcional)</label>
+                            <select class="form-select" id="pipelineDeployCommandId">
+                                <option value="">Nenhuma</option>
+                            </select>
+                            <small class="text-muted">Selecione um comando de deploy para ser executado após o sucesso
+                                do build</small>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="createNewPipeline">Criar
+                        Pipeline</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Editar Pipeline -->
+    <div class="modal fade" id="editPipelineModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit text-primary me-2"></i>Editar Pipeline</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editPipelineForm">
+                        <input type="hidden" id="editPipelineId">
+                        <div class="mb-3">
+                            <label class="form-label">Nome da Pipeline</label>
+                            <input type="text" class="form-control" id="editPipelineName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="editPipelineDescription" rows="2"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Comandos Selecionados (Build)</label>
+                            <div id="editSelectedCommands" class="border rounded p-3 bg-light"></div>
+                            <button type="button" class="btn btn-sm btn-primary mt-2" data-action="showCommandSelector"
+                                data-params='{"mode":"edit","categoryFilter":"build"}'>
+                                <i class="fas fa-plus"></i> Adicionar/Remover Comandos de Build
+                            </button>
+                        </div>
+                        <div class="mb-3">
+                            <!-- 🆕 MUDOU: de editPipelineDeployId para editPipelineDeployCommandId -->
+                            <label class="form-label">Comando de Deploy (Opcional)</label>
+                            <select class="form-select" id="editPipelineDeployCommandId">
+                                <option value="">Nenhuma</option>
+                            </select>
+                            <small class="text-muted">Selecione um comando de deploy para ser executado após o sucesso
+                                do build</small>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="saveEditedPipeline">Salvar
+                        Alterações</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Visualizar Log da Pipeline -->
+    <div class="modal fade" id="pipelineLogModal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="pipelineLogTitle"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-dark text-light font-monospace">
+                    <pre id="pipelineLogOutput" class="mb-0"
+                        style="white-space: pre-wrap; word-wrap: break-word;"></pre>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Stream Logs -->
+    <div class="modal fade" id="runLogsModal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-terminal"></i>
+                        <span id="runLogsTitle">Logs da Execução</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-dark text-light font-monospace p-0">
+                    <div id="runLogsContent"
+                        style="padding: 1rem; min-height: 400px; max-height: 600px; overflow-y: auto;">
+                        <!-- Logs serão preenchidos via JS -->
+                    </div>
+                </div>
+                <div class="modal-footer bg-dark border-top border-secondary">
+                    <button type="button" class="btn btn-outline-light btn-sm" data-action="downloadRunLogs">
+                        <i class="fas fa-download"></i> Download
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Seletor Comandos -->
+    <div class="modal fade" id="commandSelectorModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-terminal text-primary me-2"></i>Selecionar Comandos</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="availableCommands"><!-- Comandos carregados aqui --></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-action="confirmCommandSelection">Confirmar
+                        Seleção</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Criar Comando -->
+    <div class="modal fade" id="createCommandModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-plus text-primary me-2"></i>Novo Comando</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createCommandForm">
+                        <div class="row mb-3">
+                            <div class="col-md-8">
+                                <label class="form-label">Nome do Comando</label>
+                                <input type="text" class="form-control" id="commandName" required
+                                    placeholder="Ex: Compilar Fontes Protheus">
+                            </div>
+                            <!-- 🆕 NOVO CAMPO: Categoria do Comando -->
+                            <div class="col-md-4">
+                                <label class="form-label">Categoria do Comando <span
+                                        class="text-danger">*</span></label>
+                                <select class="form-select" id="commandCategory" required>
+                                    <option value="">Selecione a categoria</option>
+                                    <option value="build">🔨 Build (Compilação)</option>
+                                    <option value="deploy">🚀 Deploy (Implantação)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <label class="form-label">Tipo de Script</label>
+                                <select class="form-select" id="commandType" required>
+                                    <option value="">Selecione o tipo</option>
+                                    <option value="powershell">PowerShell (.ps1)</option>
+                                    <option value="batch">Batch/CMD (.bat/.cmd)</option>
+                                    <option value="bash">Bash/Linux (.sh)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="commandDescription" rows="2"
+                                placeholder="Descreva o que este comando faz"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label mb-0">Script</label>
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    data-action="importScript">
+                                    <i class="fas fa-upload me-2"></i>Importar Script
+                                </button>
+                                <input type="file" id="scriptFileInput" style="display: none;"
+                                    onchange="handleScriptImport()">
+                            </div>
+                            <textarea class="form-control font-monospace" id="commandScript" rows="10" required
+                                placeholder="Cole ou digite seu script aqui..."></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="createNewCommand">Salvar Comando</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Editar Comando -->
+    <div class="modal fade" id="editCommandModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit text-primary me-2"></i>Editar Comando</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editCommandForm">
+                        <input type="hidden" id="editCommandId">
+                        <div class="row mb-3">
+                            <div class="col-md-8">
+                                <label class="form-label">Nome do Comando</label>
+                                <input type="text" class="form-control" id="editCommandName" required>
+                            </div>
+                            <!-- 🆕 NOVO CAMPO: Categoria do Comando -->
+                            <div class="col-md-4">
+                                <label class="form-label">Categoria do Comando <span
+                                        class="text-danger">*</span></label>
+                                <select class="form-select" id="editCommandCategory" required>
+                                    <option value="build">🔨 Build (Compilação)</option>
+                                    <option value="deploy">🚀 Deploy (Implantação)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <label class="form-label">Tipo de Script</label>
+                                <select class="form-select" id="editCommandType" required>
+                                    <option value="powershell">PowerShell</option>
+                                    <option value="batch">Batch/CMD</option>
+                                    <option value="bash">Bash/Linux</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="editCommandDescription" rows="2"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Script</label>
+                            <textarea class="form-control font-monospace" id="editCommandScript" rows="15"
+                                required></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="saveEditedCommand">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Ver Script -->
+    <div class="modal fade" id="viewScriptModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-code text-primary me-2"></i>Visualizar Script</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="scriptContent"><!-- Script será exibido aqui --></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Variáveis -->
+    <!-- DEPRECATED: Modal antigo - Usar createVariableModal e editVariableModal
+<div class="modal fade" id="variableModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="variableModalTitle"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="variableForm">
+                        <input type="hidden" id="variableId">
+                        <div class="mb-3">
+                            <label class="form-label">Nome da Variável</label>
+                            <input type="text" class="form-control" id="variableName" required placeholder="Ex: BASE_DIR">
+                            <div class="form-text">O nome é único e não pode ser alterado após a criação.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Valor</label>
+                            <input type="text" class="form-control" id="variableValue" required placeholder="Ex: /srv/devops/repos">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="variableDescription" rows="2" placeholder="Descreva o propósito desta variável"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="saveVariable">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+-->
+
+    <!-- Modal de Serviços -->
+    <!-- DEPRECATED: Modal antigo - Usar createServiceModal e editServiceModal
+<div class="modal fade" id="serviceModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="serviceModalTitle"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="serviceForm">
+                        <input type="hidden" id="serviceId">
+                        <div class="mb-3">
+                            <label class="form-label">Nome do Serviço</label>
+                            <input type="text" class="form-control" id="serviceName" required placeholder="Ex: Protheus AppServer">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="serviceDescription" rows="3" placeholder="Descreva este serviço"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="saveService">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+-->
+
+    <!-- GitHub Auth Modal -->
+    <div id="githubAuthModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5><i class="fab fa-github me-2"></i>Configurar GitHub</h5>
+                <button type="button" class="close" data-action="closeModal"
+                    data-params='{"modalId":"githubAuthModal"}'>&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <div class="alert notification-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Como obter um Personal Access Token:</strong>
+                        <ol class="mb-0 mt-2">
+                            <li>Acesse <a href="https://github.com/settings/tokens" target="_blank">GitHub Settings →
+                                    Tokens</a></li>
+                            <li>Clique em "Generate new token (classic)"</li>
+                            <li>Selecione os scopes: <code>repo</code>, <code>read:user</code></li>
+                            <li>Copie o token gerado</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <form id="githubAuthForm">
+                    <div class="mb-3">
+                        <label class="form-label">Usuário GitHub</label>
+                        <input type="text" class="form-control" id="githubUser" placeholder="seu-usuario-github"
+                            required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Personal Access Token</label>
+                        <div class="position-relative">
+                            <input type="password" class="form-control" id="githubToken"
+                                placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" required>
+                            <button class="btn position-absolute" type="button" data-action="toggleGithubToken"
+                                style="right: 10px; top: 50%; transform: translateY(-50%); border: none; background: none;">
+                                <i class="fas fa-eye" id="githubTokenToggle"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-outline-primary" data-action="testGithubConnection">
+                            <i class="fas fa-flask me-2"></i>Testar Conexão
+                        </button>
+                        <div id="connectionStatus" class="mt-2"></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-action="closeModal"
+                    data-params='{"modalId":"githubAuthModal"}'>Cancelar</button>
+                <button type="button" class="btn btn-primary" data-action="saveGithubSettings">
+                    <i class="fas fa-save me-2"></i>Salvar Configuração
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Alterar Senha -->
+    <div class="modal fade" id="changePasswordModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-key me-2"></i>Alterar Minha Senha</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="changePasswordForm">
+                        <div class="mb-3">
+                            <label class="form-label">Senha Atual</label>
+                            <input type="password" class="form-control" id="currentPassword" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Nova Senha</label>
+                            <input type="password" class="form-control" id="newPassword" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" id="newPasswordConfirmLabel">Confirmar Nova Senha</label>
+                            <input type="password" class="form-control" id="newPasswordConfirm" required
+                                oninput="validatePasswordMatch('newPassword', 'newPasswordConfirm', 'newPasswordConfirmLabel')">
+                            <small id="newPasswordFeedback" class="text-danger" style="display: none;">
+                                <i class="fas fa-exclamation-circle me-1"></i>As senhas não conferem
+                            </small>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="changeOwnPassword">Salvar Nova
+                        Senha</button>
+                    Senha</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Criar Nova Variável -->
+    <div class="modal fade" id="createVariableModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-plus-circle text-primary me-2"></i>Nova Variável do Servidor
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createVariableForm">
+                        <div class="mb-3">
+                            <label for="variableName" class="form-label">Nome da Variável</label>
+                            <input type="text" class="form-control" id="variableName"
+                                placeholder="Ex: BASE_DIR, API_URL" required>
+                            <div class="form-text">Apenas MAIÚSCULAS, números e underscore (_)</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="variableValue" class="form-label">Valor</label>
+                            <input type="text" class="form-control" id="variableValue"
+                                placeholder="Ex: /home/user/repos" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="variableDescription" class="form-label">Descrição</label>
+                            <textarea class="form-control" id="variableDescription" rows="2"
+                                placeholder="Descreva para que serve esta variável"></textarea>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="variableIsPassword">
+                            <label class="form-check-label" for="variableIsPassword">
+                                <i class="fas fa-key text-warning me-1"></i>É uma senha (valor será ocultado)
+                            </label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <!-- ✅ CORRETO: Chama createNewVariable -->
+                    <button type="button" class="btn btn-primary" data-action="createNewVariable">
+                        <i class="fas fa-save me-2"></i>Salvar Variável
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Editar Variável -->
+    <div class="modal fade" id="editVariableModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit text-primary me-2"></i>Editar Variável
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editVariableForm">
+                        <div class="mb-3">
+                            <label for="editVariableName" class="form-label">Nome da Variável</label>
+                            <input type="text" class="form-control" id="editVariableName" readonly
+                                style="background-color: var(--bg-tertiary); cursor: not-allowed;">
+                            <div class="form-text">⚠️ O nome da variável não pode ser alterado</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editVariableValue" class="form-label">Valor</label>
+                            <input type="text" class="form-control" id="editVariableValue" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editVariableDescription" class="form-label">Descrição</label>
+                            <textarea class="form-control" id="editVariableDescription" rows="2"></textarea>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="editVariableIsPassword">
+                            <label class="form-check-label" for="editVariableIsPassword">
+                                <i class="fas fa-key text-warning me-1"></i>É uma senha (valor será ocultado)
+                            </label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <!-- ✅ CORRIGIDO: Agora chama saveEditedVariable -->
+                    <button type="button" class="btn btn-primary" data-action="saveEditedVariable">
+                        <i class="fas fa-save me-2"></i>Salvar Alterações
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Criar Novo Serviço -->
+    <div class="modal fade" id="createServiceModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-plus-circle text-primary me-2"></i>Novo Serviço do Servidor
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createServiceForm">
+                        <div class="mb-3">
+                            <label for="serviceEnvironment" class="form-label">Ambiente *</label>
+                            <select class="form-select" id="serviceEnvironment" required>
+                                <option value="">Selecione o ambiente</option>
+                                <!-- Preenchido dinamicamente -->
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="serviceName" class="form-label">Nome do Serviço (Windows) *</label>
+                            <input type="text" class="form-control" id="serviceName"
+                                placeholder="Ex: TOTVS_Appserver_01" required>
+                            <div class="form-text">Nome exato do serviço no Windows (Get-Service)</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="serviceDisplayName" class="form-label">Nome de Exibição</label>
+                            <input type="text" class="form-control" id="serviceDisplayName"
+                                placeholder="Ex: AppServer Produção 01">
+                            <div class="form-text">Nome amigável para exibição no sistema</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="serviceServerName" class="form-label">Servidor (IP ou Nome) *</label>
+                            <input type="text" class="form-control" id="serviceServerName"
+                                placeholder="Ex: 192.168.1.100 ou ${PROTHEUS_SERVER_PRD}" required>
+                            <div class="form-text">IP, hostname ou variável ${VAR} do servidor remoto</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="serviceDescription" class="form-label">Descrição</label>
+                            <textarea class="form-control" id="serviceDescription" rows="2"
+                                placeholder="Descreva o serviço e sua função"></textarea>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="serviceIsActive" checked>
+                            <label class="form-check-label" for="serviceIsActive">Serviço Ativo</label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <!-- ✅ CORRETO: Chama createNewService -->
+                    <button type="button" class="btn btn-primary" data-action="createNewService">
+                        <i class="fas fa-save me-2"></i>Salvar Serviço
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Editar Serviço -->
+    <div class="modal fade" id="editServiceModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit text-primary me-2"></i>Editar Serviço
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editServiceForm">
+                        <div class="mb-3">
+                            <label for="editServiceEnvironment" class="form-label">Ambiente *</label>
+                            <select class="form-select" id="editServiceEnvironment" required>
+                                <option value="">Selecione o ambiente</option>
+                                <!-- Preenchido dinamicamente -->
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editServiceName" class="form-label">Nome do Serviço (Windows) *</label>
+                            <input type="text" class="form-control" id="editServiceName" required>
+                            <div class="form-text">Nome exato do serviço no Windows (Get-Service)</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editServiceDisplayName" class="form-label">Nome de Exibição</label>
+                            <input type="text" class="form-control" id="editServiceDisplayName">
+                        </div>
+                        <div class="mb-3">
+                            <label for="editServiceServerName" class="form-label">Servidor (IP ou Nome) *</label>
+                            <input type="text" class="form-control" id="editServiceServerName" required>
+                            <div class="form-text">IP, hostname ou variável ${VAR} do servidor remoto</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editServiceDescription" class="form-label">Descrição</label>
+                            <textarea class="form-control" id="editServiceDescription" rows="2"></textarea>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="editServiceIsActive">
+                            <label class="form-check-label" for="editServiceIsActive">Serviço Ativo</label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <!-- ✅ CORRIGIDO: Agora chama saveEditedService -->
+                    <button type="button" class="btn btn-primary" data-action="saveEditedService">
+                        <i class="fas fa-save me-2"></i>Salvar Alterações
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Criar Ambiente -->
+    <div class="modal fade" id="createEnvironmentModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-plus text-primary me-2"></i>Novo Ambiente</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createEnvironmentForm">
+                        <div class="mb-3">
+                            <label class="form-label">Nome do Ambiente</label>
+                            <input type="text" class="form-control" id="envName" required
+                                placeholder="Ex: Produção, Desenvolvimento, Homologação">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="envDescription" rows="3"
+                                placeholder="Descreva o propósito deste ambiente"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="createNewEnvironment">Criar
+                        Ambiente</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editEnvironmentModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit text-primary me-2"></i>Editar Ambiente</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editEnvironmentForm">
+                        <input type="hidden" id="editEnvId">
+                        <div class="mb-3">
+                            <label class="form-label">Nome do Ambiente</label>
+                            <input type="text" class="form-control" id="editEnvName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="editEnvDescription" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="saveEditedEnvironment">Salvar
+                        Alterações</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Validação do Bootstrap -->
+    <script>
+        if (typeof bootstrap === 'undefined') {
+            console.error('❌ ERRO: Bootstrap não foi carregado!');
+            alert('Erro ao carregar componentes. Recarregue a página.');
+        } else {
+            console.log('✓ Bootstrap carregado com sucesso');
+        }
+    </script>
+    <script src="static/js/api-client.js"></script>
+    <script src="static/js/integration-core.js"></script>
+    <script src="static/js/integration-auth.js"></script>
+    <script src="static/js/integration-environments.js"></script>
+    <script src="static/js/integration-commands.js"></script>
+    <script src="static/js/integration-pipelines.js"></script>
+    <script src="static/js/integration-ci-cd.js"></script>
+    <script src="static/js/integration-schedules.js"></script>
+    <script src="static/js/integration-repositories.js"></script>
+    <script src="static/js/integration-source-control.js"></script>
+    <script src="static/js/integration-ui.js"></script>
+
+    <!-- Script para verificar conexão com backend -->
+
+    <script>
+        // Verificar se backend está online
+        async function checkBackendConnection() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/health`);
+                if (response.ok) {
+                    console.log('✓ Backend conectado');
+                    return true;
+                }
+            } catch (error) {
+                console.error('❌ Backend não está respondendo:', error);
+                showNotification('Erro: Não foi possível conectar ao servidor. Verifique se o backend está rodando.', 'error', 5000);
+                return false;
+            }
+        }
+
+        // Verificar conexão ao carregar a página
+        window.addEventListener('load', async () => {
+            await checkBackendConnection();
+        });
+
+    </script>
+
+    <!-- Modal de Logs de Build -->
+
+
+    <!-- Modal de Logs de Release -->
+
+
+    <!-- Página de Build History -->
+    <div id="pipeline-builds-section" class="content-section" style="display: none;">
+        <div class="container-fluid py-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="fas fa-code-branch"></i> Build History</h2>
+                    <p class="text-muted mb-0">Histórico de execuções de pipeline (CI)</p>
+                </div>
+                <button class="btn btn-outline-secondary" data-action="navigate" data-params='{"page": "pipelines"}'>
+                    <i class="fas fa-arrow-left"></i> Voltar para Pipelines
+                </button>
+            </div>
+
+            <div id="buildsContainer">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Carregando builds...</span>
+                    </div>
+                </div>
+            </div>
+
+            <nav id="buildsPagination" aria-label="Paginação de builds"></nav>
+        </div>
+    </div>
+
+    <!-- Página de Release History -->
+    <div id="pipeline-releases-section" class="content-section" style="display: none;">
+        <div class="container-fluid py-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="fas fa-rocket"></i> Release History</h2>
+                    <p class="text-muted mb-0">Histórico de deploys (CD)</p>
+                </div>
+                <button class="btn btn-outline-secondary" data-action="navigate" data-params='{"page": "pipelines"}'>
+                    <i class="fas fa-arrow-left"></i> Voltar para Pipelines
+                </button>
+            </div>
+
+            <div id="releasesContainer">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-success" role="status">
+                        <span class="visually-hidden">Carregando releases...</span>
+                    </div>
+                </div>
+            </div>
+
+            <nav id="releasesPagination" aria-label="Paginação de releases"></nav>
+        </div>
+    </div>
+    <!-- ===================================================================== -->
+    <!-- MODAL: HISTÓRICO DE BUILDS -->
+    <!-- ===================================================================== -->
+    <div class="modal fade" id="buildHistoryModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="buildHistoryTitle">📊 Histórico de Builds</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="buildHistoryContent">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL: DETALHES DO BUILD -->
+    <!-- ===================================================================== -->
+    <div class="modal fade" id="buildDetailsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="buildDetailsTitle">🔍 Detalhes do Build</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="buildDetailsContent">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL: HISTÓRICO DE RELEASES -->
+    <!-- ===================================================================== -->
+    <div class="modal fade" id="releaseHistoryModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="releaseHistoryTitle">🚀 Histórico de Releases</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="releaseHistoryContent">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL: DETALHES DO RELEASE -->
+    <!-- ===================================================================== -->
+    <div class="modal fade" id="releaseDetailsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="releaseDetailsTitle">🔍 Detalhes do Release</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="releaseDetailsContent">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL: LOGS DE RELEASE EM TEMPO REAL -->
+    <!-- ===================================================================== -->
+    <div class="modal fade" id="releaseLogsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="releaseLogsTitle">🚀 Logs do Release</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <pre id="releaseLogsOutput" class="bg-dark text-light p-3"
+                        style="max-height: 500px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.9em;"></pre>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Logs do Build (Stream Real-Time) -->
+    <div class="modal fade" id="buildLogsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title" id="buildLogsTitle">
+                        <i class="fas fa-hammer me-2"></i>Build - Logs
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <pre id="buildLogsOutput" class="m-0 p-3"
+                        style="background: #1a1a2e; color: #00ff88; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.85rem; min-height: 400px; max-height: 60vh; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;"></pre>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <div class="d-flex align-items-center me-auto">
+                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status"
+                            id="buildLogsSpinner">
+                            <span class="visually-hidden">Executando...</span>
+                        </div>
+                        <small class="text-muted">Streaming em tempo real...</small>
+                    </div>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Importação de Variáveis CSV -->
+    <div class="modal fade" id="importVariablesModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-file-csv me-2"></i>Importar Variáveis (CSV)
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <strong>Formato esperado:</strong><br>
+                        <code>name,value,description,is_password</code><br>
+                        <small>Exemplo: BASE_DIR_DEV,/home/dev/repos,Diretório de desenvolvimento,false</small><br>
+                        <small>Exemplo: PROTHEUS_PASSWORD_DEV,minhaSenha123,Senha do ambiente
+                            DEV,<strong>true</strong></small><br>
+                        <small class="text-muted"><i class="fas fa-info-circle me-1"></i>is_password: true/false, 1/0,
+                            yes/no ou sim/não (opcional, padrão: false)</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Arquivo CSV</label>
+                        <input type="file" class="form-control" id="csvFileInput" accept=".csv">
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="replaceExistingVars" checked>
+                        <label class="form-check-label" for="replaceExistingVars">
+                            Substituir variáveis existentes (se houver conflito)
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="importVariablesFromCSV()">
+                        <i class="fas fa-upload me-2"></i>Importar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Criar Ação de Serviço -->
+    <div class="modal fade" id="createServiceActionModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-cog me-2"></i>Nova Ação de Serviço</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createServiceActionForm">
+                        <div class="mb-3">
+                            <label class="form-label">Nome da Ação *</label>
+                            <input type="text" class="form-control" id="serviceActionName"
+                                placeholder="Ex: Reiniciar AppServer" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="serviceActionDescription" rows="2"></textarea>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Tipo de Ação *</label>
+                                <select class="form-select" id="serviceActionType" required>
+                                    <option value="">Selecione</option>
+                                    <option value="start">▶️ Start (Iniciar)</option>
+                                    <option value="stop">⏹️ Stop (Parar)</option>
+                                    <option value="restart">🔄 Restart (Reiniciar)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Sistema Operacional *</label>
+                                <select class="form-select" id="serviceActionOS" required>
+                                    <option value="">Selecione</option>
+                                    <option value="windows">🪟 Windows</option>
+                                    <option value="linux">🐧 Linux</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="serviceActionForceStop">
+                                <label class="form-check-label" for="serviceActionForceStop">
+                                    <strong>Forçar parada</strong> (-Force)
+                                    <small class="text-muted d-block">Força a parada do serviço mesmo com processos
+                                        dependentes</small>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Serviços (selecione um ou mais) *</label>
+                            <div id="serviceActionServicesList" class="border rounded p-3"
+                                style="max-height: 200px; overflow-y: auto;">
+                                <!-- Será preenchido dinamicamente -->
+                            </div>
+                            <small class="text-muted">Os serviços serão executados na ordem selecionada.</small>
+                        </div>
+                        <!-- Seção de Agendamento Opcional -->
+                        <hr class="my-4">
+                        <div class="mb-3">
+                            <h6 class="mb-3">📅 Agendamento (Opcional)</h6>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="serviceActionEnableSchedule">
+                                <label class="form-check-label" for="serviceActionEnableSchedule">
+                                    Habilitar agendamento automático para esta ação
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="serviceActionScheduleConfig" style="display: none;">
+                            <div class="mb-3">
+                                <label class="form-label">Tipo de Agendamento *</label>
+                                <select class="form-select" id="serviceActionScheduleType">
+                                    <option value="">Selecione o tipo</option>
+                                    <option value="once">⏱️ Execução Única</option>
+                                    <option value="daily">📅 Diária</option>
+                                    <option value="weekly">📆 Semanal</option>
+                                    <option value="monthly">🗓️ Mensal</option>
+                                </select>
+                            </div>
+
+                            <!-- Configurações Dinâmicas -->
+                            <div id="serviceActionScheduleConfigArea"></div>
+
+                            <div class="alert alert-info mt-3">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>Importante:</strong> O agendamento será criado <strong>INATIVO</strong>.
+                                Você precisará ativá-lo manualmente após a criação.
+                            </div>
+                        </div>
+
+                        <!-- Notificações -->
+                        <hr class="my-4">
+                        <div class="mb-3">
+                            <h6 class="mb-3">🔔 Notificações da Execução (Opcional)</h6>
+                            <div class="mb-2">
+                                <label class="form-label text-muted small mb-1">E-mails (separados por vírgula)</label>
+                                <input type="text" class="form-control form-control-sm" id="serviceActionNotifyEmails"
+                                    placeholder="exemplo@empresa.com, admin@empresa.com">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label text-muted small mb-1">WhatsApp (separados por vírgula)</label>
+                                <input type="text" class="form-control form-control-sm" id="serviceActionNotifyWhatsapp"
+                                    placeholder="5511999999999, 5511888888888">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="saveNewServiceAction">Criar Ação</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Editar Ação de Serviço -->
+    <div class="modal fade" id="editServiceActionModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Editar Ação de Serviço</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editServiceActionForm">
+                        <input type="hidden" id="editServiceActionId">
+                        <div class="mb-3">
+                            <label class="form-label">Nome da Ação *</label>
+                            <input type="text" class="form-control" id="editServiceActionName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="editServiceActionDescription" rows="2"></textarea>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Tipo de Ação *</label>
+                                <select class="form-select" id="editServiceActionType" required>
+                                    <option value="start">▶️ Start (Iniciar)</option>
+                                    <option value="stop">⏹️ Stop (Parar)</option>
+                                    <option value="restart">🔄 Restart (Reiniciar)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Sistema Operacional *</label>
+                                <select class="form-select" id="editServiceActionOS" required>
+                                    <option value="windows">🪟 Windows</option>
+                                    <option value="linux">🐧 Linux</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="editServiceActionForceStop">
+                                <label class="form-check-label" for="editServiceActionForceStop">
+                                    <strong>Forçar parada</strong> (-Force)
+                                    <small class="text-muted d-block">Força a parada do serviço mesmo com processos
+                                        dependentes</small>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Serviços (selecione um ou mais) *</label>
+                            <div id="editServiceActionServicesList" class="border rounded p-3"
+                                style="max-height: 200px; overflow-y: auto;">
+                                <!-- Será preenchido dinamicamente -->
+                            </div>
+                        </div>
+                        <!-- Seção de Agendamento Opcional -->
+                        <hr class="my-4">
+                        <div class="mb-3">
+                            <h6 class="mb-3">📅 Agendamento (Opcional)</h6>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="editServiceActionEnableSchedule">
+                                <label class="form-check-label" for="editServiceActionEnableSchedule">
+                                    Habilitar agendamento automático para esta ação
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="editServiceActionScheduleConfig" style="display: none;">
+                            <div class="mb-3">
+                                <label class="form-label">Tipo de Agendamento *</label>
+                                <select class="form-select" id="editServiceActionScheduleType">
+                                    <option value="">Selecione o tipo</option>
+                                    <option value="once">⏱️ Execução Única</option>
+                                    <option value="daily">📅 Diária</option>
+                                    <option value="weekly">📆 Semanal</option>
+                                    <option value="monthly">🗓️ Mensal</option>
+                                </select>
+                            </div>
+
+                            <!-- Configurações Dinâmicas -->
+                            <div id="editServiceActionScheduleConfigArea"></div>
+                        </div>
+
+                        <!-- Notificações -->
+                        <hr class="my-4">
+                        <div class="mb-3">
+                            <h6 class="mb-3">🔔 Notificações da Execução (Opcional)</h6>
+                            <div class="mb-2">
+                                <label class="form-label text-muted small mb-1">E-mails (separados por vírgula)</label>
+                                <input type="text" class="form-control form-control-sm"
+                                    id="editServiceActionNotifyEmails">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label text-muted small mb-1">WhatsApp (separados por vírgula)</label>
+                                <input type="text" class="form-control form-control-sm"
+                                    id="editServiceActionNotifyWhatsapp">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="saveEditedServiceAction">Salvar
+                        Alterações</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Modal Criar Agendamento de Pipeline -->
+    <div class="modal fade" id="createScheduleModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-clock me-2"></i>Novo Agendamento</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createScheduleForm">
+                        <div class="mb-3">
+                            <label class="form-label">Nome do Agendamento *</label>
+                            <input type="text" class="form-control" id="scheduleName" placeholder="Ex: Deploy Diário"
+                                required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="scheduleDescription" rows="2"
+                                placeholder="Descrição opcional"></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Pipeline *</label>
+                            <select class="form-select" id="schedulePipelineId" required>
+                                <option value="">Selecione uma pipeline</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Tipo de Agendamento *</label>
+                            <select class="form-select" id="scheduleType" required>
+                                <option value="">Selecione o tipo</option>
+                                <option value="once">⏱️ Execução Única</option>
+                                <option value="daily">📅 Diária</option>
+                                <option value="weekly">📆 Semanal</option>
+                                <option value="monthly">🗓️ Mensal</option>
+                            </select>
+                        </div>
+
+                        <!-- Configurações Dinâmicas -->
+                        <div id="scheduleConfigArea"></div>
+
+                        <div class="alert alert-info mt-3">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Importante:</strong> O agendamento será criado <strong>INATIVO</strong>.
+                            Você precisará ativá-lo manualmente após a criação.
+                        </div>
+
+                        <!-- Notificações -->
+                        <hr class="my-4">
+                        <div class="mb-3">
+                            <h6 class="mb-3">🔔 Notificações (Opcional)</h6>
+                            <div class="mb-2">
+                                <label class="form-label text-muted small mb-1">E-mails (separados por vírgula)</label>
+                                <input type="text" class="form-control form-control-sm" id="scheduleNotifyEmails"
+                                    placeholder="exemplo@empresa.com, root@empresa.com">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label text-muted small mb-1">WhatsApp (separados por vírgula)</label>
+                                <input type="text" class="form-control form-control-sm" id="scheduleNotifyWhatsapp"
+                                    placeholder="5511999999999">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="saveNewSchedule">Criar
+                        Agendamento</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Editar Agendamento de Pipeline -->
+    <div class="modal fade" id="editScheduleModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Editar Agendamento</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editScheduleForm">
+                        <input type="hidden" id="editScheduleId">
+
+                        <div class="mb-3">
+                            <label class="form-label">Nome do Agendamento *</label>
+                            <input type="text" class="form-control" id="editScheduleName" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="editScheduleDescription" rows="2"></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Pipeline *</label>
+                            <select class="form-select" id="editSchedulePipelineId" disabled required>
+                                <option value="">Selecione uma pipeline</option>
+                            </select>
+                            <small class="text-muted">Pipeline não pode ser alterada após criação</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Tipo de Agendamento *</label>
+                            <select class="form-select" id="editScheduleType" required>
+                                <option value="once">⏱️ Execução Única</option>
+                                <option value="daily">📅 Diária</option>
+                                <option value="weekly">📆 Semanal</option>
+                                <option value="monthly">🗓️ Mensal</option>
+                            </select>
+                        </div>
+
+                        <!-- Configurações Dinâmicas -->
+                        <div id="editScheduleConfigArea"></div>
+
+                        <!-- Notificações -->
+                        <hr class="my-4">
+                        <div class="mb-3">
+                            <h6 class="mb-3">🔔 Notificações (Opcional)</h6>
+                            <div class="mb-2">
+                                <label class="form-label text-muted small mb-1">E-mails (separados por vírgula)</label>
+                                <input type="text" class="form-control form-control-sm" id="editScheduleNotifyEmails">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label text-muted small mb-1">WhatsApp (separados por vírgula)</label>
+                                <input type="text" class="form-control form-control-sm" id="editScheduleNotifyWhatsapp">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="saveEditSchedule">Salvar
+                        Alterações</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Toggle de Tema Claro/Escuro
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme') || 'light';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('aturpo-theme', newTheme);
+
+            const icon = document.getElementById('theme-icon');
+            if (icon) {
+                icon.className = newTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+            }
+        }
+
+        // Carregar tema salvo
+        (function () {
+            const savedTheme = localStorage.getItem('aturpo-theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+
+            document.addEventListener('DOMContentLoaded', function () {
+                const icon = document.getElementById('theme-icon');
+                if (icon) {
+                    icon.className = savedTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+                }
+            });
+        })();
+    </script>
+
+</body>
+
+</html>

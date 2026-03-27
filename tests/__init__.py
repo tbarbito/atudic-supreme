@@ -1,1 +1,3 @@
-# -*- coding: utf-8 -*-
+"""
+AtuDIR_2 Tests Package
+"""
