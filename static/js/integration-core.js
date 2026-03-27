@@ -823,7 +823,7 @@ const actionHandlers = {
     'docShowVersions': (params) => docShowVersions(params),
     'docCloseModal': () => docCloseModal(),
 
-    // ===== DEV WORKSPACE =====
+    // ===== DEV WORKSPACE (legado) =====
     'dwSwitchTab': (params) => dwSwitchTab(params),
     'dwRefresh': () => dwRefresh(),
     'dwNavigate': (params) => dwNavigate(params),
@@ -837,6 +837,13 @@ const actionHandlers = {
     'dwCancelPolicy': () => dwCancelPolicy(),
     'dwSavePolicy': () => dwSavePolicy(),
     'dwDeletePolicy': (params) => dwDeletePolicy(params),
+
+    // ===== WORKSPACE SUPREME (ExtraiRPO) =====
+    'wsSwitchTab': (params) => wsSwitchTab(params),
+    'wsIngestCSV': () => wsIngestCSV(),
+    'wsIngestFontes': () => wsIngestFontes(),
+    'wsSelectWorkspace': (params) => wsSelectWorkspace(params),
+    'wsSelectTable': (params) => wsSelectTable(params),
 
     // ===== SERVIÇOS DO SERVIDOR =====
     'showCreateServiceModal': () => showCreateServiceModal(),
