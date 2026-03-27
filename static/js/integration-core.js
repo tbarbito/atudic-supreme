@@ -845,6 +845,8 @@ const actionHandlers = {
     'wsSelectWorkspace': (params) => wsSelectWorkspace(params),
     'wsSelectTable': (params) => wsSelectTable(params),
     'wsRefreshList': () => wsRefreshList(),
+    'wsIngestLive': () => wsIngestLive(),
+    'wsIngestHybrid': () => wsIngestHybrid(),
 
     // ===== SERVIÇOS DO SERVIDOR =====
     'showCreateServiceModal': () => showCreateServiceModal(),

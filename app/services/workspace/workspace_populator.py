@@ -322,39 +322,307 @@ class WorkspacePopulator:
     # MODO LIVE — Conexao direta ao banco Protheus (futuro)
     # ========================================================================
 
-    def populate_from_db(self, conn_config: dict, company_code: str = "01",
-                         progress_callback=None) -> dict:
+    def populate_from_db(self, connection_id: int, company_code: str = "01",
+                         environment_id: int = None, progress_callback=None) -> dict:
         """Popula workspace lendo SX* diretamente do banco Protheus.
 
+        Usa database_browser e dictionary_compare do AtuDIC para conectar
+        ao banco Protheus e ler as tabelas de metadados.
+
         Args:
-            conn_config: Config de conexao (host, port, user, password, database, driver)
+            connection_id: ID da conexao em database_connections (PostgreSQL AtuDIC)
             company_code: Codigo da empresa (M0_CODIGO), default "01"
+            environment_id: ID do ambiente (opcional, para rastreamento)
             progress_callback: Funcao(fase, item, total) para progresso
 
         Returns:
-            dict com contadores
-
-        TODO: Implementar na Fase 2 — requer database_browser do AtuDIC
+            dict com contadores de registros inseridos
         """
-        raise NotImplementedError(
-            "Modo live sera implementado na Fase 2. "
-            "Requer integracao com database_browser do AtuDIC."
-        )
+        start = time.time()
+        stats = {}
+
+        def _report(fase, item, total=0):
+            if progress_callback:
+                progress_callback(fase, item, total)
+
+        # Importar modulos do AtuDIC
+        from app.services.database_browser import get_connection_config, _get_external_connection
+
+        _report("connect", "Conectando ao banco Protheus...")
+
+        # Obter config e conectar
+        config = get_connection_config(connection_id)
+        if not config:
+            raise ValueError(f"Conexao {connection_id} nao encontrada ou inativa")
+
+        driver = config["driver"]
+        ext_conn = _get_external_connection(config)
+        cursor = ext_conn.cursor()
+
+        logger.info(f"Conectado ao banco Protheus ({driver}) — empresa {company_code}")
+
+        def _make_table(prefix):
+            """Monta nome fisico: {PREFIX}{M0_CODIGO}0."""
+            return f"{prefix}{company_code}0"
+
+        def _fetch(table_name):
+            """Busca todos os registros de uma tabela de metadados."""
+            if driver == "mssql":
+                query = f"SELECT * FROM [{table_name}]"
+            elif driver == "oracle":
+                query = f"SELECT * FROM {table_name}"
+            elif driver == "postgresql":
+                query = f"SELECT * FROM {table_name.lower()}"
+            else:
+                query = f'SELECT * FROM "{table_name}"'
+            try:
+                cursor.execute(query)
+                if driver == "oracle":
+                    columns = [desc[0] for desc in cursor.description]
+                    return [dict(zip(columns, row)) for row in cursor.fetchall()]
+                else:
+                    return [dict(row) for row in cursor.fetchall()]
+            except Exception as e:
+                logger.warning(f"Erro ao buscar {table_name}: {e}")
+                return []
+
+        def _get(row, key, default=""):
+            """Obtem valor de row case-insensitive."""
+            v = row.get(key, row.get(key.upper(), row.get(key.lower(), default)))
+            return str(v).strip() if v is not None else default
+
+        def _safe_int(val):
+            try:
+                return int(str(val).strip().strip('"') or 0)
+            except (ValueError, TypeError):
+                return 0
+
+        def _is_custom_table(codigo):
+            import re
+            return bool(re.match(r"^(SZ[0-9A-Z]|Q[A-Z][0-9A-Z]|Z[0-9A-Z][0-9A-Z]?)$", codigo))
+
+        def _is_custom_field(campo):
+            parts = campo.split("_")
+            return len(parts) >= 2 and parts[1].startswith("X")
+
+        # ── SX2 (Tabelas) ──
+        _report("fetch", "SX2 — Tabelas")
+        sx2_rows = _fetch(_make_table("SX2"))
+        if sx2_rows:
+            data = []
+            for r in sx2_rows:
+                codigo = _get(r, "X2_CHAVE")
+                if not codigo:
+                    continue
+                data.append((codigo, _get(r, "X2_NOME"), _get(r, "X2_MODO"),
+                             1 if _is_custom_table(codigo) else 0))
+            self.db.executemany(
+                "INSERT OR REPLACE INTO tabelas (codigo, nome, modo, custom) VALUES (?,?,?,?)", data)
+            stats["tabelas"] = len(data)
+
+        # ── SX3 (Campos) ──
+        _report("fetch", "SX3 — Campos")
+        sx3_rows = _fetch(_make_table("SX3"))
+        if sx3_rows:
+            data = []
+            for r in sx3_rows:
+                campo = _get(r, "X3_CAMPO")
+                if not campo:
+                    continue
+                proprietario = _get(r, "X3_PROPRI")
+                is_custom = 1 if _is_custom_field(campo) else 0
+                if proprietario and proprietario != "S":
+                    is_custom = 1
+                obrig_raw = _get(r, "X3_OBRIGAT")
+                obrigatorio = 1 if (obrig_raw.lower().startswith("x") or
+                                    obrig_raw.upper() in ("S", "SIM", "1", ".T.")) else 0
+                data.append((
+                    _get(r, "X3_ARQUIVO"), campo, _get(r, "X3_TIPO"),
+                    _safe_int(_get(r, "X3_TAMANHO")), _safe_int(_get(r, "X3_DECIMAL")),
+                    _get(r, "X3_TITULO"), _get(r, "X3_DESCRIC"), _get(r, "X3_VALID"),
+                    _get(r, "X3_RELACAO"), obrigatorio, is_custom,
+                    _get(r, "X3_F3"), _get(r, "X3_CBOX"), _get(r, "X3_VLDUSER"),
+                    _get(r, "X3_WHEN"), proprietario,
+                    _get(r, "X3_BROWSE"), _get(r, "X3_TRIGGER"), _get(r, "X3_VISUAL"),
+                    _get(r, "X3_CONTEXT"), _get(r, "X3_FOLDER"),
+                ))
+            self.db.executemany(
+                "INSERT OR REPLACE INTO campos (tabela, campo, tipo, tamanho, decimal, titulo, descricao, "
+                "validacao, inicializador, obrigatorio, custom, f3, cbox, vlduser, when_expr, proprietario, "
+                "browse, trigger_flag, visual, context, folder) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                data)
+            stats["campos"] = len(data)
+
+        # ── SIX (Indices) ──
+        _report("fetch", "SIX — Indices")
+        six_rows = _fetch(_make_table("SIX"))
+        if six_rows:
+            data = []
+            for r in six_rows:
+                tabela = _get(r, "INDICE")
+                ordem = _get(r, "ORDEM")
+                if not tabela or not ordem:
+                    continue
+                proprietario = _get(r, "PROPRI")
+                data.append((tabela, ordem, _get(r, "CHAVE"), _get(r, "DESCRICAO"),
+                             proprietario, _get(r, "F3"), _get(r, "NICKNAME"),
+                             _get(r, "SHOWPESQ"), 1 if proprietario and proprietario != "S" else 0))
+            self.db.executemany(
+                "INSERT OR REPLACE INTO indices (tabela, ordem, chave, descricao, proprietario, "
+                "f3, nickname, showpesq, custom) VALUES (?,?,?,?,?,?,?,?,?)", data)
+            stats["indices"] = len(data)
+
+        # ── SX7 (Gatilhos) ──
+        _report("fetch", "SX7 — Gatilhos")
+        sx7_rows = _fetch(_make_table("SX7"))
+        if sx7_rows:
+            data = []
+            for r in sx7_rows:
+                campo_origem = _get(r, "X7_CAMPO")
+                if not campo_origem:
+                    continue
+                campo_destino = _get(r, "X7_CDOMIN")
+                proprietario = _get(r, "X7_PROPRI")
+                is_custom = 1 if _is_custom_field(campo_destino) else 0
+                if proprietario and proprietario != "S":
+                    is_custom = 1
+                data.append((campo_origem, _get(r, "X7_SEQUENC"), campo_destino,
+                             _get(r, "X7_REGRA"), _get(r, "X7_TIPO"),
+                             _get(r, "X7_ALIAS"), _get(r, "X7_CONDIC"), proprietario,
+                             _get(r, "X7_SEEK"), _get(r, "X7_ALIAS"),
+                             _get(r, "X7_ORDEM"), _get(r, "X7_CHAVE"), is_custom))
+            self.db.executemany(
+                "INSERT OR REPLACE INTO gatilhos (campo_origem, sequencia, campo_destino, regra, tipo, "
+                "tabela, condicao, proprietario, seek, alias, ordem, chave, custom) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", data)
+            stats["gatilhos"] = len(data)
+
+        # ── SX1 (Perguntas) ──
+        _report("fetch", "SX1 — Perguntas")
+        sx1_rows = _fetch(_make_table("SX1"))
+        if sx1_rows:
+            data = []
+            for r in sx1_rows:
+                grupo = _get(r, "X1_GRUPO")
+                ordem = _get(r, "X1_ORDEM")
+                if not grupo or not ordem:
+                    continue
+                data.append((grupo, ordem, _get(r, "X1_PERGUNT"), _get(r, "X1_VARIAVL"),
+                             _get(r, "X1_TIPO"), _safe_int(_get(r, "X1_TAMANHO")),
+                             _safe_int(_get(r, "X1_DECIMAL")), _get(r, "X1_F3"),
+                             _get(r, "X1_VALID"), _get(r, "X1_DEF01")))
+            self.db.executemany(
+                "INSERT OR REPLACE INTO perguntas (grupo, ordem, pergunta, variavel, tipo, "
+                "tamanho, decimal, f3, validacao, conteudo_padrao) VALUES (?,?,?,?,?,?,?,?,?,?)", data)
+            stats["perguntas"] = len(data)
+
+        # ── SX5 (Tabelas Genericas) ──
+        _report("fetch", "SX5 — Tabelas Genericas")
+        sx5_rows = _fetch(_make_table("SX5"))
+        if sx5_rows:
+            data = []
+            for r in sx5_rows:
+                tabela = _get(r, "X5_TABELA")
+                chave = _get(r, "X5_CHAVE")
+                if not tabela or not chave:
+                    continue
+                data.append((_get(r, "X5_FILIAL"), tabela, chave, _get(r, "X5_DESCRI"),
+                             1 if tabela.startswith("Z") or tabela.startswith("X") else 0))
+            self.db.executemany(
+                "INSERT OR REPLACE INTO tabelas_genericas (filial, tabela, chave, descricao, custom) "
+                "VALUES (?,?,?,?,?)", data)
+            stats["tabelas_genericas"] = len(data)
+
+        # ── SX6 (Parametros) ──
+        _report("fetch", "SX6 — Parametros")
+        sx6_rows = _fetch(_make_table("SX6"))
+        if sx6_rows:
+            data = []
+            for r in sx6_rows:
+                variavel = _get(r, "X6_VAR")
+                if not variavel:
+                    continue
+                proprietario = _get(r, "X6_PROPRI")
+                descricao = (_get(r, "X6_DESCRIC") + " " + _get(r, "X6_DESC1")).strip()
+                data.append((_get(r, "X6_FIL"), variavel, _get(r, "X6_TIPO"),
+                             descricao, _get(r, "X6_CONTEUD"), proprietario,
+                             1 if proprietario != "S" else 0))
+            self.db.executemany(
+                "INSERT OR REPLACE INTO parametros (filial, variavel, tipo, descricao, conteudo, "
+                "proprietario, custom) VALUES (?,?,?,?,?,?,?)", data)
+            stats["parametros"] = len(data)
+
+        # ── SX9 (Relacionamentos) ──
+        _report("fetch", "SX9 — Relacionamentos")
+        sx9_rows = _fetch(_make_table("SX9"))
+        if sx9_rows:
+            data = []
+            for r in sx9_rows:
+                tabela_origem = _get(r, "X9_DOM")
+                tabela_destino = _get(r, "X9_CDOM")
+                if not tabela_origem or not tabela_destino:
+                    continue
+                proprietario = _get(r, "X9_PROPRI")
+                data.append((tabela_origem, _get(r, "X9_IDENT"), tabela_destino,
+                             _get(r, "X9_EXPDOM"), _get(r, "X9_EXPCDOM"),
+                             proprietario, _get(r, "X9_CONDSQL"),
+                             1 if proprietario != "S" else 0))
+            self.db.executemany(
+                "INSERT OR REPLACE INTO relacionamentos (tabela_origem, identificador, tabela_destino, "
+                "expressao_origem, expressao_destino, proprietario, condicao_sql, custom) "
+                "VALUES (?,?,?,?,?,?,?,?)", data)
+            stats["relacionamentos"] = len(data)
+
+        # Fechar conexao externa
+        try:
+            ext_conn.close()
+        except Exception:
+            pass
+
+        self.db.commit()
+
+        elapsed = time.time() - start
+        stats["_elapsed_seconds"] = round(elapsed, 2)
+        stats["_mode"] = "live"
+        stats["_connection_id"] = connection_id
+        stats["_company_code"] = company_code
+        logger.info(f"Ingestao live completa em {elapsed:.1f}s — {stats}")
+        return stats
 
     # ========================================================================
     # MODO HIBRIDO — DB para dicionario + filesystem para fontes
     # ========================================================================
 
-    def populate_hybrid(self, conn_config: dict, company_code: str,
+    def populate_hybrid(self, connection_id: int, company_code: str,
                         fontes_dir: Path, mapa_modulos_path: Optional[Path] = None,
-                        progress_callback=None) -> dict:
+                        environment_id: int = None, progress_callback=None) -> dict:
         """Modo hibrido: dicionario do DB + fontes do filesystem.
 
-        TODO: Implementar na Fase 2
+        1. Popula dicionario (SX*) direto do banco Protheus
+        2. Parseia fontes do filesystem
+        3. Constroi vinculos
+
+        Args:
+            connection_id: ID da conexao ao banco Protheus
+            company_code: Codigo da empresa
+            fontes_dir: Diretorio com .prw/.tlpp
+            mapa_modulos_path: Path para mapa-modulos.json
+            environment_id: ID do ambiente
+            progress_callback: Funcao(fase, item, total)
+
+        Returns:
+            dict com contadores
         """
-        raise NotImplementedError(
-            "Modo hibrido sera implementado na Fase 2."
-        )
+        # Fase 1: Dicionario do banco
+        stats_db = self.populate_from_db(connection_id, company_code, environment_id, progress_callback)
+
+        # Fase 2: Fontes do filesystem
+        stats_fontes = self.parse_fontes(fontes_dir, mapa_modulos_path, progress_callback)
+
+        # Merge stats
+        stats = {**stats_db, **stats_fontes}
+        stats["_mode"] = "hybrid"
+        return stats
 
     # ========================================================================
     # UTILIDADES

@@ -132,6 +132,85 @@ def ingest_fontes(slug):
         pop.close()
 
 
+@workspace_bp.route("/workspaces/<slug>/ingest/live", methods=["POST"])
+def ingest_live(slug):
+    """Popula workspace lendo SX* diretamente do banco Protheus.
+
+    Body JSON: {"connection_id": 1, "company_code": "01", "environment_id": 1}
+    """
+    data = request.get_json()
+    connection_id = data.get("connection_id")
+    company_code = data.get("company_code", "01")
+    environment_id = data.get("environment_id")
+
+    if not connection_id:
+        return jsonify({"error": "connection_id e obrigatorio"}), 400
+
+    ws_path = _get_workspace_path(slug)
+    pop = WorkspacePopulator(ws_path)
+    pop.initialize()
+
+    try:
+        stats = pop.populate_from_db(connection_id, company_code, environment_id)
+        return jsonify({"success": True, "stats": stats})
+    except Exception as e:
+        logger.exception(f"Erro na ingestao live: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        pop.close()
+
+
+@workspace_bp.route("/workspaces/<slug>/ingest/hybrid", methods=["POST"])
+def ingest_hybrid(slug):
+    """Modo hibrido: dicionario do DB + fontes do filesystem.
+
+    Body JSON: {"connection_id": 1, "company_code": "01", "fontes_dir": "/path", "environment_id": 1}
+    """
+    data = request.get_json()
+    connection_id = data.get("connection_id")
+    company_code = data.get("company_code", "01")
+    fontes_dir = Path(data.get("fontes_dir", ""))
+    environment_id = data.get("environment_id")
+    mapa_path = data.get("mapa_modulos")
+
+    if not connection_id:
+        return jsonify({"error": "connection_id e obrigatorio"}), 400
+    if not fontes_dir.exists():
+        return jsonify({"error": f"Diretorio nao encontrado: {fontes_dir}"}), 400
+
+    ws_path = _get_workspace_path(slug)
+    pop = WorkspacePopulator(ws_path)
+    pop.initialize()
+
+    try:
+        mapa = Path(mapa_path) if mapa_path else None
+        stats = pop.populate_hybrid(connection_id, company_code, fontes_dir, mapa, environment_id)
+        return jsonify({"success": True, "stats": stats})
+    except Exception as e:
+        logger.exception(f"Erro na ingestao hibrida: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        pop.close()
+
+
+@workspace_bp.route("/connections", methods=["GET"])
+def list_connections():
+    """Lista conexoes de banco disponiveis para modo live."""
+    try:
+        from app.database.core import get_db_connection, release_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, name, driver, host, port, database_name, environment_id "
+            "FROM database_connections WHERE is_active = TRUE ORDER BY name"
+        )
+        rows = cursor.fetchall()
+        release_db_connection(conn)
+        return jsonify([dict(r) for r in rows])
+    except Exception as e:
+        return jsonify([])
+
+
 # ========================================================================
 # EXPLORER — Navegacao no dicionario
 # ========================================================================

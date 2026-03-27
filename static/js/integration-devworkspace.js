@@ -154,9 +154,17 @@ async function wsSwitchTab(params) {
 // =====================================================================
 
 async function wsRenderSetup(container) {
+    // Carregar conexoes disponiveis
+    var connections = [];
+    try { connections = await apiRequest('/workspace/connections'); } catch(e) {}
+
+    var connOptions = '<option value="">-- Selecione uma conexao --</option>';
+    connections.forEach(function(c) {
+        connOptions += '<option value="' + c.id + '">' + c.name + ' (' + c.driver + ' - ' + c.host + ':' + c.port + '/' + c.database_name + ')</option>';
+    });
+
     container.innerHTML =
         '<div class="row g-3">' +
-            // Card esquerdo: Criar workspace
             '<div class="col-md-7">' +
                 '<div class="card">' +
                     '<div class="card-header d-flex justify-content-between align-items-center">' +
@@ -167,44 +175,87 @@ async function wsRenderSetup(container) {
                             '<label class="form-label fw-semibold">Nome do workspace</label>' +
                             '<input type="text" class="form-control" id="ws-slug" placeholder="ex: marfrig-alimentos" value="' + (window._wsState.activeSlug || '') + '">' +
                         '</div>' +
+
+                        // Modo de ingestao
                         '<div class="mb-3">' +
-                            '<label class="form-label fw-semibold">Diretorio dos CSVs SX</label>' +
-                            '<div class="input-group">' +
-                                '<input type="text" class="form-control" id="ws-csv-dir" placeholder="C:\\caminho\\para\\csvs">' +
-                                '<button class="btn btn-outline-secondary" type="button" onclick="document.getElementById(\'ws-csv-dir-picker\').click()">' +
-                                    '<i class="fas fa-folder-open"></i>' +
-                                '</button>' +
+                            '<label class="form-label fw-semibold">Modo de ingestao</label>' +
+                            '<div class="btn-group w-100" role="group">' +
+                                '<input type="radio" class="btn-check" name="ws-mode" id="ws-mode-csv" value="csv" checked>' +
+                                '<label class="btn btn-outline-primary" for="ws-mode-csv"><i class="fas fa-file-csv me-1"></i>CSV (Offline)</label>' +
+                                '<input type="radio" class="btn-check" name="ws-mode" id="ws-mode-live" value="live">' +
+                                '<label class="btn btn-outline-success" for="ws-mode-live"><i class="fas fa-database me-1"></i>Live (DB)</label>' +
+                                '<input type="radio" class="btn-check" name="ws-mode" id="ws-mode-hybrid" value="hybrid">' +
+                                '<label class="btn btn-outline-warning" for="ws-mode-hybrid"><i class="fas fa-random me-1"></i>Hibrido</label>' +
                             '</div>' +
-                            '<input type="file" id="ws-csv-dir-picker" webkitdirectory style="display:none" onchange="document.getElementById(\'ws-csv-dir\').value=this.files[0]?this.files[0].webkitRelativePath.split(\'/\')[0]:\'\'">' +
                         '</div>' +
-                        '<div class="mb-3">' +
-                            '<label class="form-label fw-semibold">Diretorio dos fontes .prw/.tlpp <small class="text-muted">(opcional)</small></label>' +
-                            '<div class="input-group">' +
-                                '<input type="text" class="form-control" id="ws-fontes-dir" placeholder="C:\\caminho\\para\\fontes">' +
-                                '<button class="btn btn-outline-secondary" type="button" onclick="document.getElementById(\'ws-fontes-dir-picker\').click()">' +
-                                    '<i class="fas fa-folder-open"></i>' +
-                                '</button>' +
+
+                        // Campos Live/Hibrido (conexao DB)
+                        '<div id="ws-live-fields" style="display:none">' +
+                            '<div class="mb-3">' +
+                                '<label class="form-label fw-semibold">Conexao ao banco Protheus</label>' +
+                                '<select class="form-select" id="ws-conn-id">' + connOptions + '</select>' +
+                                (connections.length === 0 ? '<small class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Nenhuma conexao configurada. Cadastre em <strong>Banco de Dados > Conexoes</strong>.</small>' : '') +
                             '</div>' +
-                            '<input type="file" id="ws-fontes-dir-picker" webkitdirectory style="display:none" onchange="document.getElementById(\'ws-fontes-dir\').value=this.files[0]?this.files[0].webkitRelativePath.split(\'/\')[0]:\'\'">' +
-                        '</div>' +
-                        '<div class="mb-3">' +
-                            '<label class="form-label fw-semibold">Mapa de modulos JSON <small class="text-muted">(opcional)</small></label>' +
-                            '<div class="input-group">' +
-                                '<input type="text" class="form-control" id="ws-mapa" placeholder="C:\\caminho\\para\\mapa-modulos.json">' +
-                                '<button class="btn btn-outline-secondary" type="button" onclick="document.getElementById(\'ws-mapa-picker\').click()">' +
-                                    '<i class="fas fa-file"></i>' +
-                                '</button>' +
+                            '<div class="mb-3">' +
+                                '<label class="form-label fw-semibold">Codigo da empresa (M0_CODIGO)</label>' +
+                                '<input type="text" class="form-control" id="ws-company" value="01" placeholder="01">' +
                             '</div>' +
-                            '<input type="file" id="ws-mapa-picker" accept=".json" style="display:none" onchange="document.getElementById(\'ws-mapa\').value=this.files[0]?this.files[0].name:\'\'">' +
                         '</div>' +
-                        '<div class="d-flex gap-2">' +
-                            '<button class="btn btn-primary" data-action="wsIngestCSV">' +
+
+                        // Campos CSV (diretorio)
+                        '<div id="ws-csv-fields">' +
+                            '<div class="mb-3">' +
+                                '<label class="form-label fw-semibold">Diretorio dos CSVs SX</label>' +
+                                '<div class="input-group">' +
+                                    '<input type="text" class="form-control" id="ws-csv-dir" placeholder="C:\\caminho\\para\\csvs">' +
+                                    '<button class="btn btn-outline-secondary" type="button" onclick="document.getElementById(\'ws-csv-dir-picker\').click()">' +
+                                        '<i class="fas fa-folder-open"></i>' +
+                                    '</button>' +
+                                '</div>' +
+                                '<input type="file" id="ws-csv-dir-picker" webkitdirectory style="display:none" onchange="document.getElementById(\'ws-csv-dir\').value=this.files[0]?this.files[0].webkitRelativePath.split(\'/\')[0]:\'\'">' +
+                            '</div>' +
+                        '</div>' +
+
+                        // Campos Fontes (hibrido + CSV)
+                        '<div id="ws-fontes-fields">' +
+                            '<div class="mb-3">' +
+                                '<label class="form-label fw-semibold">Diretorio dos fontes .prw/.tlpp <small class="text-muted">(opcional)</small></label>' +
+                                '<div class="input-group">' +
+                                    '<input type="text" class="form-control" id="ws-fontes-dir" placeholder="C:\\caminho\\para\\fontes">' +
+                                    '<button class="btn btn-outline-secondary" type="button" onclick="document.getElementById(\'ws-fontes-dir-picker\').click()">' +
+                                        '<i class="fas fa-folder-open"></i>' +
+                                    '</button>' +
+                                '</div>' +
+                                '<input type="file" id="ws-fontes-dir-picker" webkitdirectory style="display:none" onchange="document.getElementById(\'ws-fontes-dir\').value=this.files[0]?this.files[0].webkitRelativePath.split(\'/\')[0]:\'\'">' +
+                            '</div>' +
+                            '<div class="mb-3">' +
+                                '<label class="form-label fw-semibold">Mapa de modulos JSON <small class="text-muted">(opcional)</small></label>' +
+                                '<div class="input-group">' +
+                                    '<input type="text" class="form-control" id="ws-mapa" placeholder="C:\\caminho\\para\\mapa-modulos.json">' +
+                                    '<button class="btn btn-outline-secondary" type="button" onclick="document.getElementById(\'ws-mapa-picker\').click()">' +
+                                        '<i class="fas fa-file"></i>' +
+                                    '</button>' +
+                                '</div>' +
+                                '<input type="file" id="ws-mapa-picker" accept=".json" style="display:none" onchange="document.getElementById(\'ws-mapa\').value=this.files[0]?this.files[0].name:\'\'">' +
+                            '</div>' +
+                        '</div>' +
+
+                        // Botoes de acao
+                        '<div class="d-flex gap-2" id="ws-action-buttons">' +
+                            '<button class="btn btn-primary" data-action="wsIngestCSV" id="ws-btn-csv">' +
                                 '<i class="fas fa-upload me-1"></i>Ingerir CSVs' +
+                            '</button>' +
+                            '<button class="btn btn-success" data-action="wsIngestLive" id="ws-btn-live" style="display:none">' +
+                                '<i class="fas fa-database me-1"></i>Importar do Banco' +
+                            '</button>' +
+                            '<button class="btn btn-warning" data-action="wsIngestHybrid" id="ws-btn-hybrid" style="display:none">' +
+                                '<i class="fas fa-random me-1"></i>Importar Hibrido' +
                             '</button>' +
                             '<button class="btn btn-outline-primary" data-action="wsIngestFontes">' +
                                 '<i class="fas fa-file-code me-1"></i>Parsear Fontes' +
                             '</button>' +
                         '</div>' +
+
                         '<div id="ws-progress" class="mt-3" style="display:none">' +
                             '<div class="progress mb-2"><div class="progress-bar progress-bar-striped progress-bar-animated" id="ws-progress-bar" style="width:0%"></div></div>' +
                             '<small class="text-muted" id="ws-progress-text">Aguardando...</small>' +
@@ -212,7 +263,6 @@ async function wsRenderSetup(container) {
                     '</div>' +
                 '</div>' +
             '</div>' +
-            // Card direito: Workspaces existentes
             '<div class="col-md-5">' +
                 '<div class="card">' +
                     '<div class="card-header d-flex justify-content-between align-items-center">' +
@@ -230,11 +280,108 @@ async function wsRenderSetup(container) {
             '</div>' +
         '</div>';
 
+    // Mode switcher
+    document.querySelectorAll('input[name="ws-mode"]').forEach(function(radio) {
+        radio.addEventListener('change', function() { wsUpdateModeUI(this.value); });
+    });
+
     await wsLoadWorkspaces();
+}
+
+function wsUpdateModeUI(mode) {
+    var csvFields = document.getElementById('ws-csv-fields');
+    var liveFields = document.getElementById('ws-live-fields');
+    var fontesFields = document.getElementById('ws-fontes-fields');
+    var btnCsv = document.getElementById('ws-btn-csv');
+    var btnLive = document.getElementById('ws-btn-live');
+    var btnHybrid = document.getElementById('ws-btn-hybrid');
+
+    // Reset
+    csvFields.style.display = 'none';
+    liveFields.style.display = 'none';
+    fontesFields.style.display = 'none';
+    btnCsv.style.display = 'none';
+    btnLive.style.display = 'none';
+    btnHybrid.style.display = 'none';
+
+    if (mode === 'csv') {
+        csvFields.style.display = 'block';
+        fontesFields.style.display = 'block';
+        btnCsv.style.display = 'inline-block';
+    } else if (mode === 'live') {
+        liveFields.style.display = 'block';
+        btnLive.style.display = 'inline-block';
+    } else if (mode === 'hybrid') {
+        liveFields.style.display = 'block';
+        fontesFields.style.display = 'block';
+        btnHybrid.style.display = 'inline-block';
+    }
 }
 
 async function wsRefreshList() {
     await wsLoadWorkspaces();
+}
+
+async function wsIngestLive() {
+    var slug = document.getElementById('ws-slug').value.trim();
+    var connId = document.getElementById('ws-conn-id').value;
+    var company = document.getElementById('ws-company').value.trim() || '01';
+    if (!slug) return showNotification('Informe o nome do workspace', 'warning');
+    if (!connId) return showNotification('Selecione uma conexao', 'warning');
+
+    var envId = parseInt(sessionStorage.getItem('active_environment_id')) || null;
+
+    document.getElementById('ws-progress').style.display = 'block';
+    document.getElementById('ws-progress-bar').style.width = '30%';
+    document.getElementById('ws-progress-text').textContent = 'Conectando ao banco Protheus...';
+
+    try {
+        var result = await apiRequest('/workspace/workspaces/' + slug + '/ingest/live', 'POST', {
+            connection_id: parseInt(connId), company_code: company, environment_id: envId
+        });
+        document.getElementById('ws-progress-bar').style.width = '100%';
+        document.getElementById('ws-progress-text').textContent = 'Concluido! ' + JSON.stringify(result.stats);
+        showNotification('Ingestao live concluida!', 'success');
+        window._wsState.activeSlug = slug;
+        await wsLoadWorkspaces();
+    } catch (e) {
+        document.getElementById('ws-progress-text').textContent = 'Erro: ' + e.message;
+        showNotification('Erro: ' + e.message, 'error');
+    }
+}
+
+async function wsIngestHybrid() {
+    var slug = document.getElementById('ws-slug').value.trim();
+    var connId = document.getElementById('ws-conn-id').value;
+    var company = document.getElementById('ws-company').value.trim() || '01';
+    var fontesDir = document.getElementById('ws-fontes-dir').value.trim();
+    if (!slug) return showNotification('Informe o nome do workspace', 'warning');
+    if (!connId) return showNotification('Selecione uma conexao', 'warning');
+    if (!fontesDir) return showNotification('Informe o diretorio dos fontes', 'warning');
+
+    var envId = parseInt(sessionStorage.getItem('active_environment_id')) || null;
+
+    document.getElementById('ws-progress').style.display = 'block';
+    document.getElementById('ws-progress-bar').style.width = '20%';
+    document.getElementById('ws-progress-text').textContent = 'Importando dicionario do banco + parseando fontes...';
+
+    try {
+        var data = {
+            connection_id: parseInt(connId), company_code: company,
+            fontes_dir: fontesDir, environment_id: envId
+        };
+        var mapa = document.getElementById('ws-mapa').value.trim();
+        if (mapa) data.mapa_modulos = mapa;
+        var result = await apiRequest('/workspace/workspaces/' + slug + '/ingest/hybrid', 'POST', data);
+        document.getElementById('ws-progress-bar').style.width = '100%';
+        document.getElementById('ws-progress-text').textContent = 'Concluido! ' + JSON.stringify(result.stats);
+        showNotification('Ingestao hibrida concluida!', 'success');
+        window._wsState.activeSlug = slug;
+        await wsLoadWorkspaces();
+    } catch (e) {
+        document.getElementById('ws-progress-text').textContent = 'Erro: ' + e.message;
+        showNotification('Erro: ' + e.message, 'error');
+    }
 }
 
 async function wsLoadWorkspaces() {
