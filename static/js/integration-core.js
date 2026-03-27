@@ -844,6 +844,7 @@ const actionHandlers = {
     'wsIngestFontes': () => wsIngestFontes(),
     'wsSelectWorkspace': (params) => wsSelectWorkspace(params),
     'wsSelectTable': (params) => wsSelectTable(params),
+    'wsRefreshList': () => wsRefreshList(),
 
     // ===== SERVIÇOS DO SERVIDOR =====
     'showCreateServiceModal': () => showCreateServiceModal(),

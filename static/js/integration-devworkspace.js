@@ -94,17 +94,14 @@ async function dwLoadPolicies(envId) {
 // =====================================================================
 
 async function showDevWorkspace() {
-    // Estado do workspace
     if (!window._wsState) {
         window._wsState = { activeTab: 'setup', activeSlug: null, tabelas: [] };
     }
 
     document.getElementById('content-area').innerHTML =
         '<div class="content-header mb-4">' +
-            '<div>' +
-                '<h2><i class="fas fa-code me-2"></i>Workspace</h2>' +
-                '<p class="text-muted mb-0">Engenharia reversa de ambientes Protheus (ExtraiRPO)</p>' +
-            '</div>' +
+            '<h2><i class="fas fa-code me-2"></i>Workspace</h2>' +
+            '<p class="text-muted mb-0">Engenharia reversa de ambientes Protheus</p>' +
         '</div>' +
         '<ul class="nav nav-tabs mb-3" id="ws-tabs">' +
             '<li class="nav-item">' +
@@ -158,46 +155,85 @@ async function wsSwitchTab(params) {
 
 async function wsRenderSetup(container) {
     container.innerHTML =
-        '<div class="card">' +
-            '<div class="card-body">' +
-                '<h5 class="card-title mb-3">Criar / Selecionar Workspace</h5>' +
-                '<div class="mb-3">' +
-                    '<label class="form-label">Nome do workspace</label>' +
-                    '<input type="text" class="form-control" id="ws-slug" placeholder="ex: marfrig-alimentos" value="' + (window._wsState.activeSlug || '') + '">' +
-                '</div>' +
-                '<div class="mb-3">' +
-                    '<label class="form-label">Diretorio dos CSVs SX</label>' +
-                    '<input type="text" class="form-control" id="ws-csv-dir" placeholder="C:\\caminho\\para\\csvs">' +
-                '</div>' +
-                '<div class="mb-3">' +
-                    '<label class="form-label">Diretorio dos fontes .prw/.tlpp (opcional)</label>' +
-                    '<input type="text" class="form-control" id="ws-fontes-dir" placeholder="C:\\caminho\\para\\fontes">' +
-                '</div>' +
-                '<div class="mb-3">' +
-                    '<label class="form-label">Mapa de modulos JSON (opcional)</label>' +
-                    '<input type="text" class="form-control" id="ws-mapa" placeholder="C:\\caminho\\para\\mapa-modulos.json">' +
-                '</div>' +
-                '<div class="d-flex gap-2 mb-3">' +
-                    '<button class="btn btn-primary" data-action="wsIngestCSV">' +
-                        '<i class="fas fa-upload me-1"></i>Ingerir CSVs' +
-                    '</button>' +
-                    '<button class="btn btn-outline-primary" data-action="wsIngestFontes">' +
-                        '<i class="fas fa-file-code me-1"></i>Parsear Fontes' +
-                    '</button>' +
-                '</div>' +
-                '<div id="ws-progress" style="display:none">' +
-                    '<div class="progress mb-2"><div class="progress-bar" id="ws-progress-bar" style="width:0%"></div></div>' +
-                    '<small class="text-muted" id="ws-progress-text">Aguardando...</small>' +
+        '<div class="row g-3">' +
+            // Card esquerdo: Criar workspace
+            '<div class="col-md-7">' +
+                '<div class="card">' +
+                    '<div class="card-header d-flex justify-content-between align-items-center">' +
+                        '<span><i class="fas fa-plus-circle me-2"></i>Criar / Configurar Workspace</span>' +
+                    '</div>' +
+                    '<div class="card-body">' +
+                        '<div class="mb-3">' +
+                            '<label class="form-label fw-semibold">Nome do workspace</label>' +
+                            '<input type="text" class="form-control" id="ws-slug" placeholder="ex: marfrig-alimentos" value="' + (window._wsState.activeSlug || '') + '">' +
+                        '</div>' +
+                        '<div class="mb-3">' +
+                            '<label class="form-label fw-semibold">Diretorio dos CSVs SX</label>' +
+                            '<div class="input-group">' +
+                                '<input type="text" class="form-control" id="ws-csv-dir" placeholder="C:\\caminho\\para\\csvs">' +
+                                '<button class="btn btn-outline-secondary" type="button" onclick="document.getElementById(\'ws-csv-dir-picker\').click()">' +
+                                    '<i class="fas fa-folder-open"></i>' +
+                                '</button>' +
+                            '</div>' +
+                            '<input type="file" id="ws-csv-dir-picker" webkitdirectory style="display:none" onchange="document.getElementById(\'ws-csv-dir\').value=this.files[0]?this.files[0].webkitRelativePath.split(\'/\')[0]:\'\'">' +
+                        '</div>' +
+                        '<div class="mb-3">' +
+                            '<label class="form-label fw-semibold">Diretorio dos fontes .prw/.tlpp <small class="text-muted">(opcional)</small></label>' +
+                            '<div class="input-group">' +
+                                '<input type="text" class="form-control" id="ws-fontes-dir" placeholder="C:\\caminho\\para\\fontes">' +
+                                '<button class="btn btn-outline-secondary" type="button" onclick="document.getElementById(\'ws-fontes-dir-picker\').click()">' +
+                                    '<i class="fas fa-folder-open"></i>' +
+                                '</button>' +
+                            '</div>' +
+                            '<input type="file" id="ws-fontes-dir-picker" webkitdirectory style="display:none" onchange="document.getElementById(\'ws-fontes-dir\').value=this.files[0]?this.files[0].webkitRelativePath.split(\'/\')[0]:\'\'">' +
+                        '</div>' +
+                        '<div class="mb-3">' +
+                            '<label class="form-label fw-semibold">Mapa de modulos JSON <small class="text-muted">(opcional)</small></label>' +
+                            '<div class="input-group">' +
+                                '<input type="text" class="form-control" id="ws-mapa" placeholder="C:\\caminho\\para\\mapa-modulos.json">' +
+                                '<button class="btn btn-outline-secondary" type="button" onclick="document.getElementById(\'ws-mapa-picker\').click()">' +
+                                    '<i class="fas fa-file"></i>' +
+                                '</button>' +
+                            '</div>' +
+                            '<input type="file" id="ws-mapa-picker" accept=".json" style="display:none" onchange="document.getElementById(\'ws-mapa\').value=this.files[0]?this.files[0].name:\'\'">' +
+                        '</div>' +
+                        '<div class="d-flex gap-2">' +
+                            '<button class="btn btn-primary" data-action="wsIngestCSV">' +
+                                '<i class="fas fa-upload me-1"></i>Ingerir CSVs' +
+                            '</button>' +
+                            '<button class="btn btn-outline-primary" data-action="wsIngestFontes">' +
+                                '<i class="fas fa-file-code me-1"></i>Parsear Fontes' +
+                            '</button>' +
+                        '</div>' +
+                        '<div id="ws-progress" class="mt-3" style="display:none">' +
+                            '<div class="progress mb-2"><div class="progress-bar progress-bar-striped progress-bar-animated" id="ws-progress-bar" style="width:0%"></div></div>' +
+                            '<small class="text-muted" id="ws-progress-text">Aguardando...</small>' +
+                        '</div>' +
+                    '</div>' +
                 '</div>' +
             '</div>' +
-        '</div>' +
-        '<div class="card mt-3">' +
-            '<div class="card-body">' +
-                '<h5 class="card-title mb-3">Workspaces existentes</h5>' +
-                '<div id="ws-list"><div class="text-muted">Carregando...</div></div>' +
+            // Card direito: Workspaces existentes
+            '<div class="col-md-5">' +
+                '<div class="card">' +
+                    '<div class="card-header d-flex justify-content-between align-items-center">' +
+                        '<span><i class="fas fa-list me-2"></i>Workspaces existentes</span>' +
+                        '<button class="btn btn-outline-secondary btn-sm" data-action="wsRefreshList">' +
+                            '<i class="fas fa-sync-alt"></i>' +
+                        '</button>' +
+                    '</div>' +
+                    '<div class="card-body p-0">' +
+                        '<div id="ws-list" class="list-group list-group-flush">' +
+                            '<div class="text-muted p-3">Carregando...</div>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
             '</div>' +
         '</div>';
 
+    await wsLoadWorkspaces();
+}
+
+async function wsRefreshList() {
     await wsLoadWorkspaces();
 }
 
@@ -232,15 +268,15 @@ async function wsLoadWorkspaces() {
 async function wsSelectWorkspace(params) {
     window._wsState.activeSlug = params.slug;
     document.getElementById('ws-slug').value = params.slug;
-    showToast('Workspace "' + params.slug + '" selecionado', 'success');
+    showNotification('Workspace "' + params.slug + '" selecionado', 'success');
     await wsSwitchTab({ tab: 'dashboard' });
 }
 
 async function wsIngestCSV() {
     var slug = document.getElementById('ws-slug').value.trim();
     var csvDir = document.getElementById('ws-csv-dir').value.trim();
-    if (!slug) return showToast('Informe o nome do workspace', 'warning');
-    if (!csvDir) return showToast('Informe o diretorio dos CSVs', 'warning');
+    if (!slug) return showNotification('Informe o nome do workspace', 'warning');
+    if (!csvDir) return showNotification('Informe o diretorio dos CSVs', 'warning');
 
     document.getElementById('ws-progress').style.display = 'block';
     document.getElementById('ws-progress-bar').style.width = '30%';
@@ -250,20 +286,20 @@ async function wsIngestCSV() {
         var result = await apiRequest('/workspace/workspaces/' + slug + '/ingest/csv', 'POST', { csv_dir: csvDir });
         document.getElementById('ws-progress-bar').style.width = '100%';
         document.getElementById('ws-progress-text').textContent = 'Concluido! ' + JSON.stringify(result.stats);
-        showToast('Ingestao CSV concluida!', 'success');
+        showNotification('Ingestao CSV concluida!', 'success');
         window._wsState.activeSlug = slug;
         await wsLoadWorkspaces();
     } catch (e) {
         document.getElementById('ws-progress-text').textContent = 'Erro: ' + e.message;
-        showToast('Erro: ' + e.message, 'danger');
+        showNotification('Erro: ' + e.message, 'error');
     }
 }
 
 async function wsIngestFontes() {
     var slug = document.getElementById('ws-slug').value.trim();
     var fontesDir = document.getElementById('ws-fontes-dir').value.trim();
-    if (!slug) return showToast('Informe o nome do workspace', 'warning');
-    if (!fontesDir) return showToast('Informe o diretorio dos fontes', 'warning');
+    if (!slug) return showNotification('Informe o nome do workspace', 'warning');
+    if (!fontesDir) return showNotification('Informe o diretorio dos fontes', 'warning');
 
     document.getElementById('ws-progress').style.display = 'block';
     document.getElementById('ws-progress-bar').style.width = '20%';
@@ -277,11 +313,11 @@ async function wsIngestFontes() {
         document.getElementById('ws-progress-bar').style.width = '100%';
         document.getElementById('ws-progress-text').textContent =
             'Concluido! ' + result.stats.fontes + ' fontes, ' + result.stats.chunks + ' chunks';
-        showToast('Parse de fontes concluido!', 'success');
+        showNotification('Parse de fontes concluido!', 'success');
         await wsLoadWorkspaces();
     } catch (e) {
         document.getElementById('ws-progress-text').textContent = 'Erro: ' + e.message;
-        showToast('Erro: ' + e.message, 'danger');
+        showNotification('Erro: ' + e.message, 'error');
     }
 }
 
