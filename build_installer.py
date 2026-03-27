@@ -373,6 +373,9 @@ def obfuscate_javascript():
         os.path.join(obfuscated_dir, 'app/static/js/integration-devworkspace.js'),
         os.path.join(obfuscated_dir, 'app/static/js/integration-agent.js'),
         os.path.join(obfuscated_dir, 'app/static/js/integration-auditor.js'),
+        os.path.join(obfuscated_dir, 'app/static/js/workspace-setup.js'),
+        os.path.join(obfuscated_dir, 'app/static/js/workspace-dashboard.js'),
+        os.path.join(obfuscated_dir, 'app/static/js/workspace-explorer.js'),
     ]
 
     all_success = True
@@ -445,6 +448,8 @@ def create_executable():
         'pymssql', 'pymssql._pymssql',
         'pymysql', 'pymysql.cursors', 'pymysql.connections',
         'oracledb',
+        # Workspace (ExtraiRPO) — parser de fontes ADVPL/TLPP
+        'chardet',
     ])
 
     app_dir = os.path.join(PROJECT_ROOT, 'app')
