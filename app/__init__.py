@@ -3,7 +3,7 @@
 AtuDIC Supreme — Application Factory
 """
 
-from flask import Flask
+from flask import Flask, render_template
 
 
 def create_app(config_override=None):
@@ -30,6 +30,12 @@ def create_app(config_override=None):
     @app.route("/api/health")
     def health():
         return {"status": "ok", "service": "atudic-supreme"}
+
+    # Paginas
+    @app.route("/")
+    @app.route("/workspace")
+    def workspace_page():
+        return render_template("workspace.html")
 
     return app
 

@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Workspace</h2>
+    <p class="page-subtitle">Engenharia reversa de ambientes Protheus</p>
+</div>
+
+<!-- Tabs -->
+<div class="tab-bar" id="workspace-tabs">
+    <button class="tab active" data-tab="setup">Setup</button>
+    <button class="tab" data-tab="dashboard">Dashboard</button>
+    <button class="tab" data-tab="explorer">Explorer</button>
+</div>
+
+<!-- Tab: Setup -->
+<div class="tab-content active" id="tab-setup">
+    <div class="card">
+        <h3>Criar / Selecionar Workspace</h3>
+
+        <div class="form-group">
+            <label for="workspace-slug">Nome do workspace</label>
+            <input type="text" id="workspace-slug" placeholder="ex: marfrig-alimentos" class="input">
+        </div>
+
+        <div class="section-title">Modo de ingestao</div>
+        <div class="mode-selector">
+            <label class="mode-option selected">
+                <input type="radio" name="ingest-mode" value="csv" checked>
+                <div class="mode-card">
+                    <strong>Offline (CSV)</strong>
+                    <p>CSVs exportados do Protheus</p>
+                </div>
+            </label>
+            <label class="mode-option">
+                <input type="radio" name="ingest-mode" value="live" disabled>
+                <div class="mode-card disabled">
+                    <strong>Live (DB)</strong>
+                    <p>Conexao direta ao banco <em>(em breve)</em></p>
+                </div>
+            </label>
+            <label class="mode-option">
+                <input type="radio" name="ingest-mode" value="hybrid" disabled>
+                <div class="mode-card disabled">
+                    <strong>Hibrido</strong>
+                    <p>DB + fontes locais <em>(em breve)</em></p>
+                </div>
+            </label>
+        </div>
+
+        <!-- CSV Config -->
+        <div id="csv-config">
+            <div class="form-group">
+                <label for="csv-dir">Diretorio dos CSVs SX</label>
+                <input type="text" id="csv-dir" placeholder="/caminho/para/csvs" class="input">
+            </div>
+            <div class="form-group">
+                <label for="fontes-dir">Diretorio dos fontes .prw/.tlpp (opcional)</label>
+                <input type="text" id="fontes-dir" placeholder="/caminho/para/fontes" class="input">
+            </div>
+            <div class="form-group">
+                <label for="mapa-modulos">Mapa de modulos JSON (opcional)</label>
+                <input type="text" id="mapa-modulos" placeholder="/caminho/para/mapa-modulos.json" class="input">
+            </div>
+        </div>
+
+        <div class="button-row">
+            <button class="btn btn-primary" id="btn-ingest-csv" onclick="WorkspaceSetup.ingestCSV()">
+                Iniciar Ingestao CSV
+            </button>
+            <button class="btn btn-secondary" id="btn-ingest-fontes" onclick="WorkspaceSetup.ingestFontes()">
+                Parsear Fontes
+            </button>
+        </div>
+
+        <!-- Progress -->
+        <div id="ingest-progress" class="progress-area" style="display:none">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+            <p id="progress-text">Aguardando...</p>
+        </div>
+
+        <!-- Existing Workspaces -->
+        <div class="card" style="margin-top:1.5rem">
+            <h3>Workspaces existentes</h3>
+            <div id="workspace-list">
+                <p class="text-muted">Carregando...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tab: Dashboard -->
+<div class="tab-content" id="tab-dashboard">
+    <div id="dashboard-content">
+        <p class="text-muted">Selecione um workspace no Setup para ver o dashboard.</p>
+    </div>
+</div>
+
+<!-- Tab: Explorer -->
+<div class="tab-content" id="tab-explorer">
+    <div id="explorer-content">
+        <p class="text-muted">Selecione um workspace no Setup para explorar.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/modules/workspace-setup.js"></script>
+<script src="/static/js/modules/workspace-dashboard.js"></script>
+<script src="/static/js/modules/workspace-explorer.js"></script>
+{% endblock %}

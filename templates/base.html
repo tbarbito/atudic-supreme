@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AtuDIC Supreme</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h1 class="logo">AtuDIC<span class="logo-accent">Supreme</span></h1>
+        </div>
+        <ul class="nav-menu">
+            <li class="nav-item active" data-page="workspace">
+                <span class="nav-icon">&#9776;</span>
+                <span class="nav-label">Workspace</span>
+            </li>
+            <li class="nav-item" data-page="dictionary">
+                <span class="nav-icon">&#128218;</span>
+                <span class="nav-label">Dicionario</span>
+            </li>
+            <li class="nav-item" data-page="pipelines">
+                <span class="nav-icon">&#9881;</span>
+                <span class="nav-label">Pipelines</span>
+            </li>
+            <li class="nav-item" data-page="agent">
+                <span class="nav-icon">&#129302;</span>
+                <span class="nav-label">GolIAs</span>
+            </li>
+        </ul>
+    </nav>
+
+    <main class="content" id="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="/static/js/app.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
