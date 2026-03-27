@@ -94,19 +94,382 @@ async function dwLoadPolicies(envId) {
 // =====================================================================
 
 async function showDevWorkspace() {
+    // Estado do workspace
+    if (!window._wsState) {
+        window._wsState = { activeTab: 'setup', activeSlug: null, tabelas: [] };
+    }
+
     document.getElementById('content-area').innerHTML =
         '<div class="content-header mb-4">' +
-            '<h2><i class="fas fa-code me-2"></i>Workspace</h2>' +
-            '<p class="text-muted mb-0">Desenvolvimento assistido para fontes AdvPL/TLPP</p>' +
+            '<div>' +
+                '<h2><i class="fas fa-code me-2"></i>Workspace</h2>' +
+                '<p class="text-muted mb-0">Engenharia reversa de ambientes Protheus (ExtraiRPO)</p>' +
+            '</div>' +
         '</div>' +
-        '<div class="d-flex flex-column align-items-center justify-content-center" style="min-height:400px;">' +
-            '<i class="fas fa-hard-hat fa-4x text-warning mb-4"></i>' +
-            '<h3 class="text-center mb-3">Em Construcao!</h3>' +
-            '<p class="text-muted text-center" style="max-width:500px;">' +
-                'O novo modulo Workspace esta sendo desenvolvido com recursos aprimorados. ' +
-                'Em breve estara disponivel nesta versao.' +
-            '</p>' +
+        '<ul class="nav nav-tabs mb-3" id="ws-tabs">' +
+            '<li class="nav-item">' +
+                '<button class="nav-link active" data-action="wsSwitchTab" data-params=\'{"tab":"setup"}\'>' +
+                    '<i class="fas fa-cog me-1"></i>Setup' +
+                '</button>' +
+            '</li>' +
+            '<li class="nav-item">' +
+                '<button class="nav-link" data-action="wsSwitchTab" data-params=\'{"tab":"dashboard"}\'>' +
+                    '<i class="fas fa-chart-bar me-1"></i>Dashboard' +
+                '</button>' +
+            '</li>' +
+            '<li class="nav-item">' +
+                '<button class="nav-link" data-action="wsSwitchTab" data-params=\'{"tab":"explorer"}\'>' +
+                    '<i class="fas fa-search me-1"></i>Explorer' +
+                '</button>' +
+            '</li>' +
+        '</ul>' +
+        '<div id="ws-tab-content"></div>';
+
+    await wsSwitchTab({ tab: window._wsState.activeTab });
+}
+
+// =====================================================================
+// WORKSPACE — TAB SWITCHING
+// =====================================================================
+
+async function wsSwitchTab(params) {
+    var tab = typeof params === 'string' ? params : (params && params.tab) || 'setup';
+    window._wsState.activeTab = tab;
+
+    document.querySelectorAll('#ws-tabs .nav-link').forEach(function(el) { el.classList.remove('active'); });
+    document.querySelectorAll('#ws-tabs .nav-link').forEach(function(el) {
+        try {
+            var p = JSON.parse(el.getAttribute('data-params') || '{}');
+            if (p.tab === tab) el.classList.add('active');
+        } catch(e) {}
+    });
+
+    var container = document.getElementById('ws-tab-content');
+    if (!container) return;
+
+    if (tab === 'setup') await wsRenderSetup(container);
+    else if (tab === 'dashboard') await wsRenderDashboard(container);
+    else if (tab === 'explorer') await wsRenderExplorer(container);
+}
+
+// =====================================================================
+// WORKSPACE — SETUP TAB
+// =====================================================================
+
+async function wsRenderSetup(container) {
+    container.innerHTML =
+        '<div class="card">' +
+            '<div class="card-body">' +
+                '<h5 class="card-title mb-3">Criar / Selecionar Workspace</h5>' +
+                '<div class="mb-3">' +
+                    '<label class="form-label">Nome do workspace</label>' +
+                    '<input type="text" class="form-control" id="ws-slug" placeholder="ex: marfrig-alimentos" value="' + (window._wsState.activeSlug || '') + '">' +
+                '</div>' +
+                '<div class="mb-3">' +
+                    '<label class="form-label">Diretorio dos CSVs SX</label>' +
+                    '<input type="text" class="form-control" id="ws-csv-dir" placeholder="C:\\caminho\\para\\csvs">' +
+                '</div>' +
+                '<div class="mb-3">' +
+                    '<label class="form-label">Diretorio dos fontes .prw/.tlpp (opcional)</label>' +
+                    '<input type="text" class="form-control" id="ws-fontes-dir" placeholder="C:\\caminho\\para\\fontes">' +
+                '</div>' +
+                '<div class="mb-3">' +
+                    '<label class="form-label">Mapa de modulos JSON (opcional)</label>' +
+                    '<input type="text" class="form-control" id="ws-mapa" placeholder="C:\\caminho\\para\\mapa-modulos.json">' +
+                '</div>' +
+                '<div class="d-flex gap-2 mb-3">' +
+                    '<button class="btn btn-primary" data-action="wsIngestCSV">' +
+                        '<i class="fas fa-upload me-1"></i>Ingerir CSVs' +
+                    '</button>' +
+                    '<button class="btn btn-outline-primary" data-action="wsIngestFontes">' +
+                        '<i class="fas fa-file-code me-1"></i>Parsear Fontes' +
+                    '</button>' +
+                '</div>' +
+                '<div id="ws-progress" style="display:none">' +
+                    '<div class="progress mb-2"><div class="progress-bar" id="ws-progress-bar" style="width:0%"></div></div>' +
+                    '<small class="text-muted" id="ws-progress-text">Aguardando...</small>' +
+                '</div>' +
+            '</div>' +
+        '</div>' +
+        '<div class="card mt-3">' +
+            '<div class="card-body">' +
+                '<h5 class="card-title mb-3">Workspaces existentes</h5>' +
+                '<div id="ws-list"><div class="text-muted">Carregando...</div></div>' +
+            '</div>' +
         '</div>';
+
+    await wsLoadWorkspaces();
+}
+
+async function wsLoadWorkspaces() {
+    try {
+        var workspaces = await apiRequest('/workspace/workspaces');
+        var container = document.getElementById('ws-list');
+        if (!workspaces || !workspaces.length) {
+            container.innerHTML = '<p class="text-muted">Nenhum workspace encontrado. Crie um acima.</p>';
+            return;
+        }
+        container.innerHTML = workspaces.map(function(ws) {
+            return '<div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" ' +
+                'style="cursor:pointer" data-action="wsSelectWorkspace" data-params=\'{"slug":"' + ws.slug + '"}\'>' +
+                '<div>' +
+                    '<strong>' + ws.slug + '</strong><br>' +
+                    '<small class="text-muted">' +
+                        (ws.stats.tabelas || 0) + ' tabelas | ' +
+                        (ws.stats.campos || 0) + ' campos | ' +
+                        (ws.stats.fontes || 0) + ' fontes | ' +
+                        (ws.stats.vinculos || 0) + ' vinculos' +
+                    '</small>' +
+                '</div>' +
+                '<span class="badge bg-primary">' + (ws.stats.vinculos || 0) + '</span>' +
+            '</div>';
+        }).join('');
+    } catch (e) {
+        document.getElementById('ws-list').innerHTML = '<p class="text-danger">Erro ao carregar: ' + e.message + '</p>';
+    }
+}
+
+async function wsSelectWorkspace(params) {
+    window._wsState.activeSlug = params.slug;
+    document.getElementById('ws-slug').value = params.slug;
+    showToast('Workspace "' + params.slug + '" selecionado', 'success');
+    await wsSwitchTab({ tab: 'dashboard' });
+}
+
+async function wsIngestCSV() {
+    var slug = document.getElementById('ws-slug').value.trim();
+    var csvDir = document.getElementById('ws-csv-dir').value.trim();
+    if (!slug) return showToast('Informe o nome do workspace', 'warning');
+    if (!csvDir) return showToast('Informe o diretorio dos CSVs', 'warning');
+
+    document.getElementById('ws-progress').style.display = 'block';
+    document.getElementById('ws-progress-bar').style.width = '30%';
+    document.getElementById('ws-progress-text').textContent = 'Ingerindo CSVs...';
+
+    try {
+        var result = await apiRequest('/workspace/workspaces/' + slug + '/ingest/csv', 'POST', { csv_dir: csvDir });
+        document.getElementById('ws-progress-bar').style.width = '100%';
+        document.getElementById('ws-progress-text').textContent = 'Concluido! ' + JSON.stringify(result.stats);
+        showToast('Ingestao CSV concluida!', 'success');
+        window._wsState.activeSlug = slug;
+        await wsLoadWorkspaces();
+    } catch (e) {
+        document.getElementById('ws-progress-text').textContent = 'Erro: ' + e.message;
+        showToast('Erro: ' + e.message, 'danger');
+    }
+}
+
+async function wsIngestFontes() {
+    var slug = document.getElementById('ws-slug').value.trim();
+    var fontesDir = document.getElementById('ws-fontes-dir').value.trim();
+    if (!slug) return showToast('Informe o nome do workspace', 'warning');
+    if (!fontesDir) return showToast('Informe o diretorio dos fontes', 'warning');
+
+    document.getElementById('ws-progress').style.display = 'block';
+    document.getElementById('ws-progress-bar').style.width = '20%';
+    document.getElementById('ws-progress-text').textContent = 'Parseando fontes ADVPL/TLPP...';
+
+    try {
+        var data = { fontes_dir: fontesDir };
+        var mapa = document.getElementById('ws-mapa').value.trim();
+        if (mapa) data.mapa_modulos = mapa;
+        var result = await apiRequest('/workspace/workspaces/' + slug + '/ingest/fontes', 'POST', data);
+        document.getElementById('ws-progress-bar').style.width = '100%';
+        document.getElementById('ws-progress-text').textContent =
+            'Concluido! ' + result.stats.fontes + ' fontes, ' + result.stats.chunks + ' chunks';
+        showToast('Parse de fontes concluido!', 'success');
+        await wsLoadWorkspaces();
+    } catch (e) {
+        document.getElementById('ws-progress-text').textContent = 'Erro: ' + e.message;
+        showToast('Erro: ' + e.message, 'danger');
+    }
+}
+
+// =====================================================================
+// WORKSPACE — DASHBOARD TAB
+// =====================================================================
+
+async function wsRenderDashboard(container) {
+    var slug = window._wsState.activeSlug;
+    if (!slug) {
+        container.innerHTML = '<div class="alert alert-info">Selecione um workspace na aba Setup.</div>';
+        return;
+    }
+
+    container.innerHTML = '<div class="text-center p-4"><div class="spinner-border spinner-border-sm"></div> Carregando...</div>';
+
+    try {
+        var stats = await apiRequest('/workspace/workspaces/' + slug + '/stats');
+        var summary = await apiRequest('/workspace/workspaces/' + slug + '/explorer/summary');
+
+        container.innerHTML =
+            '<h5 class="mb-3">Workspace: <strong>' + slug + '</strong></h5>' +
+            '<div class="row g-3 mb-4">' +
+                wsStatCard(stats.tabelas, 'Tabelas', 'fa-table', 'primary') +
+                wsStatCard(stats.campos, 'Campos', 'fa-columns', 'primary') +
+                wsStatCard(stats.indices, 'Indices', 'fa-sort-amount-down', 'primary') +
+                wsStatCard(stats.gatilhos, 'Gatilhos', 'fa-bolt', 'primary') +
+                wsStatCard(stats.fontes, 'Fontes', 'fa-file-code', 'info') +
+                wsStatCard(stats.fonte_chunks, 'Chunks', 'fa-puzzle-piece', 'info') +
+                wsStatCard(stats.vinculos, 'Vinculos', 'fa-project-diagram', 'info') +
+                wsStatCard(stats.menus, 'Menus', 'fa-bars', 'secondary') +
+            '</div>' +
+            '<div class="card">' +
+                '<div class="card-body">' +
+                    '<h5 class="card-title">Customizacoes</h5>' +
+                    '<div class="row g-3">' +
+                        wsStatCard(summary.tabelas_custom, 'Tabelas Custom', 'fa-table', 'warning') +
+                        wsStatCard(summary.campos_custom, 'Campos Custom', 'fa-columns', 'warning') +
+                        wsStatCard(summary.gatilhos_custom, 'Gatilhos Custom', 'fa-bolt', 'warning') +
+                        wsStatCard(summary.fontes_custom, 'Fontes Custom', 'fa-file-code', 'warning') +
+                        wsStatCard(summary.parametros_custom, 'Params Custom', 'fa-sliders-h', 'warning') +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+    } catch (e) {
+        container.innerHTML = '<div class="alert alert-danger">Erro: ' + e.message + '</div>';
+    }
+}
+
+function wsStatCard(value, label, icon, color) {
+    return '<div class="col-6 col-md-3">' +
+        '<div class="card text-center">' +
+            '<div class="card-body py-3">' +
+                '<i class="fas ' + icon + ' fa-lg text-' + color + ' mb-2"></i>' +
+                '<h3 class="mb-0 text-' + color + '">' + ((value || 0).toLocaleString ? (value || 0).toLocaleString() : (value || 0)) + '</h3>' +
+                '<small class="text-muted">' + label + '</small>' +
+            '</div>' +
+        '</div>' +
+    '</div>';
+}
+
+// =====================================================================
+// WORKSPACE — EXPLORER TAB
+// =====================================================================
+
+async function wsRenderExplorer(container) {
+    var slug = window._wsState.activeSlug;
+    if (!slug) {
+        container.innerHTML = '<div class="alert alert-info">Selecione um workspace na aba Setup.</div>';
+        return;
+    }
+
+    container.innerHTML =
+        '<div class="row">' +
+            '<div class="col-md-4">' +
+                '<div class="card" style="max-height:70vh;overflow-y:auto">' +
+                    '<div class="card-body p-2">' +
+                        '<input type="text" class="form-control form-control-sm mb-2" ' +
+                            'placeholder="Buscar tabela..." id="ws-search" oninput="wsFilterTables(this.value)">' +
+                        '<div id="ws-table-tree"><div class="text-muted p-2">Carregando...</div></div>' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+            '<div class="col-md-8">' +
+                '<div id="ws-table-detail">' +
+                    '<div class="card"><div class="card-body text-muted">Selecione uma tabela.</div></div>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+
+    try {
+        window._wsState.tabelas = await apiRequest('/workspace/workspaces/' + slug + '/explorer/tabelas');
+        wsRenderTableTree(window._wsState.tabelas);
+    } catch (e) {
+        document.getElementById('ws-table-tree').innerHTML = '<p class="text-danger p-2">Erro: ' + e.message + '</p>';
+    }
+}
+
+function wsRenderTableTree(tabelas) {
+    var tree = document.getElementById('ws-table-tree');
+    if (!tabelas || !tabelas.length) {
+        tree.innerHTML = '<p class="text-muted p-2">Nenhuma tabela.</p>';
+        return;
+    }
+    tree.innerHTML = tabelas.map(function(t) {
+        var badge = t.custom ? '<span class="badge bg-warning text-dark ms-1">C</span>' : '';
+        return '<div class="list-group-item list-group-item-action py-1 px-2 d-flex align-items-center" ' +
+            'style="cursor:pointer;font-size:0.85rem" data-action="wsSelectTable" data-params=\'{"codigo":"' + t.codigo + '"}\'>' +
+            '<code class="me-2">' + t.codigo + '</code>' +
+            '<span class="text-muted text-truncate" style="flex:1">' + (t.nome || '').substring(0, 25) + '</span>' +
+            badge +
+        '</div>';
+    }).join('');
+}
+
+function wsFilterTables(query) {
+    var q = query.toUpperCase();
+    var filtered = window._wsState.tabelas.filter(function(t) {
+        return t.codigo.toUpperCase().indexOf(q) >= 0 || (t.nome || '').toUpperCase().indexOf(q) >= 0;
+    });
+    wsRenderTableTree(filtered);
+}
+
+async function wsSelectTable(params) {
+    var slug = window._wsState.activeSlug;
+    var detail = document.getElementById('ws-table-detail');
+    detail.innerHTML = '<div class="card"><div class="card-body text-center"><div class="spinner-border spinner-border-sm"></div></div></div>';
+
+    try {
+        var info = await apiRequest('/workspace/workspaces/' + slug + '/explorer/tabela/' + params.codigo);
+        detail.innerHTML = wsRenderTableDetail(info);
+    } catch (e) {
+        detail.innerHTML = '<div class="card"><div class="card-body text-danger">Erro: ' + e.message + '</div></div>';
+    }
+}
+
+function wsRenderTableDetail(info) {
+    var customBadge = info.custom ? '<span class="badge bg-warning text-dark ms-2">CUSTOM</span>' : '';
+    var html = '<div class="card"><div class="card-body">' +
+        '<h5><code>' + info.codigo + '</code> — ' + (info.nome || '') + customBadge + '</h5>' +
+        '<p class="text-muted">Modo: ' + (info.modo || 'C') + '</p>';
+
+    // Stats
+    html += '<div class="row g-2 mb-3">' +
+        '<div class="col-3 text-center"><h4 class="text-primary mb-0">' + (info.campos ? info.campos.length : 0) + '</h4><small class="text-muted">Campos</small></div>' +
+        '<div class="col-3 text-center"><h4 class="text-warning mb-0">' + (info.campos_custom ? info.campos_custom.length : 0) + '</h4><small class="text-muted">Custom</small></div>' +
+        '<div class="col-3 text-center"><h4 class="text-info mb-0">' + (info.indices ? info.indices.length : 0) + '</h4><small class="text-muted">Indices</small></div>' +
+        '<div class="col-3 text-center"><h4 class="text-danger mb-0">' + (info.gatilhos ? info.gatilhos.length : 0) + '</h4><small class="text-muted">Gatilhos</small></div>' +
+    '</div>';
+
+    // Campos custom
+    if (info.campos_custom && info.campos_custom.length) {
+        html += '<h6 class="mt-3">Campos Customizados (' + info.campos_custom.length + ')</h6>' +
+            '<div class="table-responsive"><table class="table table-sm table-striped"><thead><tr>' +
+            '<th>Campo</th><th>Titulo</th><th>Tipo</th><th>Tam</th><th>Obrig</th><th>F3</th></tr></thead><tbody>';
+        info.campos_custom.forEach(function(c) {
+            html += '<tr><td><code>' + c.campo + '</code></td><td>' + (c.titulo || '') + '</td>' +
+                '<td>' + c.tipo + '</td><td>' + c.tamanho + ',' + c.decimal + '</td>' +
+                '<td>' + (c.obrigatorio ? 'Sim' : '') + '</td><td>' + (c.f3 || '') + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+    }
+
+    // Indices custom
+    if (info.indices_custom && info.indices_custom.length) {
+        html += '<h6 class="mt-3">Indices Custom (' + info.indices_custom.length + ')</h6>' +
+            '<div class="table-responsive"><table class="table table-sm table-striped"><thead><tr>' +
+            '<th>Ordem</th><th>Chave</th><th>Descricao</th></tr></thead><tbody>';
+        info.indices_custom.forEach(function(i) {
+            html += '<tr><td>' + i.ordem + '</td><td><code>' + i.chave + '</code></td><td>' + (i.descricao || '') + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+    }
+
+    // Gatilhos custom
+    if (info.gatilhos_custom && info.gatilhos_custom.length) {
+        html += '<h6 class="mt-3">Gatilhos Custom (' + info.gatilhos_custom.length + ')</h6>' +
+            '<div class="table-responsive"><table class="table table-sm table-striped"><thead><tr>' +
+            '<th>Origem</th><th>Destino</th><th>Regra</th></tr></thead><tbody>';
+        info.gatilhos_custom.forEach(function(g) {
+            html += '<tr><td><code>' + g.campo_origem + '</code></td><td><code>' + g.campo_destino + '</code></td>' +
+                '<td>' + (g.regra || '').substring(0, 60) + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+    }
+
+    html += '</div></div>';
+    return html;
 }
 
 // =====================================================================
