@@ -369,7 +369,26 @@ CREATE TABLE IF NOT EXISTS schedules (
 );
 CREATE INDEX IF NOT EXISTS idx_schedules_rotina ON schedules(rotina);
 CREATE INDEX IF NOT EXISTS idx_schedules_status ON schedules(status);
+
+-- Mapa de modulos Protheus (autocontido — dados padrao do ERP)
+CREATE TABLE IF NOT EXISTS mapa_modulos (
+    modulo      TEXT PRIMARY KEY,
+    tabelas     TEXT NOT NULL DEFAULT '[]',
+    rotinas     TEXT NOT NULL DEFAULT '[]'
+);
 """
+
+# Dados padrao do Protheus — seed automatico
+_MAPA_MODULOS_DEFAULT = [
+    ("compras",       '["SC7","SC8","SA2","SCR","SCJ"]', '["MATA120","MATA121","MATA103"]'),
+    ("faturamento",   '["SC5","SC6","SF2","SD2","SA1"]', '["MATA410","MATA411","MATA460","MATA461"]'),
+    ("financeiro",    '["SE1","SE2","SE5","SA6","SEA"]', '["FINA040","FINA050","FINA080"]'),
+    ("estoque",       '["SB1","SB2","SB5","SD1","SD3"]', '["MATA240","MATA241","MATA250","MATA260"]'),
+    ("fiscal",        '["SF3","SF4","SFT","CDA","CDH"]', '["MATA950","MATA953"]'),
+    ("pcp",           '["SC2","SG1","SG2","SD4","SHB"]', '["MATA630","MATA650","MATA680"]'),
+    ("rh",            '["SRA","SRB","SRC","SRD","SRE"]', '["GPEA010","GPEA020","GPEM020"]'),
+    ("contabilidade", '["CT1","CT2","CT5","CTS","CVD"]', '["CTBA010","CTBA020","CTBA102"]'),
+]
 
 _initialized_dbs: set[str] = set()
 
@@ -384,6 +403,13 @@ class Database:
         key = str(self.db_path)
         if key not in _initialized_dbs:
             self._conn.executescript(SCHEMA)
+            # Seed mapa de modulos padrao Protheus
+            existing = self._conn.execute("SELECT COUNT(*) FROM mapa_modulos").fetchone()[0]
+            if existing == 0:
+                self._conn.executemany(
+                    "INSERT OR IGNORE INTO mapa_modulos (modulo, tabelas, rotinas) VALUES (?,?,?)",
+                    _MAPA_MODULOS_DEFAULT
+                )
             self._conn.commit()
             _initialized_dbs.add(key)
 

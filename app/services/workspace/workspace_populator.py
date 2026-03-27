@@ -185,13 +185,27 @@ class WorkspacePopulator:
     # PARSE DE FONTES — Codigo ADVPL/TLPP
     # ========================================================================
 
+    def _load_mapa_modulos(self) -> dict:
+        """Carrega mapa de modulos do SQLite (autocontido)."""
+        mapa = {}
+        try:
+            rows = self.db.execute("SELECT modulo, tabelas, rotinas FROM mapa_modulos").fetchall()
+            for r in rows:
+                mapa[r[0]] = {
+                    "tabelas": json.loads(r[1]) if r[1] else [],
+                    "rotinas": json.loads(r[2]) if r[2] else [],
+                }
+        except Exception:
+            pass
+        return mapa
+
     def parse_fontes(self, fontes_dir: Path, mapa_modulos_path: Optional[Path] = None,
                      progress_callback=None) -> dict:
         """Parseia codigo-fonte ADVPL/TLPP e popula workspace.
 
         Args:
             fontes_dir: Diretorio com arquivos .prw/.tlpp
-            mapa_modulos_path: Path para mapa-modulos.json (deteccao de modulo)
+            mapa_modulos_path: Path para mapa-modulos.json (override opcional)
             progress_callback: Funcao(fase, item, total) para progresso
 
         Returns:
@@ -200,10 +214,11 @@ class WorkspacePopulator:
         start = time.time()
         stats = {"fontes": 0, "chunks": 0, "operacoes_escrita": 0}
 
-        # Carregar mapa de modulos
-        mapa_modulos = {}
+        # Carregar mapa de modulos do SQLite (padrao) ou arquivo externo (override)
         if mapa_modulos_path and mapa_modulos_path.exists():
             mapa_modulos = json.loads(mapa_modulos_path.read_text(encoding="utf-8"))
+        else:
+            mapa_modulos = self._load_mapa_modulos()
 
         # Descobrir arquivos
         extensions = {".prw", ".prx", ".tlpp", ".aph"}

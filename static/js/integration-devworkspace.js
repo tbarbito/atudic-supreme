@@ -227,16 +227,7 @@ async function wsRenderSetup(container) {
                                     '</button>' +
                                 '</div>' +
                                 '<input type="file" id="ws-fontes-dir-picker" webkitdirectory style="display:none" onchange="document.getElementById(\'ws-fontes-dir\').value=this.files[0]?this.files[0].webkitRelativePath.split(\'/\')[0]:\'\'">' +
-                            '</div>' +
-                            '<div class="mb-3">' +
-                                '<label class="form-label fw-semibold">Mapa de modulos JSON <small class="text-muted">(opcional)</small></label>' +
-                                '<div class="input-group">' +
-                                    '<input type="text" class="form-control" id="ws-mapa" placeholder="C:\\caminho\\para\\mapa-modulos.json">' +
-                                    '<button class="btn btn-outline-secondary" type="button" onclick="document.getElementById(\'ws-mapa-picker\').click()">' +
-                                        '<i class="fas fa-file"></i>' +
-                                    '</button>' +
-                                '</div>' +
-                                '<input type="file" id="ws-mapa-picker" accept=".json" style="display:none" onchange="document.getElementById(\'ws-mapa\').value=this.files[0]?this.files[0].name:\'\'">' +
+                                '<small class="text-muted"><i class="fas fa-info-circle me-1"></i>Mapa de modulos Protheus carregado automaticamente do banco.</small>' +
                             '</div>' +
                         '</div>' +
 

@@ -164,11 +164,19 @@ def build_vinculos(db_path: Path, mapa_path: Path = None):
     # 8. tabela_pertence_modulo
     print("8. tabela_pertence_modulo...")
     c = len(vinculos)
+    # Prioridade: 1) mapa_path externo, 2) tabela mapa_modulos no SQLite
+    mapa = {}
     if mapa_path and mapa_path.exists():
         mapa = json.loads(mapa_path.read_text(encoding='utf-8'))
-        for modulo, info in mapa.items():
-            for tab in info.get("tabelas", []):
-                vinculos.append(('tabela_pertence_modulo', 'tabela', tab.upper(), 'modulo', modulo, modulo, '', 1))
+    else:
+        try:
+            for row in db.execute("SELECT modulo, tabelas FROM mapa_modulos").fetchall():
+                mapa[row[0]] = {"tabelas": json.loads(row[1]) if row[1] else []}
+        except Exception:
+            pass
+    for modulo, info in mapa.items():
+        for tab in info.get("tabelas", []):
+            vinculos.append(('tabela_pertence_modulo', 'tabela', tab.upper(), 'modulo', modulo, modulo, '', 1))
     print(f"   {len(vinculos) - c}")
 
     # 9. modulo_integra_modulo
