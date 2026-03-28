@@ -54,6 +54,9 @@ python-dateutil==2.9.0.post0
 # HTML parsing (TDN ingestor — scraping de documentação TOTVS)
 beautifulsoup4==4.13.4
 
+# Detecção de encoding (Workspace — parser de fontes ADVPL/TLPP)
+chardet>=5.2.0
+
 # =====================================================================
 # TESTES
 # =====================================================================

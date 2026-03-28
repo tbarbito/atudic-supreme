@@ -373,9 +373,6 @@ def obfuscate_javascript():
         os.path.join(obfuscated_dir, 'app/static/js/integration-devworkspace.js'),
         os.path.join(obfuscated_dir, 'app/static/js/integration-agent.js'),
         os.path.join(obfuscated_dir, 'app/static/js/integration-auditor.js'),
-        os.path.join(obfuscated_dir, 'app/static/js/workspace-setup.js'),
-        os.path.join(obfuscated_dir, 'app/static/js/workspace-dashboard.js'),
-        os.path.join(obfuscated_dir, 'app/static/js/workspace-explorer.js'),
     ]
 
     all_success = True
