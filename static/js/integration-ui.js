@@ -1692,6 +1692,9 @@ async function renderWorkspaceSettingsTab() {
     const container = document.getElementById('workspace-settings-content');
     if (!container) return;
 
+    // Garantir que o modulo workspace esta carregado (lazy load)
+    try { await loadModule('integration-devworkspace'); } catch (e) { /* ja carregado */ }
+
     if (typeof wsRenderSetup === 'function') {
         await wsRenderSetup(container);
     } else {
