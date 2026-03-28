@@ -250,35 +250,45 @@ class ContextBuilder:
         pass
 
     def _fetch_tdn_context(self, context, message, intent):
-        """Busca inteligente na base TDN usando ProtheusIntelligence.
+        """Busca inteligente na base TDN usando ProtheusIntelligence + SQLite FTS5.
 
         Pipeline:
         1. ProtheusIntelligence analisa a mensagem (sem LLM, puro heuristica)
         2. Gera multiplas queries otimizadas (modulo, tabelas, rotinas, conceitos)
-        3. Busca multi-estrategia (tsvector + titulo + fallback ILIKE)
+        3. Busca via SQLite FTS5 BM25 (memoria do agente — tdn_*.md)
         4. Deduplica e ranqueia resultados
         5. Injeta context_hint (dicas do grafo de conhecimento)
         """
         from app.services.tdn_intelligence import ProtheusIntelligence
-        from app.services.tdn_ingestor import TDNIngestor
 
         pi = ProtheusIntelligence()
         analysis = pi.analyze(message)
-        ingestor = TDNIngestor()
 
-        # Busca multi-query (queries geradas pela inteligencia)
-        results = ingestor.search_multi(analysis.search_queries, limit=5)
+        # Busca multi-query no SQLite FTS5 (BM25)
+        seen_ids = set()
+        tdn_results = []
 
-        # Se multi-query nao achou, tentar busca por titulo
-        if not results and (analysis.detected_modules or analysis.detected_routines):
-            title_terms = " ".join(analysis.detected_modules + analysis.detected_routines)
-            results = ingestor.search_by_title(title_terms, limit=5)
+        for query in analysis.search_queries:
+            if not query or not query.strip():
+                continue
+            results = self.memory.search_bm25(
+                query, chunk_type="semantic", limit=5
+            )
+            for r in results:
+                rid = r.get("chunk_id") or r.get("content_hash", "")
+                if rid not in seen_ids:
+                    seen_ids.add(rid)
+                    tdn_results.append(r)
 
-        if results:
-            context["tdn_results"] = [dict(r) for r in results]
+        # Ordenar por rank (BM25 score) e limitar
+        tdn_results.sort(key=lambda r: r.get("rank", 0))  # FTS5 rank: menor = melhor
+        tdn_results = tdn_results[:5]
+
+        if tdn_results:
+            context["tdn_results"] = tdn_results
             logger.info(
-                "TDN: %d chunks (queries=%d, modulos=%s, intent=%s)",
-                len(results), len(analysis.search_queries),
+                "TDN FTS5: %d chunks (queries=%d, modulos=%s, intent=%s)",
+                len(tdn_results), len(analysis.search_queries),
                 analysis.detected_modules, analysis.protheus_intent
             )
 

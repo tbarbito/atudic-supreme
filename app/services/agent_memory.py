@@ -431,16 +431,10 @@ class AgentMemoryService:
         if os.path.isfile(os.path.join(self.memory_dir, "TOOLS.md")):
             results["TOOLS.md"] = self.ingest_file("TOOLS.md", "procedural", environment_id)
 
-        # Base de conhecimento TDN Protheus (referencia tecnica)
-        _TDN_FILES = [
-            "tdn_advpl.md",           # 7813 itens — funcoes, classes, componentes AdvPL
-            "tdn_framework_tlpp.md",  # 5674 itens — Framework MVC, TLPP, modulos
-            "tdn_framework_rest.md",  # 2494 itens — Framework REST, classes FW
-            "tdn_tss.md",             # 77 artigos — TSS com diagnostico+solucao
-        ]
-        for tdn_file in _TDN_FILES:
-            if os.path.isfile(os.path.join(self.memory_dir, tdn_file)):
-                results[tdn_file] = self.ingest_file(tdn_file, "semantic", environment_id)
+        # Base de conhecimento TDN Protheus (todos os tdn_*.md em memory/)
+        for filename in sorted(os.listdir(self.memory_dir)):
+            if filename.startswith("tdn_") and filename.endswith(".md"):
+                results[filename] = self.ingest_file(filename, "semantic", environment_id)
 
         # Memória episódica (logs diários)
         logs_dir = os.path.join(self.memory_dir, "logs")

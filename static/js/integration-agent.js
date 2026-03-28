@@ -1615,7 +1615,7 @@ async function agLoadTDNStats() {
     body.innerHTML = '<div class="text-center text-muted py-2"><i class="fas fa-spinner fa-spin me-1"></i> Carregando...</div>';
 
     try {
-        var stats = await apiRequest('/tdn/stats');
+        var stats = await apiRequest('/agent/memory/tdn-stats');
         if (!stats || stats.length === 0) {
             body.innerHTML = '<div class="text-muted py-2"><i class="fas fa-info-circle me-1"></i> Base TDN vazia. Use o botao Rebuild para popular.</div>';
             body.innerHTML += '<div class="mt-2"><button class="btn btn-sm btn-primary" onclick="agRebuildTDN()"><i class="fas fa-hammer me-1"></i>Rebuild Base TDN</button></div>';
@@ -1662,27 +1662,16 @@ async function agLoadTDNStats() {
 }
 
 async function agRebuildTDN() {
-    if (!confirm('Rebuild da base TDN?\n\nIsso vai re-ingerir os arquivos .md existentes.\nO processo roda em background.')) return;
+    if (!confirm('Rebuild da base TDN?\n\nIsso vai re-indexar todos os arquivos tdn_*.md no SQLite FTS5.\nPode levar alguns minutos.')) return;
 
-    var sources = [
-        { md_file: 'framework_tdn_knowledge_base.md', source: 'framework' },
-        { md_file: 'tdn_knowledge_base.md', source: 'advpl' },
-        { md_file: 'tdn_v2_knowledge_base.md', source: 'totvstec' },
-        { md_file: 'tss_knowledge_base.md', source: 'tss' },
-    ];
-
-    var success = 0;
-    for (var i = 0; i < sources.length; i++) {
-        try {
-            await apiRequest('/tdn/ingest-md', 'POST', sources[i]);
-            success++;
-        } catch (e) {
-            console.warn('TDN rebuild ' + sources[i].source + ':', e);
-        }
+    try {
+        showNotification('Rebuild TDN iniciado... aguarde', 'info');
+        var result = await apiRequest('/agent/memory/rebuild', 'POST', {});
+        showNotification('Rebuild concluido: ' + (result.total_chunks || 0) + ' chunks indexados', 'success');
+        setTimeout(function() { agLoadTDNStats(); }, 1000);
+    } catch (e) {
+        showNotification('Erro no rebuild TDN: ' + e.message, 'error');
     }
-
-    showNotification('Rebuild TDN iniciado: ' + success + '/' + sources.length + ' fontes em background', 'success');
-    setTimeout(function() { agLoadTDNStats(); }, 3000);
 }
 
 // =====================================================================

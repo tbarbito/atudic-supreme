@@ -285,6 +285,43 @@ def rebuild_index():
     )
 
 
+@agent_bp.route("/api/agent/memory/tdn-stats", methods=["GET"])
+@require_auth
+def tdn_memory_stats():
+    """Retorna estatisticas dos chunks TDN no SQLite FTS5."""
+    service = get_agent_memory()
+    conn = service._get_conn()
+    cursor = conn.cursor()
+
+    # Contar chunks por source_file (tdn_*)
+    cursor.execute("""
+        SELECT source_file, COUNT(*) as total_chunks
+        FROM chunks_meta
+        WHERE source_file LIKE 'tdn_%'
+        GROUP BY source_file
+        ORDER BY source_file
+    """)
+    rows = cursor.fetchall()
+
+    stats = []
+    total_chunks = 0
+    for row in rows:
+        source = row["source_file"].replace("tdn_", "").replace(".md", "")
+        count = row["total_chunks"]
+        total_chunks += count
+        stats.append({
+            "source": source,
+            "total_chunks": count,
+            "total_pages": count,  # compatibilidade com frontend
+            "scraped": count,
+            "pending": 0,
+            "errors": 0,
+            "empty": 0,
+        })
+
+    return jsonify(stats)
+
+
 @agent_bp.route("/api/agent/memory/embeddings", methods=["POST"])
 @require_admin
 def generate_embeddings():
