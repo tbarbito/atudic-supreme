@@ -1776,6 +1776,25 @@ def init_tools():
         if tool_name in AGENT_TOOLS:
             AGENT_TOOLS[tool_name]["requires_confirmation"] = True
 
+    # --- Workspace tools (ExtraiRPO — engenharia reversa Protheus) ---
+    try:
+        from app.services.workspace.agent_tools import get_workspace_tools
+        for tool in get_workspace_tools():
+            register_tool(
+                name=tool["name"],
+                description=tool["description"],
+                parameters=[
+                    {"name": k, "type": v.get("type", "string"), "description": v.get("description", "")}
+                    for k, v in tool["parameters"].items()
+                ],
+                min_profile=tool.get("min_profile", "viewer"),
+                handler=tool["handler"],
+                risk_level=tool.get("risk", "low"),
+            )
+        logger.info("🔧 %d workspace tools registradas", len(get_workspace_tools()))
+    except Exception as e:
+        logger.warning("⚠️ Workspace tools nao carregadas: %s", e)
+
     logger.info("🔧 %d ferramentas do agente registradas", len(AGENT_TOOLS))
 
 

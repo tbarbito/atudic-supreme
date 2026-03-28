@@ -97,11 +97,17 @@ class ContextBuilder:
         except Exception as e:
             logger.warning("Erro na busca de memória: %s", e)
 
-        # Busca na base TDN (full-text search no PostgreSQL)
+        # Busca na base TDN (hibrida: SQLite FTS5 + PostgreSQL tsvector)
         try:
             self._fetch_tdn_context(context, message, intent)
         except Exception as e:
             logger.warning("Busca TDN indisponivel: %s", e)
+
+        # Busca no workspace ativo (dicionario do cliente, fontes, vinculos)
+        try:
+            self._fetch_workspace_context(context, message, entities)
+        except Exception as e:
+            logger.debug("Workspace context indisponivel: %s", e)
 
         # Consultas específicas por intent
         handlers = {
@@ -248,6 +254,57 @@ class ContextBuilder:
     def _ctx_general(self, context, message, entities, env_id):
         """Fallback — busca geral na memória."""
         pass
+
+    def _fetch_workspace_context(self, context, message, entities):
+        """Busca informacoes no workspace ativo (dicionario do cliente).
+
+        Se existe um workspace com dados ingeridos, enriquece o contexto
+        com informacoes de tabelas, campos e vinculos relevantes.
+        """
+        import os
+        from pathlib import Path
+
+        # Encontrar workspace ativo (primeiro que tiver workspace.db)
+        ws_base = Path("workspace/clients")
+        if not ws_base.exists():
+            return
+
+        active_ws = None
+        for slug_dir in ws_base.iterdir():
+            db_path = slug_dir / "workspace.db"
+            if db_path.exists() and db_path.stat().st_size > 10000:
+                active_ws = slug_dir.name
+                break
+
+        if not active_ws:
+            return
+
+        # Extrair tabelas mencionadas na mensagem
+        table_names = entities.get("table_names", [])
+        if not table_names:
+            return
+
+        try:
+            from app.services.workspace.workspace_db import Database
+            from app.services.workspace.knowledge import KnowledgeService
+
+            db_path = ws_base / active_ws / "workspace.db"
+            db = Database(db_path)
+            db.initialize()
+            ks = KnowledgeService(db)
+
+            ws_info = []
+            for table in table_names[:3]:  # max 3 tabelas
+                info = ks.get_table_info(table.upper())
+                if info:
+                    ws_info.append(info)
+
+            if ws_info:
+                context["workspace_info"] = ws_info
+                context["workspace_slug"] = active_ws
+                logger.info("Workspace '%s': %d tabelas encontradas", active_ws, len(ws_info))
+        except Exception as e:
+            logger.debug("Erro workspace context: %s", e)
 
     def _fetch_tdn_context(self, context, message, intent):
         """Busca hibrida na base TDN: SQLite FTS5 (leves) + PostgreSQL tsvector (pesados).
@@ -557,6 +614,24 @@ class ContextBuilder:
                 content = str(r.get("content", ""))[:600]
                 url = r.get("page_url", "")
                 parts.append(f"\n**{title}**\n{content}\n> Fonte: {url}")
+
+        if context.get("workspace_info"):
+            slug = context.get("workspace_slug", "")
+            parts.append(f"### Dicionario do Cliente (workspace: {slug})")
+            for info in context["workspace_info"][:3]:
+                if isinstance(info, dict):
+                    tabela = info.get("tabela", info.get("alias", ""))
+                    descricao = info.get("descricao", info.get("nome", ""))
+                    parts.append(f"**{tabela}** — {descricao}")
+                    # Campos customizados (Z) se existirem
+                    campos_custom = [c for c in info.get("campos", [])
+                                     if isinstance(c, dict) and "Z" in c.get("campo", "")]
+                    if campos_custom:
+                        parts.append(f"Campos customizados: {len(campos_custom)}")
+                        for c in campos_custom[:5]:
+                            parts.append(f"- {c.get('campo', '')}: {c.get('descricao', '')} ({c.get('tipo', '')})")
+                elif isinstance(info, str):
+                    parts.append(info[:500])
 
         if context.get("environments"):
             parts.append("### Ambientes")

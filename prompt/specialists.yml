@@ -75,6 +75,9 @@ database:
     - upload_ingest_file
     - preview_ingestion
     - execute_ingestion
+    - analyze_impact
+    - list_vinculos
+    - build_dependency_graph
   greeting: null
   autonomous: false
   agent_enabled: true
@@ -176,7 +179,7 @@ admin_ops:
   agent_max_iterations: 6
 
 knowledge:
-  description: "Base de conhecimento, referencia Protheus, processos de negocio"
+  description: "Base de conhecimento, referencia Protheus, processos de negocio, workspace"
   intents:
     - knowledge_search
     - procedure_lookup
@@ -186,8 +189,13 @@ knowledge:
     - protheus_framework
     - protheus_tlpp
     - process_ops
+    - workspace_reverse_engineering
   tools:
     - search_knowledge
+    - analyze_impact
+    - list_vinculos
+    - build_dependency_graph
+    - parse_source_code
   greeting: null
   autonomous: false
   agent_enabled: true
