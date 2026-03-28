@@ -823,6 +823,10 @@ const actionHandlers = {
     'docShowVersions': (params) => docShowVersions(params),
     'docCloseModal': () => docCloseModal(),
 
+    // ===== POLITICAS DE BRANCH (usado pelo Settings) =====
+    'dwShowPolicyForm': () => dwShowPolicyForm(),
+    'dwCancelPolicy': () => dwCancelPolicy(),
+
     // ===== WORKSPACE (ExtraiRPO) =====
     'wsSwitchTab': (params) => wsSwitchTab(params),
     'wsIngestCSV': () => wsIngestCSV(),

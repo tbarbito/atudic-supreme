@@ -5,6 +5,34 @@
 // Setup vive em Admin > Configuracoes > Workspace
 // =====================================================================
 
+// ===== Funcoes auxiliares usadas pelo tab Politicas de Branch (Settings) =====
+let dwPolicies = [];
+let dwRepos = [];
+
+async function dwLoadPolicies(envId) {
+    try {
+        var url = envId ? '/devworkspace/policies?environment_id=' + envId : '/devworkspace/policies';
+        dwPolicies = await apiRequest(url);
+    } catch (e) { dwPolicies = []; }
+}
+
+async function dwLoadRepos() {
+    try { dwRepos = await apiRequest('/repositories'); } catch (e) { dwRepos = []; }
+}
+
+function dwEscapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function dwPolicyBadge(allowed) {
+    return allowed ? '<span class="badge bg-success">Sim</span>' : '<span class="badge bg-danger">Nao</span>';
+}
+
+function dwShowPolicyForm() { var el = document.getElementById('dw-policy-form'); if (el) el.style.display = 'block'; }
+function dwCancelPolicy() { var el = document.getElementById('dw-policy-form'); if (el) el.style.display = 'none'; }
+
 // =====================================================================
 // ENTRY POINT
 // =====================================================================
