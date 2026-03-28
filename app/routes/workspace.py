@@ -283,12 +283,62 @@ def explorer_tabelas(slug):
 
 @workspace_bp.route("/workspaces/<slug>/explorer/tabela/<codigo>", methods=["GET"])
 def explorer_tabela_detail(slug, codigo):
-    """Retorna informacoes completas de uma tabela (campos, indices, gatilhos, relacoes)."""
+    """Retorna informacoes completas de uma tabela (campos, indices, gatilhos, fontes vinculados).
+    Enriquece campos com status diff (padrao/adicionado/alterado)."""
     db = _get_db(slug)
     ks = KnowledgeService(db)
     info = ks.get_table_info(codigo.upper())
     if not info:
         return jsonify({"error": "Tabela nao encontrada"}), 404
+
+    # Enriquecer campos com status diff
+    try:
+        diff_rows = db.execute(
+            "SELECT chave, acao, campo_diff, valor_padrao, valor_cliente "
+            "FROM diff WHERE tipo_sx IN ('campo', 'SX3') AND tabela = ?",
+            (codigo.upper(),)
+        ).fetchall()
+        diff_added = set()
+        diff_altered = {}
+        for r in diff_rows:
+            if r[1] == "adicionado":
+                diff_added.add(r[0])
+            elif r[1] == "alterado":
+                diff_altered.setdefault(r[0], []).append({
+                    "campo_diff": r[2], "valor_padrao": r[3], "valor_cliente": r[4]
+                })
+
+        for campo in info.get("campos", []):
+            nome = campo["campo"]
+            if nome in diff_added:
+                campo["status"] = "adicionado"
+            elif nome in diff_altered:
+                campo["status"] = "alterado"
+                campo["alteracoes"] = diff_altered[nome]
+            else:
+                campo["status"] = "padrao"
+    except Exception:
+        pass
+
+    # Fontes vinculados a esta tabela
+    try:
+        tab = codigo.upper()
+        fontes_rows = db.execute(
+            "SELECT arquivo, modulo, tabelas_ref, write_tables, lines_of_code "
+            "FROM fontes WHERE tabelas_ref LIKE ? OR write_tables LIKE ?",
+            (f'%"{tab}"%', f'%"{tab}"%')
+        ).fetchall()
+        fontes_vinculados = []
+        for f in fontes_rows:
+            writes = json.loads(f[3]) if f[3] else []
+            modo = "Leitura/Escrita" if tab in [w.upper() for w in writes] else "Leitura"
+            fontes_vinculados.append({
+                "arquivo": f[0], "modulo": f[1] or "", "loc": f[4] or 0, "modo": modo
+            })
+        info["fontes_vinculados"] = fontes_vinculados
+    except Exception:
+        info["fontes_vinculados"] = []
+
     return jsonify(info)
 
 
@@ -338,6 +388,200 @@ def explorer_summary(slug):
     db = _get_db(slug)
     ks = KnowledgeService(db)
     return jsonify(ks.get_custom_summary())
+
+
+@workspace_bp.route("/workspaces/<slug>/dashboard", methods=["GET"])
+def workspace_dashboard(slug):
+    """Retorna dados ricos para dashboard do workspace (similar ao ExtraiRPO)."""
+    try:
+        db = _get_db(slug)
+    except Exception as e:
+        logger.error("Erro ao abrir workspace %s: %s", slug, e)
+        return jsonify({"error": "Workspace nao encontrado"}), 404
+
+    def _count(query, params=()):
+        try:
+            row = db.execute(query, params).fetchone()
+            return row[0] if row else 0
+        except Exception:
+            return 0
+
+    # --- RESUMO ---
+    tabelas_total = _count("SELECT COUNT(*) FROM tabelas")
+    tabelas_custom = _count("SELECT COUNT(*) FROM tabelas WHERE custom = 1")
+    campos_total = _count("SELECT COUNT(*) FROM campos")
+    campos_custom = _count("SELECT COUNT(*) FROM campos WHERE custom = 1")
+    campos_adicionados = _count("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx = 'SX3' AND acao = 'adicionado'")
+    campos_alterados = _count("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx = 'SX3' AND acao = 'alterado'")
+    diff_removidos = _count("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx = 'SX3' AND acao = 'removido'")
+    indices_total = _count("SELECT COUNT(*) FROM indices")
+    indices_custom = _count("SELECT COUNT(*) FROM indices WHERE custom = 1")
+    gatilhos_total = _count("SELECT COUNT(*) FROM gatilhos")
+    gatilhos_custom = _count("SELECT COUNT(*) FROM gatilhos WHERE custom = 1")
+    fontes_total = _count("SELECT COUNT(*) FROM fontes")
+    vinculos_total = _count("SELECT COUNT(*) FROM vinculos")
+    menus_total = _count("SELECT COUNT(*) FROM menus")
+    jobs_total = _count("SELECT COUNT(*) FROM jobs")
+    schedules_total = _count("SELECT COUNT(*) FROM schedules")
+    schedules_ativos = _count("SELECT COUNT(*) FROM schedules WHERE status = 'Ativo'")
+
+    resumo = {
+        "tabelas_total": tabelas_total,
+        "tabelas_custom": tabelas_custom,
+        "campos_total": campos_total,
+        "campos_custom": campos_custom,
+        "campos_adicionados": campos_adicionados,
+        "campos_alterados": campos_alterados,
+        "indices_total": indices_total,
+        "indices_custom": indices_custom,
+        "gatilhos_total": gatilhos_total,
+        "gatilhos_custom": gatilhos_custom,
+        "fontes_total": fontes_total,
+        "vinculos": vinculos_total,
+        "menus_total": menus_total,
+        "jobs_total": jobs_total,
+        "schedules_total": schedules_total,
+        "schedules_ativos": schedules_ativos,
+        "diff_removidos": diff_removidos,
+    }
+
+    # --- DISTRIBUICAO DE RISCO ---
+    campos_so_padrao = max(0, campos_total - campos_custom - campos_adicionados - campos_alterados)
+    distribuicao_risco = {
+        "campos_so_padrao": campos_so_padrao,
+        "campos_adicionados": campos_adicionados,
+        "campos_alterados": campos_alterados,
+        "campos_removidos": diff_removidos,
+    }
+
+    # --- TOP TABELAS (mais customizadas) ---
+    top_tabelas = []
+    try:
+        rows = db.execute("""
+            SELECT c.tabela,
+                   COALESCE(t.nome, '') AS nome,
+                   SUM(CASE WHEN c.custom = 1 THEN 1 ELSE 0 END) AS campos_add
+            FROM campos c
+            LEFT JOIN tabelas t ON t.codigo = c.tabela
+            GROUP BY c.tabela
+            HAVING campos_add > 0
+            ORDER BY campos_add DESC
+        """).fetchall()
+
+        # Complementar com dados de diff (alterados por tabela)
+        diff_alt_map = {}
+        try:
+            diff_rows = db.execute("""
+                SELECT tabela, COUNT(DISTINCT chave) AS cnt
+                FROM diff
+                WHERE tipo_sx = 'SX3' AND acao = 'alterado'
+                GROUP BY tabela
+            """).fetchall()
+            diff_alt_map = {r[0]: r[1] for r in diff_rows}
+        except Exception:
+            pass
+
+        for r in rows:
+            tabela, nome, campos_add = r[0], r[1], r[2]
+            campos_alt = diff_alt_map.get(tabela, 0)
+            score = campos_add * 2 + campos_alt
+            top_tabelas.append({
+                "tabela": tabela,
+                "nome": nome,
+                "campos_add": campos_add,
+                "campos_alt": campos_alt,
+                "score": score,
+            })
+
+        top_tabelas.sort(key=lambda x: x["score"], reverse=True)
+        top_tabelas = top_tabelas[:10]
+    except Exception as e:
+        logger.warning("Erro ao calcular top_tabelas: %s", e)
+
+    # --- TOP INTERACAO (tabelas mais referenciadas em fontes) ---
+    top_interacao = []
+    try:
+        fontes_rows = db.execute(
+            "SELECT arquivo, tabelas_ref, write_tables FROM fontes"
+        ).fetchall()
+
+        leitura_map = {}
+        escrita_map = {}
+        for row in fontes_rows:
+            # tabelas_ref - leitura
+            try:
+                refs = json.loads(row[1]) if row[1] else []
+                for tab in refs:
+                    if isinstance(tab, str) and tab.strip():
+                        leitura_map[tab.strip().upper()] = leitura_map.get(tab.strip().upper(), 0) + 1
+            except (json.JSONDecodeError, TypeError):
+                pass
+            # write_tables - escrita
+            try:
+                writes = json.loads(row[2]) if row[2] else []
+                for tab in writes:
+                    if isinstance(tab, str) and tab.strip():
+                        escrita_map[tab.strip().upper()] = escrita_map.get(tab.strip().upper(), 0) + 1
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        all_tabs = set(leitura_map.keys()) | set(escrita_map.keys())
+        interacao_list = []
+        for tab in all_tabs:
+            leit = leitura_map.get(tab, 0)
+            escr = escrita_map.get(tab, 0)
+            interacao_list.append({
+                "tabela": tab,
+                "leitura": leit,
+                "escrita": escr,
+                "total": leit + escr,
+            })
+        interacao_list.sort(key=lambda x: x["total"], reverse=True)
+        top_interacao = interacao_list[:10]
+    except Exception as e:
+        logger.warning("Erro ao calcular top_interacao: %s", e)
+
+    # --- MODULOS ---
+    modulos = []
+    try:
+        mod_rows = db.execute("""
+            SELECT modulo, COUNT(*) AS fontes_count
+            FROM fontes
+            WHERE modulo IS NOT NULL AND modulo != ''
+            GROUP BY modulo
+            ORDER BY fontes_count DESC
+        """).fetchall()
+
+        # Buscar contagem de tabelas do mapa_modulos
+        mapa_tab_map = {}
+        try:
+            mapa_rows = db.execute("SELECT modulo, tabelas FROM mapa_modulos").fetchall()
+            for mr in mapa_rows:
+                try:
+                    tabs = json.loads(mr[1]) if mr[1] else []
+                    mapa_tab_map[mr[0].lower()] = len(tabs)
+                except (json.JSONDecodeError, TypeError):
+                    mapa_tab_map[mr[0].lower()] = 0
+        except Exception:
+            pass
+
+        for mr in mod_rows:
+            mod_name = mr[0]
+            modulos.append({
+                "modulo": mod_name,
+                "fontes": mr[1],
+                "tabelas": mapa_tab_map.get(mod_name.lower(), 0),
+            })
+    except Exception as e:
+        logger.warning("Erro ao calcular modulos: %s", e)
+
+    return jsonify({
+        "resumo": resumo,
+        "distribuicao_risco": distribuicao_risco,
+        "top_tabelas": top_tabelas,
+        "top_interacao": top_interacao,
+        "modulos": modulos,
+    })
 
 
 # ========================================================================

@@ -847,6 +847,12 @@ const actionHandlers = {
     'wsRefreshList': () => wsRefreshList(),
     'wsIngestLive': () => wsIngestLive(),
     'wsIngestHybrid': () => wsIngestHybrid(),
+    'wsGoToTable': (params) => wsGoToTable(params),
+    'wsIncluirProcesso': () => wsIncluirProcesso(),
+    'wsOpenProcesso': (params) => wsOpenProcesso(params),
+    'wsGerarFluxo': (params) => wsGerarFluxo(params),
+    'wsGerarAnalise': (params) => wsGerarAnalise(params),
+    'wsSendProcChat': (params) => wsSendProcChat(params),
 
     // ===== SERVIÇOS DO SERVIDOR =====
     'showCreateServiceModal': () => showCreateServiceModal(),
