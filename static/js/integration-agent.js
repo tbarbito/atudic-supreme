@@ -1357,10 +1357,10 @@ async function agRenderLLM(container) {
     }
     html += '</div></div></div>';
 
-    // Card Base de Conhecimento TDN
+    // Card Base de Conhecimento
     html += '<div class="col-12">';
     html += '<div class="card mb-3"><div class="card-header py-2 d-flex justify-content-between align-items-center">';
-    html += '<span><i class="fas fa-book me-2"></i><strong>Base de Conhecimento TDN</strong></span>';
+    html += '<span><i class="fas fa-book me-2"></i><strong>Base de Conhecimento</strong></span>';
     html += '<button class="btn btn-sm btn-outline-primary" onclick="agLoadTDNStats()" title="Atualizar"><i class="fas fa-sync-alt"></i></button>';
     html += '</div><div class="card-body py-2" id="ag-tdn-stats-body">';
     html += '<div class="text-center text-muted py-2"><i class="fas fa-spinner fa-spin me-1"></i> Carregando...</div>';
@@ -1617,8 +1617,8 @@ async function agLoadTDNStats() {
     try {
         var stats = await apiRequest('/agent/memory/tdn-stats');
         if (!stats || stats.length === 0) {
-            body.innerHTML = '<div class="text-muted py-2"><i class="fas fa-info-circle me-1"></i> Base TDN vazia. Use o botao Rebuild para popular.</div>';
-            body.innerHTML += '<div class="mt-2"><button class="btn btn-sm btn-primary" onclick="agRebuildTDN()"><i class="fas fa-hammer me-1"></i>Rebuild Base TDN</button></div>';
+            body.innerHTML = '<div class="text-muted py-2"><i class="fas fa-info-circle me-1"></i> Base de conhecimento vazia. Use o botao Rebuild para popular.</div>';
+            body.innerHTML += '<div class="mt-2"><button class="btn btn-sm btn-primary" onclick="agRebuildTDN()"><i class="fas fa-hammer me-1"></i>Rebuild Base</button></div>';
             return;
         }
 
@@ -1651,7 +1651,7 @@ async function agLoadTDNStats() {
         html += '</tbody></table></div>';
 
         html += '<div class="d-flex gap-2">';
-        html += '<button class="btn btn-sm btn-outline-primary" onclick="agRebuildTDN()" title="Re-ingerir fontes .md existentes"><i class="fas fa-hammer me-1"></i>Rebuild MD</button>';
+        html += '<button class="btn btn-sm btn-outline-primary" onclick="agRebuildTDN()" title="Re-ingerir fontes .md existentes"><i class="fas fa-hammer me-1"></i>Rebuild Base</button>';
         html += '<button class="btn btn-sm btn-outline-secondary" onclick="agLoadTDNStats()"><i class="fas fa-sync-alt me-1"></i>Atualizar</button>';
         html += '</div>';
 
@@ -1662,7 +1662,7 @@ async function agLoadTDNStats() {
 }
 
 async function agRebuildTDN() {
-    if (!confirm('Rebuild da base TDN?\n\nIsso vai re-indexar todos os arquivos tdn_*.md no SQLite FTS5.\nPode levar alguns minutos.')) return;
+    if (!confirm('Rebuild da base de conhecimento?\n\nIsso vai re-indexar todos os arquivos de memoria e TDN no SQLite.\nPode levar alguns minutos.')) return;
 
     try {
         showNotification('Rebuild TDN iniciado... aguarde', 'info');
