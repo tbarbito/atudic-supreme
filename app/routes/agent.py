@@ -264,7 +264,10 @@ def ingest_memory():
 @agent_bp.route("/api/agent/memory/rebuild", methods=["POST"])
 @require_admin
 def rebuild_index():
-    """Reconstrói índice FTS5 do zero e gera embeddings."""
+    """Reconstrói índice FTS5 (leves) + ingere pesados no PG (hibrido)."""
+    import os
+    import threading
+
     service = get_agent_memory()
     results = service.rebuild_index()
 
@@ -274,13 +277,46 @@ def rebuild_index():
     if llm_provider:
         embeddings = service.embed_all_chunks(llm_provider)
 
-    total = sum(results.values())
+    total_sqlite = sum(results.values())
+
+    # Ingerir arquivos TDN pesados (> 2MB) no PostgreSQL em background
+    _MAX_SQLITE_FILE_SIZE = 2 * 1024 * 1024
+    memory_dir = service.memory_dir
+    heavy_files = []
+    for filename in sorted(os.listdir(memory_dir)):
+        if filename.startswith("tdn_") and filename.endswith(".md"):
+            filepath = os.path.join(memory_dir, filename)
+            if os.path.getsize(filepath) > _MAX_SQLITE_FILE_SIZE:
+                heavy_files.append(filename)
+
+    pg_status = "nenhum"
+    if heavy_files:
+        pg_status = f"{len(heavy_files)} arquivos em background"
+        app = current_app._get_current_object()
+
+        def _ingest_pg():
+            with app.app_context():
+                try:
+                    from app.services.tdn_ingestor import TDNIngestor
+                    ingestor = TDNIngestor(scraper_dir=memory_dir)
+                    for md_file in heavy_files:
+                        source = md_file.replace("tdn_", "").replace(".md", "")
+                        app.logger.info("PG ingest: %s (source=%s)", md_file, source)
+                        ingestor.ingest_from_markdown(md_file, source)
+                    app.logger.info("PG ingest concluido: %d arquivos", len(heavy_files))
+                except Exception as e:
+                    app.logger.error("Erro PG ingest: %s", e)
+
+        thread = threading.Thread(target=_ingest_pg, daemon=True)
+        thread.start()
+
     return jsonify(
         {
-            "message": f"Índice reconstruído: {total} chunks em {len(results)} arquivos, {embeddings} embeddings gerados",
+            "message": f"Rebuild: {total_sqlite} chunks SQLite, {embeddings} embeddings, PG: {pg_status}",
             "details": results,
-            "total_chunks": total,
+            "total_chunks": total_sqlite,
             "embeddings_generated": embeddings,
+            "pg_heavy_files": heavy_files,
         }
     )
 
@@ -288,36 +324,60 @@ def rebuild_index():
 @agent_bp.route("/api/agent/memory/tdn-stats", methods=["GET"])
 @require_auth
 def tdn_memory_stats():
-    """Retorna estatisticas dos chunks TDN no SQLite FTS5."""
-    service = get_agent_memory()
-    conn = service._get_conn()
-    cursor = conn.cursor()
-
-    # Contar chunks por source_file (tdn_*)
-    cursor.execute("""
-        SELECT source_file, COUNT(*) as total_chunks
-        FROM chunks_meta
-        WHERE source_file LIKE 'tdn_%'
-        GROUP BY source_file
-        ORDER BY source_file
-    """)
-    rows = cursor.fetchall()
-
+    """Retorna estatisticas dos chunks TDN (SQLite + PostgreSQL)."""
     stats = []
-    total_chunks = 0
-    for row in rows:
-        source = row["source_file"].replace("tdn_", "").replace(".md", "")
-        count = row["total_chunks"]
-        total_chunks += count
-        stats.append({
-            "source": source,
-            "total_chunks": count,
-            "total_pages": count,  # compatibilidade com frontend
-            "scraped": count,
-            "pending": 0,
-            "errors": 0,
-            "empty": 0,
-        })
+
+    # === SQLite FTS5 (leves, < 2MB) ===
+    try:
+        service = get_agent_memory()
+        conn = service._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT source_file, COUNT(*) as total_chunks
+            FROM chunks_meta
+            WHERE source_file LIKE 'tdn_%'
+            GROUP BY source_file
+            ORDER BY source_file
+        """)
+        for row in cursor.fetchall():
+            source = row["source_file"].replace("tdn_", "").replace(".md", "")
+            stats.append({
+                "source": f"{source} (local)",
+                "total_chunks": row["total_chunks"],
+                "total_pages": row["total_chunks"],
+                "scraped": row["total_chunks"],
+                "pending": 0, "errors": 0, "empty": 0,
+            })
+    except Exception as e:
+        current_app.logger.warning("Stats SQLite: %s", e)
+
+    # === PostgreSQL tsvector (pesados, > 2MB) ===
+    try:
+        from app.database import get_db, release_db_connection
+        pg_conn = get_db()
+        pg_cursor = pg_conn.cursor()
+        pg_cursor.execute("""
+            SELECT source, COUNT(*) AS total_pages,
+                   COUNT(*) FILTER (WHERE status = 'done') AS scraped,
+                   COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+                   COUNT(*) FILTER (WHERE status = 'error') AS errors,
+                   COUNT(*) FILTER (WHERE status = 'empty') AS empty,
+                   COALESCE(SUM(chunks_count), 0) AS total_chunks
+            FROM tdn_pages GROUP BY source ORDER BY source
+        """)
+        for row in pg_cursor.fetchall():
+            stats.append({
+                "source": f"{row['source']} (PG)",
+                "total_chunks": row["total_chunks"],
+                "total_pages": row["total_pages"],
+                "scraped": row["scraped"],
+                "pending": row["pending"],
+                "errors": row["errors"],
+                "empty": row["empty"],
+            })
+        release_db_connection(pg_conn)
+    except Exception as e:
+        current_app.logger.debug("Stats PG: %s (tabelas TDN podem nao existir)", e)
 
     return jsonify(stats)
 

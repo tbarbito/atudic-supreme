@@ -250,13 +250,15 @@ class ContextBuilder:
         pass
 
     def _fetch_tdn_context(self, context, message, intent):
-        """Busca inteligente na base TDN usando ProtheusIntelligence + SQLite FTS5.
+        """Busca hibrida na base TDN: SQLite FTS5 (leves) + PostgreSQL tsvector (pesados).
 
         Pipeline:
         1. ProtheusIntelligence analisa a mensagem (sem LLM, puro heuristica)
         2. Gera multiplas queries otimizadas (modulo, tabelas, rotinas, conceitos)
-        3. Busca via SQLite FTS5 BM25 (memoria do agente — tdn_*.md)
-        4. Deduplica e ranqueia resultados
+        3. Busca em AMBOS os motores:
+           - SQLite FTS5 BM25 (tdn_*.md < 2MB — tss, advpl, tlpp, etc.)
+           - PostgreSQL tsvector (tdn_*.md > 2MB — protheus12, framework, totvstec)
+        4. Mergeia, deduplica e ranqueia resultados
         5. Injeta context_hint (dicas do grafo de conhecimento)
         """
         from app.services.tdn_intelligence import ProtheusIntelligence
@@ -264,30 +266,51 @@ class ContextBuilder:
         pi = ProtheusIntelligence()
         analysis = pi.analyze(message)
 
-        # Busca multi-query no SQLite FTS5 (BM25)
-        seen_ids = set()
+        seen_hashes = set()
         tdn_results = []
 
+        # === Busca 1: SQLite FTS5 (chunks leves, < 2MB) ===
         for query in analysis.search_queries:
             if not query or not query.strip():
                 continue
-            results = self.memory.search_bm25(
-                query, chunk_type="semantic", limit=5
-            )
-            for r in results:
-                rid = r.get("chunk_id") or r.get("content_hash", "")
-                if rid not in seen_ids:
-                    seen_ids.add(rid)
-                    tdn_results.append(r)
+            try:
+                results = self.memory.search_bm25(
+                    query, chunk_type="semantic", limit=5
+                )
+                for r in results:
+                    h = r.get("content_hash", "")
+                    if h and h not in seen_hashes:
+                        seen_hashes.add(h)
+                        tdn_results.append(r)
+            except Exception:
+                pass
 
-        # Ordenar por rank (BM25 score) e limitar
-        tdn_results.sort(key=lambda r: r.get("rank", 0))  # FTS5 rank: menor = melhor
+        # === Busca 2: PostgreSQL tsvector (chunks pesados, > 2MB) ===
+        try:
+            from app.services.tdn_ingestor import TDNIngestor
+            ingestor = TDNIngestor()
+            pg_results = ingestor.search_multi(analysis.search_queries, limit=5)
+
+            # Se multi-query nao achou no PG, tentar busca por titulo
+            if not pg_results and (analysis.detected_modules or analysis.detected_routines):
+                title_terms = " ".join(analysis.detected_modules + analysis.detected_routines)
+                pg_results = ingestor.search_by_title(title_terms, limit=5)
+
+            for r in pg_results:
+                h = r.get("content_hash", "")
+                if h and h not in seen_hashes:
+                    seen_hashes.add(h)
+                    tdn_results.append(dict(r))
+        except Exception as e:
+            logger.debug("Busca TDN PG indisponivel: %s", e)
+
+        # Limitar a 5 melhores
         tdn_results = tdn_results[:5]
 
         if tdn_results:
             context["tdn_results"] = tdn_results
             logger.info(
-                "TDN FTS5: %d chunks (queries=%d, modulos=%s, intent=%s)",
+                "TDN hibrido: %d chunks (queries=%d, modulos=%s, intent=%s)",
                 len(tdn_results), len(analysis.search_queries),
                 analysis.detected_modules, analysis.protheus_intent
             )
