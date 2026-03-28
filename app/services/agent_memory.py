@@ -431,11 +431,14 @@ class AgentMemoryService:
         if os.path.isfile(os.path.join(self.memory_dir, "TOOLS.md")):
             results["TOOLS.md"] = self.ingest_file("TOOLS.md", "procedural", environment_id)
 
-        # Base de conhecimento TDN Protheus (somente tdn_*.md < 2MB)
-        # Arquivos maiores vao pro PostgreSQL (tsvector) — ver tdn_ingestor.py
+        # Base de conhecimento (TDN + conhecimento operacional)
+        # Regra: arquivos .md < 2MB → SQLite FTS5 (rapido, portavel)
+        #        arquivos .md > 2MB → PostgreSQL tsvector (pesados)
         _MAX_SQLITE_FILE_SIZE = 2 * 1024 * 1024  # 2MB
+        _KNOWLEDGE_PREFIXES = ("tdn_", "pontos_de_entrada", "propositos_",
+                                "processos_", "diretrizes_")
         for filename in sorted(os.listdir(self.memory_dir)):
-            if filename.startswith("tdn_") and filename.endswith(".md"):
+            if filename.endswith(".md") and filename.startswith(_KNOWLEDGE_PREFIXES):
                 filepath = os.path.join(self.memory_dir, filename)
                 filesize = os.path.getsize(filepath)
                 if filesize <= _MAX_SQLITE_FILE_SIZE:
