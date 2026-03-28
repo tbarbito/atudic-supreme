@@ -303,8 +303,6 @@ async function wsIngestHybrid() {
             fontes_dir: fontesDir, environment_id: envId
         };
         if (padraoDir) data.padrao_csv_dir = padraoDir;
-        var mapa = document.getElementById('ws-mapa').value.trim();
-        if (mapa) data.mapa_modulos = mapa;
         var result = await apiRequest('/workspace/workspaces/' + slug + '/ingest/hybrid', 'POST', data);
         document.getElementById('ws-progress-bar').style.width = '100%';
         document.getElementById('ws-progress-text').textContent = 'Concluido! ' + JSON.stringify(result.stats);
@@ -356,20 +354,41 @@ async function wsIngestCSV() {
     var slug = document.getElementById('ws-slug').value.trim();
     var csvDir = document.getElementById('ws-csv-dir').value.trim();
     var padraoDir = document.getElementById('ws-padrao-dir').value.trim();
+    var fontesDir = document.getElementById('ws-fontes-dir').value.trim();
     if (!slug) return showNotification('Informe o nome do workspace', 'warning');
     if (!csvDir) return showNotification('Informe o diretorio dos CSVs', 'warning');
 
     document.getElementById('ws-progress').style.display = 'block';
-    document.getElementById('ws-progress-bar').style.width = '30%';
-    document.getElementById('ws-progress-text').textContent = 'Ingerindo CSVs...';
+    document.getElementById('ws-progress-bar').style.width = '20%';
+    document.getElementById('ws-progress-text').textContent = 'Fase 1/3: Ingerindo CSVs do cliente...';
 
     try {
         var data = { csv_dir: csvDir };
         if (padraoDir) data.padrao_csv_dir = padraoDir;
         var result = await apiRequest('/workspace/workspaces/' + slug + '/ingest/csv', 'POST', data);
+        var statsText = (result.stats.tabelas || 0) + ' tabelas, ' + (result.stats.campos || 0) + ' campos';
+
+        // Fase 2: Parsear fontes se diretorio informado
+        if (fontesDir) {
+            document.getElementById('ws-progress-bar').style.width = '50%';
+            document.getElementById('ws-progress-text').textContent = 'Fase 2/3: Parseando fontes ADVPL/TLPP...';
+            try {
+                var fontesResult = await apiRequest('/workspace/workspaces/' + slug + '/ingest/fontes', 'POST', { fontes_dir: fontesDir });
+                statsText += ', ' + (fontesResult.stats.fontes || 0) + ' fontes, ' + (fontesResult.stats.chunks || 0) + ' chunks';
+            } catch (fe) {
+                statsText += ' (fontes erro: ' + fe.message + ')';
+            }
+        }
+
+        // Fase 3: Diff (ja calculado no backend se padrao fornecido)
+        if (result.stats.diff) {
+            var d = result.stats.diff.campos || {};
+            statsText += ', diff: +' + (d.adicionado || 0) + ' ~' + (d.alterado || 0) + ' -' + (d.removido || 0);
+        }
+
         document.getElementById('ws-progress-bar').style.width = '100%';
-        document.getElementById('ws-progress-text').textContent = 'Concluido! ' + JSON.stringify(result.stats);
-        showNotification('Ingestao CSV concluida!', 'success');
+        document.getElementById('ws-progress-text').textContent = 'Concluido! ' + statsText;
+        showNotification('Ingestao concluida!', 'success');
         window._wsState.activeSlug = slug;
         await wsLoadWorkspaces();
     } catch (e) {
@@ -390,8 +409,6 @@ async function wsIngestFontes() {
 
     try {
         var data = { fontes_dir: fontesDir };
-        var mapa = document.getElementById('ws-mapa').value.trim();
-        if (mapa) data.mapa_modulos = mapa;
         var result = await apiRequest('/workspace/workspaces/' + slug + '/ingest/fontes', 'POST', data);
         document.getElementById('ws-progress-bar').style.width = '100%';
         document.getElementById('ws-progress-text').textContent =
