@@ -194,7 +194,7 @@ const PAGE_LABELS = {
     'commands':       { label: 'Comandos',               icon: 'fa-terminal' },
     'repositories':   { label: 'Repositorios GitHub',    icon: 'fa-folder' },
     'source-control': { label: 'Controle de Versao',     icon: 'fa-code-branch' },
-    'devworkspace':   { label: 'Dev Workspace',          icon: 'fa-code' },
+    'devworkspace':   { label: 'Workspace',               icon: 'fa-code' },
     'observability':  { label: 'Monitoramento',        icon: 'fa-satellite-dish' },
     'database':       { label: 'Banco de Dados',         icon: 'fa-database' },
     'processes':      { label: 'Processos',              icon: 'fa-project-diagram' },
@@ -823,22 +823,7 @@ const actionHandlers = {
     'docShowVersions': (params) => docShowVersions(params),
     'docCloseModal': () => docCloseModal(),
 
-    // ===== DEV WORKSPACE (legado) =====
-    'dwSwitchTab': (params) => dwSwitchTab(params),
-    'dwRefresh': () => dwRefresh(),
-    'dwNavigate': (params) => dwNavigate(params),
-    'dwOpenFile': (params) => dwOpenFile(params),
-    'dwCloseFile': () => dwCloseFile(),
-    'dwAnalyzeFile': (params) => dwAnalyzeFile(params),
-    'dwRunImpact': () => dwRunImpact(),
-    'dwRunDiff': () => dwRunDiff(),
-    'dwGenerateCompila': () => dwGenerateCompila(),
-    'dwShowPolicyForm': () => dwShowPolicyForm(),
-    'dwCancelPolicy': () => dwCancelPolicy(),
-    'dwSavePolicy': () => dwSavePolicy(),
-    'dwDeletePolicy': (params) => dwDeletePolicy(params),
-
-    // ===== WORKSPACE SUPREME (ExtraiRPO) =====
+    // ===== WORKSPACE (ExtraiRPO) =====
     'wsSwitchTab': (params) => wsSwitchTab(params),
     'wsIngestCSV': () => wsIngestCSV(),
     'wsIngestFontes': () => wsIngestFontes(),
