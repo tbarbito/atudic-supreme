@@ -95,7 +95,12 @@ async function dwLoadPolicies(envId) {
 
 async function showDevWorkspace() {
     if (!window._wsState) {
-        window._wsState = { activeTab: 'setup', activeSlug: null, tabelas: [] };
+        window._wsState = { activeTab: 'dashboard', activeSlug: null, tabelas: [] };
+    }
+
+    // Se activeTab era 'setup', redirecionar para dashboard (setup agora vive em Configuracoes)
+    if (window._wsState.activeTab === 'setup') {
+        window._wsState.activeTab = 'dashboard';
     }
 
     document.getElementById('content-area').innerHTML =
@@ -105,12 +110,7 @@ async function showDevWorkspace() {
         '</div>' +
         '<ul class="nav nav-tabs mb-3" id="ws-tabs">' +
             '<li class="nav-item">' +
-                '<button class="nav-link active" data-action="wsSwitchTab" data-params=\'{"tab":"setup"}\'>' +
-                    '<i class="fas fa-cog me-1"></i>Setup' +
-                '</button>' +
-            '</li>' +
-            '<li class="nav-item">' +
-                '<button class="nav-link" data-action="wsSwitchTab" data-params=\'{"tab":"dashboard"}\'>' +
+                '<button class="nav-link active" data-action="wsSwitchTab" data-params=\'{"tab":"dashboard"}\'>' +
                     '<i class="fas fa-chart-bar me-1"></i>Dashboard' +
                 '</button>' +
             '</li>' +
@@ -216,6 +216,21 @@ async function wsRenderSetup(container) {
                             '</div>' +
                         '</div>' +
 
+                        // Diretorio CSV SX padrao (sempre visivel — para comparacao diff)
+                        '<div id="ws-padrao-fields">' +
+                            '<div class="mb-3">' +
+                                '<label class="form-label fw-semibold">Diretorio dos CSVs SX padrao <small class="text-muted">(para comparacao)</small></label>' +
+                                '<div class="input-group">' +
+                                    '<input type="text" class="form-control" id="ws-padrao-dir" placeholder="C:\\caminho\\para\\csvs_padrao">' +
+                                    '<button class="btn btn-outline-secondary" type="button" onclick="document.getElementById(\'ws-padrao-dir-picker\').click()">' +
+                                        '<i class="fas fa-folder-open"></i>' +
+                                    '</button>' +
+                                '</div>' +
+                                '<input type="file" id="ws-padrao-dir-picker" webkitdirectory style="display:none" onchange="document.getElementById(\'ws-padrao-dir\').value=this.files[0]?this.files[0].webkitRelativePath.split(\'/\')[0]:\'\'">' +
+                                '<small class="text-muted"><i class="fas fa-info-circle me-1"></i>CSVs do dicionario padrao TOTVS para gerar diff (padrao x cliente).</small>' +
+                            '</div>' +
+                        '</div>' +
+
                         // Campos Fontes (hibrido + CSV)
                         '<div id="ws-fontes-fields">' +
                             '<div class="mb-3">' +
@@ -317,6 +332,7 @@ async function wsIngestLive() {
     var slug = document.getElementById('ws-slug').value.trim();
     var connId = document.getElementById('ws-conn-id').value;
     var company = document.getElementById('ws-company').value.trim() || '01';
+    var padraoDir = document.getElementById('ws-padrao-dir').value.trim();
     if (!slug) return showNotification('Informe o nome do workspace', 'warning');
     if (!connId) return showNotification('Selecione uma conexao', 'warning');
 
@@ -327,9 +343,11 @@ async function wsIngestLive() {
     document.getElementById('ws-progress-text').textContent = 'Conectando ao banco Protheus...';
 
     try {
-        var result = await apiRequest('/workspace/workspaces/' + slug + '/ingest/live', 'POST', {
+        var data = {
             connection_id: parseInt(connId), company_code: company, environment_id: envId
-        });
+        };
+        if (padraoDir) data.padrao_csv_dir = padraoDir;
+        var result = await apiRequest('/workspace/workspaces/' + slug + '/ingest/live', 'POST', data);
         document.getElementById('ws-progress-bar').style.width = '100%';
         document.getElementById('ws-progress-text').textContent = 'Concluido! ' + JSON.stringify(result.stats);
         showNotification('Ingestao live concluida!', 'success');
@@ -346,6 +364,7 @@ async function wsIngestHybrid() {
     var connId = document.getElementById('ws-conn-id').value;
     var company = document.getElementById('ws-company').value.trim() || '01';
     var fontesDir = document.getElementById('ws-fontes-dir').value.trim();
+    var padraoDir = document.getElementById('ws-padrao-dir').value.trim();
     if (!slug) return showNotification('Informe o nome do workspace', 'warning');
     if (!connId) return showNotification('Selecione uma conexao', 'warning');
     if (!fontesDir) return showNotification('Informe o diretorio dos fontes', 'warning');
@@ -361,6 +380,7 @@ async function wsIngestHybrid() {
             connection_id: parseInt(connId), company_code: company,
             fontes_dir: fontesDir, environment_id: envId
         };
+        if (padraoDir) data.padrao_csv_dir = padraoDir;
         var mapa = document.getElementById('ws-mapa').value.trim();
         if (mapa) data.mapa_modulos = mapa;
         var result = await apiRequest('/workspace/workspaces/' + slug + '/ingest/hybrid', 'POST', data);
@@ -413,6 +433,7 @@ async function wsSelectWorkspace(params) {
 async function wsIngestCSV() {
     var slug = document.getElementById('ws-slug').value.trim();
     var csvDir = document.getElementById('ws-csv-dir').value.trim();
+    var padraoDir = document.getElementById('ws-padrao-dir').value.trim();
     if (!slug) return showNotification('Informe o nome do workspace', 'warning');
     if (!csvDir) return showNotification('Informe o diretorio dos CSVs', 'warning');
 
@@ -421,7 +442,9 @@ async function wsIngestCSV() {
     document.getElementById('ws-progress-text').textContent = 'Ingerindo CSVs...';
 
     try {
-        var result = await apiRequest('/workspace/workspaces/' + slug + '/ingest/csv', 'POST', { csv_dir: csvDir });
+        var data = { csv_dir: csvDir };
+        if (padraoDir) data.padrao_csv_dir = padraoDir;
+        var result = await apiRequest('/workspace/workspaces/' + slug + '/ingest/csv', 'POST', data);
         document.getElementById('ws-progress-bar').style.width = '100%';
         document.getElementById('ws-progress-text').textContent = 'Concluido! ' + JSON.stringify(result.stats);
         showNotification('Ingestao CSV concluida!', 'success');
@@ -466,7 +489,7 @@ async function wsIngestFontes() {
 async function wsRenderDashboard(container) {
     var slug = window._wsState.activeSlug;
     if (!slug) {
-        container.innerHTML = '<div class="alert alert-info">Selecione um workspace na aba Setup.</div>';
+        container.innerHTML = '<div class="alert alert-info">Configure um workspace em Admin > Configuracoes > Workspace.</div>';
         return;
     }
 
@@ -524,7 +547,7 @@ function wsStatCard(value, label, icon, color) {
 async function wsRenderExplorer(container) {
     var slug = window._wsState.activeSlug;
     if (!slug) {
-        container.innerHTML = '<div class="alert alert-info">Selecione um workspace na aba Setup.</div>';
+        container.innerHTML = '<div class="alert alert-info">Configure um workspace em Admin > Configuracoes > Workspace.</div>';
         return;
     }
 

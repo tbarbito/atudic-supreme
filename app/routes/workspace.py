@@ -93,6 +93,27 @@ def workspace_stats(slug):
     return jsonify(stats)
 
 
+def _ingest_padrao_if_provided(data: dict, db) -> dict | None:
+    """Se padrao_csv_dir foi fornecido, ingere CSVs padrao e calcula diff."""
+    padrao_csv_dir = data.get("padrao_csv_dir", "")
+    if not padrao_csv_dir:
+        return None
+
+    padrao_path = Path(padrao_csv_dir)
+    if not padrao_path.exists():
+        logger.warning("Diretorio padrao nao encontrado: %s", padrao_path)
+        return None
+
+    try:
+        from app.services.workspace.workspace_populator import ingest_padrao_sxs, calculate_diff
+        padrao_summary = ingest_padrao_sxs(db, padrao_path)
+        diff_summary = calculate_diff(db)
+        return {"padrao": padrao_summary, "diff": diff_summary}
+    except Exception as e:
+        logger.warning("Erro ao processar CSV padrao: %s", e)
+        return {"padrao": {"error": str(e)}, "diff": {}}
+
+
 # ========================================================================
 # INGESTAO
 # ========================================================================
@@ -101,7 +122,7 @@ def workspace_stats(slug):
 def ingest_csv(slug):
     """Ingere CSVs SX no workspace.
 
-    Body JSON: {"csv_dir": "/path/to/csvs"}
+    Body JSON: {"csv_dir": "/path/to/csvs", "padrao_csv_dir": "/path/to/csvs_padrao"}
     """
     data = request.get_json()
     csv_dir = Path(data.get("csv_dir", ""))
@@ -115,6 +136,11 @@ def ingest_csv(slug):
 
     try:
         stats = pop.populate_from_csv(csv_dir)
+        # Ingerir CSV padrao e calcular diff se fornecido
+        padrao_stats = _ingest_padrao_if_provided(data, pop.db)
+        if padrao_stats:
+            stats["padrao"] = padrao_stats["padrao"]
+            stats["diff"] = padrao_stats["diff"]
         return jsonify({"success": True, "stats": stats})
     except Exception as e:
         logger.exception(f"Erro na ingestao CSV: {e}")
@@ -155,7 +181,7 @@ def ingest_fontes(slug):
 def ingest_live(slug):
     """Popula workspace lendo SX* diretamente do banco Protheus.
 
-    Body JSON: {"connection_id": 1, "company_code": "01", "environment_id": 1}
+    Body JSON: {"connection_id": 1, "company_code": "01", "environment_id": 1, "padrao_csv_dir": "..."}
     """
     data = request.get_json()
     connection_id = data.get("connection_id")
@@ -171,6 +197,10 @@ def ingest_live(slug):
 
     try:
         stats = pop.populate_from_db(connection_id, company_code, environment_id)
+        padrao_stats = _ingest_padrao_if_provided(data, pop.db)
+        if padrao_stats:
+            stats["padrao"] = padrao_stats["padrao"]
+            stats["diff"] = padrao_stats["diff"]
         return jsonify({"success": True, "stats": stats})
     except Exception as e:
         logger.exception(f"Erro na ingestao live: {e}")
@@ -204,6 +234,10 @@ def ingest_hybrid(slug):
     try:
         mapa = Path(mapa_path) if mapa_path else None
         stats = pop.populate_hybrid(connection_id, company_code, fontes_dir, mapa, environment_id)
+        padrao_stats = _ingest_padrao_if_provided(data, pop.db)
+        if padrao_stats:
+            stats["padrao"] = padrao_stats["padrao"]
+            stats["diff"] = padrao_stats["diff"]
         return jsonify({"success": True, "stats": stats})
     except Exception as e:
         logger.exception(f"Erro na ingestao hibrida: {e}")

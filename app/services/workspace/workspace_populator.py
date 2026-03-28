@@ -662,3 +662,231 @@ class WorkspacePopulator:
     def close(self):
         """Fecha conexao com o banco."""
         self.db.close()
+
+
+# ---------------------------------------------------------------------------
+# Ingestao de CSVs padrao (standalone — popula tabelas padrao_* para diff)
+# ---------------------------------------------------------------------------
+
+_PADRAO_SX_MAP = {
+    "SX2": (parser_sx.parse_padrao_sx2, "padrao_tabelas",
+            "INSERT OR REPLACE INTO padrao_tabelas (codigo, nome, modo, custom) VALUES (:codigo, :nome, :modo, :custom)"),
+    "SX3": (parser_sx.parse_padrao_sx3, "padrao_campos",
+            "INSERT OR REPLACE INTO padrao_campos (tabela, campo, tipo, tamanho, decimal, titulo, descricao, "
+            "validacao, inicializador, obrigatorio, custom, f3, cbox, vlduser, when_expr, proprietario, browse, "
+            "trigger_flag, visual, context, folder) VALUES (:tabela, :campo, :tipo, :tamanho, :decimal, :titulo, "
+            ":descricao, :validacao, :inicializador, :obrigatorio, :custom, :f3, :cbox, :vlduser, :when_expr, "
+            ":proprietario, :browse, :trigger_flag, :visual, :context, :folder)"),
+    "SIX": (parser_sx.parse_padrao_six, "padrao_indices",
+            "INSERT OR REPLACE INTO padrao_indices (tabela, ordem, chave, descricao, proprietario, f3, nickname, "
+            "showpesq, custom) VALUES (:tabela, :ordem, :chave, :descricao, :proprietario, :f3, :nickname, "
+            ":showpesq, :custom)"),
+    "SX7": (parser_sx.parse_padrao_sx7, "padrao_gatilhos",
+            "INSERT OR REPLACE INTO padrao_gatilhos (campo_origem, sequencia, campo_destino, regra, tipo, tabela, "
+            "condicao, proprietario, seek, alias, ordem, chave, custom) VALUES (:campo_origem, :sequencia, "
+            ":campo_destino, :regra, :tipo, :tabela, :condicao, :proprietario, :seek, :alias, :ordem, :chave, :custom)"),
+    "SX6": (parser_sx.parse_padrao_sx6, "padrao_parametros",
+            "INSERT OR REPLACE INTO padrao_parametros (filial, variavel, tipo, descricao, conteudo, proprietario, "
+            "custom) VALUES (:filial, :variavel, :tipo, :descricao, :conteudo, :proprietario, :custom)"),
+}
+
+
+def ingest_padrao_sxs(db: Database, padrao_csv_dir: Path) -> dict:
+    """Ingere CSVs SX padrao nas tabelas padrao_* para comparacao diff.
+
+    Args:
+        db: Database do workspace (ja inicializado)
+        padrao_csv_dir: Diretorio com CSVs do dicionario padrao TOTVS
+
+    Returns:
+        dict: {sx_name: count_ou_erro, ...}
+    """
+    import gc
+    summary = {}
+    conn = db.get_raw_conn()
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+
+    for sx_name, (parser_fn, table_name, insert_sql) in _PADRAO_SX_MAP.items():
+        csv_path = padrao_csv_dir / f"{sx_name}.csv"
+        if not csv_path.exists():
+            csv_path = padrao_csv_dir / f"{sx_name.lower()}.csv"
+        if not csv_path.exists():
+            summary[sx_name] = "skipped"
+            continue
+
+        try:
+            conn.execute(f"DELETE FROM {table_name}")
+            conn.commit()
+
+            rows = parser_fn(csv_path)
+            batch = []
+            for i, row in enumerate(rows):
+                batch.append(row)
+                if len(batch) >= 1000:
+                    conn.executemany(insert_sql, batch)
+                    conn.commit()
+                    batch = []
+                if (i + 1) % 5000 == 0:
+                    gc.collect()
+            if batch:
+                conn.executemany(insert_sql, batch)
+                conn.commit()
+
+            count = len(rows)
+            del rows, batch
+            gc.collect()
+
+            db.execute(
+                "INSERT OR REPLACE INTO ingest_progress (item, fase, status) VALUES (?, 1, 'done')",
+                (f"padrao_{sx_name}",))
+            db.commit()
+            summary[sx_name] = count
+            logger.info("Padrao %s: %d registros ingeridos", sx_name, count)
+        except Exception as e:
+            db.execute(
+                "INSERT OR REPLACE INTO ingest_progress (item, fase, status, error_msg) VALUES (?, 1, 'error', ?)",
+                (f"padrao_{sx_name}", str(e)))
+            db.commit()
+            summary[sx_name] = f"error: {e}"
+            logger.warning("Erro ingestao padrao %s: %s", sx_name, e)
+
+    conn.execute("PRAGMA synchronous=FULL")
+    conn.commit()
+    return summary
+
+
+def calculate_diff(db: Database) -> dict:
+    """Compara tabelas do cliente vs padrao e popula tabela diff.
+
+    Compara: campos (SX3) e gatilhos (SX7).
+
+    Returns:
+        dict: {campos: {adicionado: N, alterado: N, removido: N}, gatilhos: {...}}
+    """
+    conn = db.get_raw_conn()
+    conn.execute("DELETE FROM diff")
+    conn.commit()
+
+    summary = {}
+
+    # ── Campos diff (SX3) ──
+    stats = {"adicionado": 0, "alterado": 0, "removido": 0}
+
+    # ADDED: no cliente mas nao no padrao
+    added = conn.execute("""
+        SELECT c.tabela, c.campo
+        FROM campos c
+        LEFT JOIN padrao_campos p ON c.tabela = p.tabela AND c.campo = p.campo
+        WHERE p.campo IS NULL
+    """).fetchall()
+    batch = []
+    for tabela, campo in added:
+        batch.append(("campo", tabela, campo, "adicionado", "", "", "", ""))
+        if len(batch) >= 1000:
+            conn.executemany(
+                "INSERT OR REPLACE INTO diff (tipo_sx, tabela, chave, acao, campo_diff, valor_padrao, valor_cliente, modulo) VALUES (?,?,?,?,?,?,?,?)",
+                batch)
+            conn.commit()
+            batch = []
+    if batch:
+        conn.executemany(
+            "INSERT OR REPLACE INTO diff (tipo_sx, tabela, chave, acao, campo_diff, valor_padrao, valor_cliente, modulo) VALUES (?,?,?,?,?,?,?,?)",
+            batch)
+        conn.commit()
+    stats["adicionado"] = len(added)
+    del added, batch
+
+    # REMOVED: no padrao mas nao no cliente
+    removed = conn.execute("""
+        SELECT p.tabela, p.campo
+        FROM padrao_campos p
+        LEFT JOIN campos c ON p.tabela = c.tabela AND p.campo = c.campo
+        WHERE c.campo IS NULL
+    """).fetchall()
+    batch = []
+    for tabela, campo in removed:
+        batch.append(("campo", tabela, campo, "removido", "", "", "", ""))
+        if len(batch) >= 1000:
+            conn.executemany(
+                "INSERT OR REPLACE INTO diff (tipo_sx, tabela, chave, acao, campo_diff, valor_padrao, valor_cliente, modulo) VALUES (?,?,?,?,?,?,?,?)",
+                batch)
+            conn.commit()
+            batch = []
+    if batch:
+        conn.executemany(
+            "INSERT OR REPLACE INTO diff (tipo_sx, tabela, chave, acao, campo_diff, valor_padrao, valor_cliente, modulo) VALUES (?,?,?,?,?,?,?,?)",
+            batch)
+        conn.commit()
+    stats["removido"] = len(removed)
+    del removed, batch
+
+    # ALTERED: existe nos dois mas validacao, tamanho ou tipo difere
+    altered = conn.execute("""
+        SELECT c.tabela, c.campo,
+               p.validacao, c.validacao,
+               p.tamanho, c.tamanho,
+               p.tipo, c.tipo
+        FROM campos c
+        INNER JOIN padrao_campos p ON c.tabela = p.tabela AND c.campo = p.campo
+        WHERE c.validacao != p.validacao
+           OR c.tamanho != p.tamanho
+           OR c.tipo != p.tipo
+    """).fetchall()
+    batch = []
+    for tabela, campo, p_valid, c_valid, p_tam, c_tam, p_tipo, c_tipo in altered:
+        if p_valid != c_valid:
+            batch.append(("campo", tabela, campo, "alterado", "validacao", str(p_valid), str(c_valid), ""))
+        if p_tam != c_tam:
+            batch.append(("campo", tabela, campo, "alterado", "tamanho", str(p_tam), str(c_tam), ""))
+        if p_tipo != c_tipo:
+            batch.append(("campo", tabela, campo, "alterado", "tipo", str(p_tipo), str(c_tipo), ""))
+        if len(batch) >= 1000:
+            conn.executemany(
+                "INSERT OR REPLACE INTO diff (tipo_sx, tabela, chave, acao, campo_diff, valor_padrao, valor_cliente, modulo) VALUES (?,?,?,?,?,?,?,?)",
+                batch)
+            conn.commit()
+            batch = []
+    if batch:
+        conn.executemany(
+            "INSERT OR REPLACE INTO diff (tipo_sx, tabela, chave, acao, campo_diff, valor_padrao, valor_cliente, modulo) VALUES (?,?,?,?,?,?,?,?)",
+            batch)
+        conn.commit()
+    stats["alterado"] = len(altered)
+    del altered, batch
+    summary["campos"] = stats
+
+    # ── Gatilhos diff (SX7) ──
+    stats = {"adicionado": 0, "alterado": 0, "removido": 0}
+
+    added = conn.execute("""
+        SELECT c.campo_origem, c.sequencia
+        FROM gatilhos c
+        LEFT JOIN padrao_gatilhos p ON c.campo_origem = p.campo_origem AND c.sequencia = p.sequencia
+        WHERE p.campo_origem IS NULL
+    """).fetchall()
+    batch = [("gatilho", r[0], r[1], "adicionado", "", "", "", "") for r in added]
+    if batch:
+        conn.executemany(
+            "INSERT OR REPLACE INTO diff (tipo_sx, tabela, chave, acao, campo_diff, valor_padrao, valor_cliente, modulo) VALUES (?,?,?,?,?,?,?,?)",
+            batch)
+        conn.commit()
+    stats["adicionado"] = len(added)
+
+    removed = conn.execute("""
+        SELECT p.campo_origem, p.sequencia
+        FROM padrao_gatilhos p
+        LEFT JOIN gatilhos c ON p.campo_origem = c.campo_origem AND p.sequencia = c.sequencia
+        WHERE c.campo_origem IS NULL
+    """).fetchall()
+    batch = [("gatilho", r[0], r[1], "removido", "", "", "", "") for r in removed]
+    if batch:
+        conn.executemany(
+            "INSERT OR REPLACE INTO diff (tipo_sx, tabela, chave, acao, campo_diff, valor_padrao, valor_cliente, modulo) VALUES (?,?,?,?,?,?,?,?)",
+            batch)
+        conn.commit()
+    stats["removido"] = len(removed)
+
+    summary["gatilhos"] = stats
+    logger.info("Diff calculado: campos=%s, gatilhos=%s", summary.get("campos"), summary.get("gatilhos"))
+    return summary

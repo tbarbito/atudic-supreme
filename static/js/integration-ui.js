@@ -1627,6 +1627,11 @@ function showSettings() {
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="branch-policies-tab" data-bs-toggle="tab" data-bs-target="#branch-policies-content" type="button" role="tab">Políticas de Branch</button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="workspace-settings-tab" data-bs-toggle="tab" data-bs-target="#workspace-settings-content" type="button" role="tab">
+                        <i class="fas fa-code me-1"></i>Workspace
+                    </button>
+                </li>
             </ul>
 
             <div class="tab-content" id="settingsTabsContent">
@@ -1638,6 +1643,7 @@ function showSettings() {
                 <div class="tab-pane fade" id="notifications-content" role="tabpanel"></div>
                 <div class="tab-pane fade" id="branch-policies-content" role="tabpanel"></div>
                 <div class="tab-pane fade" id="llm-settings-content" role="tabpanel"></div>
+                <div class="tab-pane fade" id="workspace-settings-content" role="tabpanel"></div>
             </div>
         </div>
     `;
@@ -1652,6 +1658,7 @@ function showSettings() {
     renderNotificationsTab().catch(e => console.error('Erro Notificações:', e));
     renderBranchPoliciesTab().catch(e => console.error('Erro Políticas:', e));
     renderLLMSettingsTab().catch(e => console.error('Erro LLM:', e));
+    renderWorkspaceSettingsTab().catch(e => console.error('Erro Workspace:', e));
 
     // Restaurar aba ativa (caso usuario tenha navegado e voltado)
     const savedTab = sessionStorage.getItem('activeSettingsTab');
@@ -1677,6 +1684,18 @@ async function renderLLMSettingsTab() {
                 <i class="fas fa-brain me-2"></i>
                 Configuração de LLM disponível em <strong>GolIAs > LLM</strong>.
             </div>`;
+    }
+}
+
+// --- ABA WORKSPACE (delegada para integration-devworkspace.js) ---
+async function renderWorkspaceSettingsTab() {
+    const container = document.getElementById('workspace-settings-content');
+    if (!container) return;
+
+    if (typeof wsRenderSetup === 'function') {
+        await wsRenderSetup(container);
+    } else {
+        container.innerHTML = '<div class="alert alert-info"><i class="fas fa-code me-2"></i>Modulo Workspace nao carregado.</div>';
     }
 }
 
