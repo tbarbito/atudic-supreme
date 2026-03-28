@@ -2,11 +2,13 @@
 """
 Tools do agente GolIAs Supreme — Workspace (Engenharia Reversa).
 
-4 novas tools vindas da integracao com ExtraiRPO:
+6 tools vindas da integracao com ExtraiRPO:
 - parse_source_code: Analisa arquivo ADVPL/TLPP
 - analyze_impact: Impacto de alterar campo/tabela
 - build_dependency_graph: Grafo de vinculos de um modulo
 - list_vinculos: Lista relacoes campo->funcao->gatilho->PE
+- processos_cliente: Lista processos de negocio detectados
+- registrar_processo: Registra ou enriquece processo de negocio
 """
 
 import json
@@ -78,6 +80,36 @@ def get_workspace_tools():
             "risk": "low",
             "min_profile": "viewer",
             "handler": _handle_list_vinculos,
+        },
+        {
+            "name": "processos_cliente",
+            "description": "Lista processos de negocio detectados no ambiente do cliente. "
+                           "Opcionalmente filtra por tabelas envolvidas.",
+            "parameters": {
+                "workspace_slug": {"type": "string", "description": "Slug do workspace"},
+                "tabelas": {"type": "string", "description": "Tabelas para filtrar (separadas por virgula). Opcional."},
+            },
+            "required": ["workspace_slug"],
+            "risk": "low",
+            "min_profile": "viewer",
+            "handler": _handle_processos_cliente,
+        },
+        {
+            "name": "registrar_processo",
+            "description": "Registra ou enriquece um processo de negocio do cliente. "
+                           "Se processo similar existe, enriquece com novas informacoes.",
+            "parameters": {
+                "workspace_slug": {"type": "string", "description": "Slug do workspace"},
+                "nome": {"type": "string", "description": "Nome do processo"},
+                "tipo": {"type": "string", "description": "Tipo: workflow|integracao|logistica|fiscal|automacao|qualidade|outro"},
+                "descricao": {"type": "string", "description": "Descricao do processo"},
+                "tabelas": {"type": "string", "description": "Tabelas envolvidas (separadas por virgula). Opcional."},
+                "criticidade": {"type": "string", "description": "Criticidade: alta|media|baixa", "default": "media"},
+            },
+            "required": ["workspace_slug", "nome", "tipo", "descricao"],
+            "risk": "low",
+            "min_profile": "viewer",
+            "handler": _handle_registrar_processo,
         },
     ]
 
@@ -308,3 +340,141 @@ def _handle_list_vinculos(params: dict) -> dict:
             "tipos_disponiveis": {r[0]: r[1] for r in types},
         }
     }
+
+
+def _safe_json(val):
+    """Parse JSON seguro, retorna lista vazia em caso de erro."""
+    if not val:
+        return []
+    try:
+        return json.loads(val)
+    except (json.JSONDecodeError, TypeError):
+        return []
+
+
+def _handle_processos_cliente(params: dict) -> dict:
+    """Lista processos de negocio detectados no workspace."""
+    slug = params["workspace_slug"]
+    tabelas_str = params.get("tabelas", "")
+    tabelas = [t.strip().upper() for t in tabelas_str.split(",") if t.strip()] if tabelas_str else None
+
+    db = _get_db(slug)
+    if not db:
+        return {"success": False, "error": f"Workspace '{slug}' nao encontrado"}
+
+    try:
+        count = db.execute("SELECT COUNT(*) FROM processos_detectados").fetchone()[0]
+    except Exception:
+        return {"success": True, "data": {"total": 0, "processos": [], "status": "tabela_nao_existe"}}
+
+    if count == 0:
+        return {"success": True, "data": {"total": 0, "processos": [], "status": "sem_processos"}}
+
+    rows = db.execute(
+        "SELECT id, nome, tipo, descricao, criticidade, tabelas, score, fluxo_mermaid "
+        "FROM processos_detectados ORDER BY score DESC"
+    ).fetchall()
+
+    processos = []
+    for r in rows:
+        tabs = _safe_json(r[5])
+        if tabelas:
+            tabs_upper = {t.upper() for t in tabs}
+            if not tabs_upper.intersection(set(tabelas)):
+                continue
+        processos.append({
+            "id": r[0], "nome": r[1], "tipo": r[2], "descricao": r[3],
+            "criticidade": r[4], "tabelas": tabs, "score": r[6],
+            "fluxo_mermaid": r[7],
+        })
+
+    return {"success": True, "data": {"total": len(processos), "processos": processos, "status": "ok"}}
+
+
+def _handle_registrar_processo(params: dict) -> dict:
+    """Registra ou enriquece processo de negocio do cliente."""
+    slug = params["workspace_slug"]
+    nome = params["nome"]
+    tipo = params["tipo"]
+    descricao = params["descricao"]
+    tabelas_str = params.get("tabelas", "")
+    tabelas = [t.strip().upper() for t in tabelas_str.split(",") if t.strip()] if tabelas_str else []
+    criticidade = params.get("criticidade", "media")
+
+    db = _get_db(slug)
+    if not db:
+        return {"success": False, "error": f"Workspace '{slug}' nao encontrado"}
+
+    # Stage 1: Busca por texto para encontrar processo similar
+    termos = nome.lower().split()
+    candidatos = []
+    for termo in termos:
+        if len(termo) < 3:
+            continue
+        try:
+            rows = db.execute(
+                "SELECT id, nome, tipo, descricao, tabelas, score FROM processos_detectados "
+                "WHERE lower(nome) LIKE ? OR lower(descricao) LIKE ? "
+                "ORDER BY score DESC LIMIT 10",
+                (f"%{termo}%", f"%{termo}%"),
+            ).fetchall()
+            for r in rows:
+                if r[0] not in [c["id"] for c in candidatos]:
+                    candidatos.append({
+                        "id": r[0], "nome": r[1], "tipo": r[2],
+                        "descricao": r[3], "tabelas": _safe_json(r[4]), "score": r[5],
+                    })
+        except Exception:
+            pass
+
+    # Stage 2: Match por substring
+    best_match = None
+    if candidatos:
+        nome_lower = nome.lower().strip()
+        for c in candidatos:
+            c_nome_lower = c["nome"].lower().strip()
+            if c_nome_lower == nome_lower or nome_lower in c_nome_lower or c_nome_lower in nome_lower:
+                best_match = c
+                break
+
+    if best_match:
+        # Enriquecer processo existente
+        existing_tabs = set(best_match["tabelas"])
+        new_tabs = existing_tabs | set(tabelas)
+        new_desc = best_match["descricao"]
+        if descricao and descricao not in new_desc:
+            new_desc = f"{new_desc}\n{descricao}".strip()
+
+        db.execute(
+            "UPDATE processos_detectados SET tabelas=?, descricao=?, updated_at=datetime('now') WHERE id=?",
+            (json.dumps(list(new_tabs)), new_desc, best_match["id"]),
+        )
+        db.commit()
+
+        return {
+            "success": True,
+            "data": {
+                "acao": "enriquecido",
+                "processo": {**best_match, "tabelas": list(new_tabs), "descricao": new_desc},
+            },
+        }
+    else:
+        # Criar novo processo
+        db.execute(
+            "INSERT INTO processos_detectados (nome, tipo, descricao, criticidade, tabelas, metodo, score) "
+            "VALUES (?, ?, ?, ?, ?, 'manual', 0.5)",
+            (nome, tipo, descricao, criticidade, json.dumps(tabelas)),
+        )
+        db.commit()
+        new_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        return {
+            "success": True,
+            "data": {
+                "acao": "criado",
+                "processo": {
+                    "id": new_id, "nome": nome, "tipo": tipo, "descricao": descricao,
+                    "criticidade": criticidade, "tabelas": tabelas, "score": 0.5,
+                },
+            },
+        }

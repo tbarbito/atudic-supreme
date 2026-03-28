@@ -6,9 +6,11 @@ Endpoints para gerenciar workspaces, ingestao de CSVs/fontes,
 explorar dicionario e consultar vinculos.
 """
 
+import json
 import logging
+import re
 from pathlib import Path
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response, stream_with_context
 
 from app.services.workspace.workspace_populator import WorkspacePopulator
 from app.services.workspace.workspace_db import Database
@@ -17,6 +19,23 @@ from app.services.workspace.knowledge import KnowledgeService
 logger = logging.getLogger(__name__)
 
 workspace_bp = Blueprint("workspace", __name__)
+
+
+def _get_llm_provider():
+    """Retorna LLMProvider via AgentChatEngine singleton."""
+    from app.services.agent_chat import get_chat_engine
+    engine = get_chat_engine()
+    if not engine._llm_provider:
+        raise RuntimeError("Nenhum LLM provider configurado")
+    return engine._llm_provider
+
+
+def _llm_chat_text(provider, messages):
+    """Chama LLMProvider.chat() e retorna texto da resposta."""
+    result = provider.chat(messages)
+    if isinstance(result, str):
+        return result
+    return result.get("content", result.get("response", ""))
 
 # Diretorio base para workspaces
 WORKSPACE_BASE = Path("workspace/clients")
@@ -405,3 +424,454 @@ def export_diff(slug):
     csv_data = exporter.export_diff_csv(tipo_sx)
     return csv_data, 200, {"Content-Type": "text/csv; charset=utf-8",
                            "Content-Disposition": "attachment; filename=diff.csv"}
+
+
+# ========================================================================
+# PROCESSOS DO CLIENTE — Detecçao, analise, chat e registro
+# ========================================================================
+
+@workspace_bp.route("/workspaces/<slug>/processos", methods=["GET"])
+def listar_processos(slug):
+    """Lista processos de negocio detectados no workspace."""
+    db = _get_db(slug)
+    try:
+        rows = db.execute(
+            "SELECT id, nome, tipo, descricao, criticidade, tabelas, score, "
+            "fluxo_mermaid, validado, created_at, updated_at "
+            "FROM processos_detectados ORDER BY score DESC"
+        ).fetchall()
+    except Exception:
+        return jsonify([])
+
+    tabela_filter = request.args.get("tabela", "").upper()
+    tipo_filter = request.args.get("tipo", "")
+
+    processos = []
+    for r in rows:
+        tabs = json.loads(r[5]) if r[5] else []
+        if tabela_filter and tabela_filter not in [t.upper() for t in tabs]:
+            continue
+        if tipo_filter and r[2] != tipo_filter:
+            continue
+        processos.append({
+            "id": r[0], "nome": r[1], "tipo": r[2], "descricao": r[3],
+            "criticidade": r[4], "tabelas": tabs, "score": r[6],
+            "fluxo_mermaid": r[7], "validado": bool(r[8]),
+            "created_at": r[9], "updated_at": r[10],
+        })
+    return jsonify(processos)
+
+
+@workspace_bp.route("/workspaces/<slug>/processos/<int:processo_id>/fluxo", methods=["POST"])
+def gerar_fluxo_processo(slug, processo_id):
+    """Gera (ou retorna cache) diagrama Mermaid de um processo via LLM."""
+    db = _get_db(slug)
+    force = request.args.get("force", "false").lower() == "true"
+
+    row = db.execute(
+        "SELECT id, nome, tipo, descricao, criticidade, tabelas, score, fluxo_mermaid "
+        "FROM processos_detectados WHERE id = ?",
+        (processo_id,),
+    ).fetchone()
+
+    if not row:
+        return jsonify({"error": "Processo nao encontrado"}), 404
+
+    # Cache hit
+    if row[7] and not force:
+        return jsonify({"fluxo_mermaid": row[7]})
+
+    # Gerar via LLM
+    try:
+        llm = _get_llm_provider()
+    except Exception as e:
+        return jsonify({"error": f"LLM nao disponivel: {str(e)[:200]}"}), 500
+
+    prompt = (
+        f'Gere um diagrama Mermaid `flowchart TD` para o processo "{row[1]}" do tipo "{row[2]}".\n'
+        f"Descricao: {row[3]}\n"
+        f"Tabelas envolvidas: {row[5]}\n"
+        f"Criticidade: {row[4]}\n"
+        f"Represente as etapas principais do processo de forma clara. "
+        f"Retorne APENAS o codigo Mermaid, sem explicacoes."
+    )
+
+    try:
+        text = _llm_chat_text(llm, [{"role": "user", "content": prompt}])
+
+        match = re.search(r"```(?:mermaid)?\s*([\s\S]*?)```", text)
+        if match:
+            mermaid_str = match.group(1).strip()
+        elif text.strip().startswith(("flowchart", "graph")):
+            mermaid_str = text.strip()
+        else:
+            return jsonify({"error": "Resposta do LLM nao e um diagrama Mermaid valido"}), 500
+
+        db.execute(
+            "UPDATE processos_detectados SET fluxo_mermaid = ? WHERE id = ?",
+            (mermaid_str, processo_id),
+        )
+        db.commit()
+        return jsonify({"fluxo_mermaid": mermaid_str})
+    except Exception as e:
+        logger.exception(f"Erro ao gerar fluxo: {e}")
+        return jsonify({"error": str(e)[:300]}), 500
+
+
+@workspace_bp.route("/workspaces/<slug>/processos/<int:processo_id>/analise", methods=["GET"])
+def get_analise_processo(slug, processo_id):
+    """Gera (ou retorna cache) analise tecnica de um processo via investigacao + LLM."""
+    db = _get_db(slug)
+    force = request.args.get("force", "false").lower() == "true"
+
+    row = db.execute(
+        "SELECT id, nome, tipo, descricao, criticidade, tabelas, score, "
+        "analise_markdown, analise_json, analise_updated_at "
+        "FROM processos_detectados WHERE id = ?",
+        (processo_id,),
+    ).fetchone()
+
+    if not row:
+        return jsonify({"error": "Processo nao encontrado"}), 404
+
+    # Cache hit
+    if row[7] and not force and row[9] != 'generating':
+        return jsonify({
+            "analise_markdown": row[7],
+            "analise_json": json.loads(row[8]) if row[8] else {},
+            "analise_updated_at": row[9],
+        })
+
+    # Concurrency guard
+    if row[9] == 'generating' and not force:
+        return jsonify({"error": "Analise em geracao por outra requisicao"}), 409
+
+    # Mark as generating
+    db.execute(
+        "UPDATE processos_detectados SET analise_updated_at = 'generating' WHERE id = ?",
+        (processo_id,),
+    )
+    db.commit()
+
+    try:
+        tabelas = json.loads(row[5]) if row[5] else []
+        nome = row[1]
+        tipo = row[2]
+        descricao = row[3]
+
+        # Fase 1: Investigar usando knowledge service
+        ks = KnowledgeService(db)
+        tool_results_parts = []
+
+        for tab in tabelas[:8]:
+            try:
+                info = ks.get_table_info(tab)
+                if info:
+                    tool_results_parts.append(f"### Tabela {tab}\n{json.dumps(info, ensure_ascii=False, indent=2)}")
+            except Exception:
+                pass
+
+        tool_results_text = "\n\n".join(tool_results_parts) or "Nenhum dado de investigacao encontrado."
+
+        # Fase 2: LLM gera markdown + JSON
+        try:
+            llm = _get_llm_provider()
+        except Exception as e:
+            db.execute(
+                "UPDATE processos_detectados SET analise_updated_at = NULL WHERE id = ?",
+                (processo_id,),
+            )
+            db.commit()
+            return jsonify({"error": f"LLM nao disponivel: {str(e)[:200]}"}), 500
+
+        prompt = f"""Analise o processo "{nome}" (tipo: {tipo}, criticidade: {row[4]}).
+Descricao: {descricao}
+Tabelas envolvidas: {', '.join(tabelas)}
+
+DADOS DE INVESTIGACAO:
+{tool_results_text}
+
+Gere DUAS saidas:
+
+1. ANALISE EM MARKDOWN — relatorio tecnico completo com secoes:
+## Write Points
+## Triggers e Gatilhos
+## Entry Points (PEs)
+## Parametros Relacionados
+## Fontes Envolvidas
+## Condicoes Criticas
+## Resumo do Processo
+
+2. JSON ESTRUTURADO — no formato abaixo (dentro de um bloco ```json):
+```json
+{{
+  "tabelas": [
+    {{
+      "codigo": "XXX",
+      "write_points": [
+        {{ "fonte": "ARQUIVO.PRW", "funcao": "Funcao", "campos": ["CAMPO1"], "condicao": "cond" }}
+      ],
+      "triggers": [
+        {{ "campo": "CAMPO", "gatilho": "U_FUNC", "tipo": "change" }}
+      ],
+      "operacoes": [
+        {{ "tipo": "reclock", "funcao": "Funcao", "modo": "inclusao" }}
+      ]
+    }}
+  ],
+  "entry_points": [
+    {{ "pe": "NOME_PE", "fonte": "ARQUIVO.PRW", "descricao": "desc" }}
+  ],
+  "parametros": [
+    {{ "nome": "MV_XXXX", "conteudo": "valor", "descricao": "desc" }}
+  ],
+  "fontes_envolvidas": ["ARQUIVO1.PRW", "ARQUIVO2.PRW"],
+  "condicoes_criticas": [
+    {{ "condicao": "expr", "impacto": "desc", "fonte": "ARQUIVO.PRW" }}
+  ]
+}}
+```
+
+Retorne PRIMEIRO o markdown completo, depois o bloco JSON.
+Baseie-se APENAS nos dados de investigacao fornecidos. Nao invente dados."""
+
+        text = _llm_chat_text(llm, [{"role": "user", "content": prompt}])
+
+        # Fase 3: Parse response
+        json_match = re.search(r"```json\s*([\s\S]*?)```", text)
+        analise_json_str = "{}"
+        if json_match:
+            try:
+                analise_json_obj = json.loads(json_match.group(1).strip())
+                analise_json_str = json.dumps(analise_json_obj, ensure_ascii=False)
+            except json.JSONDecodeError:
+                analise_json_str = "{}"
+
+        analise_md = text[:json_match.start()].strip() if json_match else text.strip()
+
+        # Fase 4: Salvar
+        from datetime import datetime
+        now = datetime.utcnow().isoformat()
+        db.execute(
+            "UPDATE processos_detectados SET analise_markdown=?, analise_json=?, analise_updated_at=? WHERE id=?",
+            (analise_md, analise_json_str, now, processo_id),
+        )
+        db.commit()
+
+        return jsonify({
+            "analise_markdown": analise_md,
+            "analise_json": json.loads(analise_json_str),
+            "analise_updated_at": now,
+        })
+
+    except Exception as e:
+        db.execute(
+            "UPDATE processos_detectados SET analise_updated_at = NULL WHERE id = ? AND analise_updated_at = 'generating'",
+            (processo_id,),
+        )
+        db.commit()
+        logger.exception(f"Erro ao gerar analise: {e}")
+        return jsonify({"error": str(e)[:300]}), 500
+
+
+@workspace_bp.route("/workspaces/<slug>/processos/<int:processo_id>/chat", methods=["POST"])
+def chat_processo(slug, processo_id):
+    """SSE streaming chat escopado a um processo — usa modo duvida com contexto do processo."""
+    db = _get_db(slug)
+
+    row = db.execute(
+        "SELECT id, nome, tipo, descricao, tabelas, analise_json "
+        "FROM processos_detectados WHERE id = ?",
+        (processo_id,),
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "Processo nao encontrado"}), 404
+
+    data = request.get_json()
+    message = data.get("message", "")
+    if not message:
+        return jsonify({"error": "Mensagem vazia"}), 400
+
+    proc_nome = row[1]
+    proc_tabelas = json.loads(row[4]) if row[4] else []
+    analise_json = row[5] or "{}"
+
+    # Salvar mensagem do usuario
+    db.execute(
+        "INSERT INTO processo_mensagens (processo_id, role, content) VALUES (?, 'user', ?)",
+        (processo_id, message),
+    )
+    db.commit()
+
+    # Carregar historico (ultimas 30)
+    hist_rows = db.execute(
+        "SELECT role, content FROM processo_mensagens WHERE processo_id = ? ORDER BY id DESC LIMIT 30",
+        (processo_id,),
+    ).fetchall()
+    hist_rows = list(reversed(hist_rows))
+
+    def generate():
+        yield f"data: {json.dumps({'event': 'status', 'step': 'Investigando contexto do processo...'}, ensure_ascii=False)}\n\n"
+
+        # Fase 1: Contexto do processo
+        ks = KnowledgeService(db)
+        tool_results_parts = []
+        for tab in proc_tabelas[:5]:
+            try:
+                info = ks.get_table_info(tab)
+                if info:
+                    tool_results_parts.append(f"Info {tab}: {json.dumps(info, ensure_ascii=False)}")
+            except Exception:
+                pass
+
+        tool_results_text = "\n".join(tool_results_parts)
+
+        context = f"""PROCESSO: {proc_nome}
+Tabelas: {', '.join(proc_tabelas)}
+Analise tecnica existente (JSON): {analise_json}
+"""
+
+        system_prompt = (
+            "Voce e um consultor tecnico senior de ambientes TOTVS Protheus.\n"
+            "Use APENAS os dados do CONTEXTO abaixo. Nao invente dados.\n"
+            "Responda com informacoes CONCRETAS.\n\n"
+            f"CONTEXTO DO AMBIENTE:\n{context}\n\n"
+            f"DADOS DE INVESTIGACAO:\n{tool_results_text}\n"
+        )
+
+        messages = [{"role": "system", "content": system_prompt}]
+        for h_role, h_content in hist_rows:
+            messages.append({"role": h_role, "content": h_content})
+
+        # Fase 2: Stream LLM
+        yield f"data: {json.dumps({'event': 'status', 'step': 'Gerando resposta...'}, ensure_ascii=False)}\n\n"
+
+        full_text = ""
+        try:
+            llm = _get_llm_provider()
+
+            if hasattr(llm, 'chat_stream'):
+                for chunk_data in llm.chat_stream(messages):
+                    chunk_text = chunk_data.get("chunk", "") if isinstance(chunk_data, dict) else str(chunk_data)
+                    if chunk_text:
+                        full_text += chunk_text
+                        yield f"data: {json.dumps({'event': 'content', 'text': chunk_text}, ensure_ascii=False)}\n\n"
+            else:
+                full_text = _llm_chat_text(llm, messages)
+                yield f"data: {json.dumps({'event': 'content', 'text': full_text}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'event': 'error', 'error': str(e)[:300]}, ensure_ascii=False)}\n\n"
+            return
+
+        # Fase 3: Salvar resposta do assistente
+        try:
+            db2 = _get_db(slug)
+            db2.execute(
+                "INSERT INTO processo_mensagens (processo_id, role, content) VALUES (?, 'assistant', ?)",
+                (processo_id, full_text),
+            )
+            db2.commit()
+
+            # Fase 4: Enriquecimento heuristico (max 3 complementos)
+            existing_analysis = json.loads(analise_json) if analise_json and analise_json != "{}" else None
+            if existing_analysis and any(kw in full_text.lower() for kw in ["reclock", "gatilho", "trigger", "ponto de entrada", "pe_", "u_"]):
+                existing_md = db2.execute(
+                    "SELECT analise_markdown FROM processos_detectados WHERE id = ?",
+                    (processo_id,),
+                ).fetchone()
+                enrichment_count = (existing_md[0] or "").count("## Complemento via Chat") if existing_md else 0
+                if enrichment_count < 3:
+                    db2.execute(
+                        """UPDATE processos_detectados
+                        SET analise_markdown = COALESCE(analise_markdown, '') || char(10) || char(10) || '## Complemento via Chat' || char(10) || ?,
+                            analise_updated_at = datetime('now')
+                        WHERE id = ?""",
+                        (full_text[:2000], processo_id),
+                    )
+                    db2.commit()
+            db2.close()
+        except Exception as e:
+            logger.warning("Erro ao salvar resposta do chat de processo: %s", e)
+
+        yield f"data: {json.dumps({'event': 'done', 'status': 'ok'}, ensure_ascii=False)}\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        }
+    )
+
+
+@workspace_bp.route("/workspaces/<slug>/processos/<int:processo_id>/mensagens", methods=["GET"])
+def listar_mensagens_processo(slug, processo_id):
+    """Lista mensagens de chat de um processo."""
+    db = _get_db(slug)
+    limit = request.args.get("limit", 30, type=int)
+    offset = request.args.get("offset", 0, type=int)
+
+    try:
+        total = db.execute(
+            "SELECT COUNT(*) FROM processo_mensagens WHERE processo_id = ?",
+            (processo_id,),
+        ).fetchone()[0]
+        rows = db.execute(
+            "SELECT id, role, content, created_at FROM processo_mensagens "
+            "WHERE processo_id = ? ORDER BY id DESC LIMIT ? OFFSET ?",
+            (processo_id, limit, offset),
+        ).fetchall()
+        mensagens = [
+            {"id": r[0], "role": r[1], "content": r[2], "created_at": r[3]}
+            for r in reversed(rows)
+        ]
+        return jsonify({"total": total, "mensagens": mensagens})
+    except Exception:
+        return jsonify({"total": 0, "mensagens": []})
+
+
+@workspace_bp.route("/workspaces/<slug>/processos/registrar", methods=["POST"])
+def registrar_processo(slug):
+    """Registra ou enriquece um processo a partir de descricao livre (usa LLM para classificar)."""
+    data = request.get_json()
+    descricao = data.get("descricao", "")
+    if not descricao:
+        return jsonify({"error": "Descricao vazia"}), 400
+
+    # Fase 1: Extrair info via LLM
+    try:
+        llm = _get_llm_provider()
+    except Exception as e:
+        return jsonify({"error": f"LLM nao disponivel: {str(e)[:200]}"}), 500
+
+    extract_prompt = f"""Extraia as informacoes de processo de negocio do texto abaixo.
+Retorne APENAS um JSON:
+{{"nome": "Nome do Processo", "tipo": "workflow|integracao|logistica|fiscal|automacao|qualidade|outro", "descricao": "descricao limpa", "tabelas": ["TAB1", "TAB2"], "criticidade": "alta|media|baixa"}}
+
+Texto: {descricao}"""
+
+    try:
+        text = _llm_chat_text(llm, [{"role": "user", "content": extract_prompt}])
+        json_match = re.search(r'\{[\s\S]*\}', text)
+        if not json_match:
+            return jsonify({"error": "LLM nao retornou JSON valido"}), 500
+        extracted = json.loads(json_match.group())
+    except Exception as e:
+        return jsonify({"error": f"Erro ao classificar processo: {str(e)[:200]}"}), 500
+
+    # Fase 2: Registrar via handler do agent_tools
+    from app.services.workspace.agent_tools import _handle_registrar_processo
+    result = _handle_registrar_processo({
+        "workspace_slug": slug,
+        "nome": extracted.get("nome", descricao[:80]),
+        "tipo": extracted.get("tipo", "outro"),
+        "descricao": extracted.get("descricao", descricao),
+        "tabelas": ",".join(extracted.get("tabelas", [])),
+        "criticidade": extracted.get("criticidade", "media"),
+    })
+
+    if result.get("success"):
+        return jsonify(result["data"])
+    return jsonify({"error": result.get("error", "Erro desconhecido")}), 500

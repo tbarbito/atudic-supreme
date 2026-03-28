@@ -370,6 +370,38 @@ CREATE TABLE IF NOT EXISTS schedules (
 CREATE INDEX IF NOT EXISTS idx_schedules_rotina ON schedules(rotina);
 CREATE INDEX IF NOT EXISTS idx_schedules_status ON schedules(status);
 
+-- Processos de negocio detectados no ambiente do cliente
+CREATE TABLE IF NOT EXISTS processos_detectados (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome        TEXT NOT NULL,
+    tipo        TEXT NOT NULL,
+    descricao   TEXT DEFAULT '',
+    criticidade TEXT DEFAULT 'media',
+    tabelas     TEXT DEFAULT '[]',
+    evidencias  TEXT DEFAULT '{}',
+    metodo      TEXT DEFAULT 'pipeline',
+    score       REAL DEFAULT 0.0,
+    validado    INTEGER DEFAULT 0,
+    fluxo_mermaid TEXT DEFAULT NULL,
+    analise_markdown TEXT DEFAULT NULL,
+    analise_json TEXT DEFAULT NULL,
+    analise_updated_at TEXT DEFAULT NULL,
+    created_at  TEXT DEFAULT (datetime('now')),
+    updated_at  TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_processos_tipo ON processos_detectados(tipo);
+CREATE INDEX IF NOT EXISTS idx_processos_validado ON processos_detectados(validado);
+
+-- Historico de chat por processo
+CREATE TABLE IF NOT EXISTS processo_mensagens (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    processo_id INTEGER NOT NULL REFERENCES processos_detectados(id),
+    role        TEXT NOT NULL,
+    content     TEXT NOT NULL,
+    created_at  TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_proc_msg_processo ON processo_mensagens(processo_id);
+
 -- Mapa de modulos Protheus (autocontido — dados padrao do ERP)
 CREATE TABLE IF NOT EXISTS mapa_modulos (
     modulo      TEXT PRIMARY KEY,
@@ -412,6 +444,18 @@ class Database:
                 )
             self._conn.commit()
             _initialized_dbs.add(key)
+        # Migration idempotente para workspaces existentes
+        for col_ddl in [
+            "ALTER TABLE processos_detectados ADD COLUMN fluxo_mermaid TEXT DEFAULT NULL",
+            "ALTER TABLE processos_detectados ADD COLUMN analise_markdown TEXT DEFAULT NULL",
+            "ALTER TABLE processos_detectados ADD COLUMN analise_json TEXT DEFAULT NULL",
+            "ALTER TABLE processos_detectados ADD COLUMN analise_updated_at TEXT DEFAULT NULL",
+        ]:
+            try:
+                self._conn.execute(col_ddl)
+                self._conn.commit()
+            except Exception:
+                pass  # coluna ja existe ou tabela nao existe ainda
 
     def execute(self, sql: str, params: tuple = ()):
         return self._conn.execute(sql, params)

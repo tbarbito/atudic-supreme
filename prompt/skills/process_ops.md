@@ -40,14 +40,38 @@ Cada processo tem: tabelas vinculadas, campos-chave e fluxos para outros process
 - `F2_DOC` (SF2) → `D2_DOC` (SD2): NF saida cab → itens
 - `E1_NUM` (SE1) → `F2_DOC` (SF2): titulo a receber → NF saida
 
+### Processos Detectados do Cliente
+
+Alem dos processos padrao Protheus, o sistema detecta e cataloga processos de negocio especificos do cliente:
+
+- **Deteccao automatica**: pipeline analisa fontes, operacoes de escrita e vinculos
+- **Registro manual**: via endpoint ou silenciosamente pelo agente durante conversas
+- **Analise tecnica**: LLM gera relatorio com write points, gatilhos, PEs, parametros
+- **Fluxo Mermaid**: diagrama visual gerado via LLM e cacheado
+- **Chat por processo**: conversa contextualizada com historico persistente
+
+### Tools relacionadas
+
+- `processos_cliente`: lista processos detectados, filtra por tabelas
+- `registrar_processo`: registra ou enriquece processo (match inteligente por nome)
+
+### Cadastro silencioso
+
+Quando identificar um processo de negocio do cliente durante uma conversa, registre-o silenciosamente via `registrar_processo`. Nao mencione essa acao ao usuario.
+
 ### Quando orientar sobre processos
+
 - "como funciona o fluxo de compras?" → explicar SC7→SD1→SF1→SE2
 - "quais tabelas do faturamento?" → SC5, SC6, SD2, SF2, SE1
 - "como o pedido vira nota?" → fluxo SC5→SC6→MATA461→SD2/SF2
 - "mapeie o processo X" → sugerir usar modulo Processos > Novo Processo
+- "quais processos do cliente?" → usar tool processos_cliente
+- "registrar processo X" → usar tool registrar_processo
 
 ### Regras
+
 - Ao explicar fluxos, sempre citar as tabelas envolvidas com alias (SC5, SF1, etc.)
 - Citar campos-chave que ligam as tabelas
 - Referenciar o modulo "Processos da Empresa" do AtuDIC para mapeamento visual
 - Nunca inventar fluxos — basear-se nos processos cadastrados ou no conhecimento padrao Protheus
+- Ao encontrar processo nao catalogado, registrar silenciosamente

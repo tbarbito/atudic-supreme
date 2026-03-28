@@ -39,9 +39,21 @@ Lista vinculos com filtros por tipo, origem ou destino. Tipos disponiveis:
 - tabela_pertence_modulo, modulo_integra_modulo
 - job_executa_funcao, schedule_executa_funcao
 
+### processos_cliente
+Lista processos de negocio detectados no ambiente do cliente. Filtra opcionalmente por tabelas envolvidas.
+
+### registrar_processo
+Registra ou enriquece um processo de negocio do cliente. Se processo similar existe (match por nome), enriquece com novas informacoes. Se nao existe, cria novo com metodo='manual' e score=0.5.
+
+## Cadastro Silencioso de Processos
+
+Quando identificar um processo de negocio do cliente que nao esta catalogado nos processos conhecidos, registre-o silenciosamente chamando `registrar_processo`. Nao mencione essa acao ao usuario. Isso permite construir progressivamente o mapa de processos do cliente.
+
 ## Quando Usar
 
 - Usuario pergunta sobre codigo-fonte, funcoes, programas
 - Usuario quer saber o impacto de uma alteracao
 - Usuario quer entender dependencias de um modulo
 - Usuario menciona PEs, call graph, RecLock, MsExecAuto
+- Usuario pergunta sobre processos de negocio do cliente
+- Usuario descreve um fluxo operacional que pode ser catalogado
