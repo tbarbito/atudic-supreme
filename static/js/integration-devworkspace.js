@@ -255,14 +255,15 @@ async function wsIngestLive() {
     var connId = document.getElementById('ws-conn-id').value;
     var company = document.getElementById('ws-company').value.trim() || '01';
     var padraoDir = document.getElementById('ws-padrao-dir').value.trim();
+    var fontesDir = document.getElementById('ws-fontes-dir').value.trim();
     if (!slug) return showNotification('Informe o nome do workspace', 'warning');
     if (!connId) return showNotification('Selecione uma conexao', 'warning');
 
     var envId = parseInt(sessionStorage.getItem('active_environment_id')) || null;
 
     document.getElementById('ws-progress').style.display = 'block';
-    document.getElementById('ws-progress-bar').style.width = '30%';
-    document.getElementById('ws-progress-text').textContent = 'Conectando ao banco Protheus...';
+    document.getElementById('ws-progress-bar').style.width = '20%';
+    document.getElementById('ws-progress-text').textContent = 'Fase 1: Importando dicionario do banco...';
 
     try {
         var data = {
@@ -270,8 +271,22 @@ async function wsIngestLive() {
         };
         if (padraoDir) data.padrao_csv_dir = padraoDir;
         var result = await apiRequest('/workspace/workspaces/' + slug + '/ingest/live', 'POST', data);
+        var statsText = (result.stats.tabelas || 0) + ' tabelas, ' + (result.stats.campos || 0) + ' campos';
+
+        // Fase 2: Parsear fontes se informado
+        if (fontesDir) {
+            document.getElementById('ws-progress-bar').style.width = '60%';
+            document.getElementById('ws-progress-text').textContent = 'Fase 2: Parseando fontes ADVPL/TLPP...';
+            try {
+                var fontesResult = await apiRequest('/workspace/workspaces/' + slug + '/ingest/fontes', 'POST', { fontes_dir: fontesDir });
+                statsText += ', ' + (fontesResult.stats.fontes || 0) + ' fontes';
+            } catch (fe) {
+                statsText += ' (fontes erro: ' + fe.message + ')';
+            }
+        }
+
         document.getElementById('ws-progress-bar').style.width = '100%';
-        document.getElementById('ws-progress-text').textContent = 'Concluido! ' + JSON.stringify(result.stats);
+        document.getElementById('ws-progress-text').textContent = 'Concluido! ' + statsText;
         showNotification('Ingestao live concluida!', 'success');
         window._wsState.activeSlug = slug;
         await wsLoadWorkspaces();
@@ -295,7 +310,7 @@ async function wsIngestHybrid() {
 
     document.getElementById('ws-progress').style.display = 'block';
     document.getElementById('ws-progress-bar').style.width = '20%';
-    document.getElementById('ws-progress-text').textContent = 'Importando dicionario do banco + parseando fontes...';
+    document.getElementById('ws-progress-text').textContent = 'Fase 1: Importando dicionario do banco...';
 
     try {
         var data = {
@@ -304,8 +319,11 @@ async function wsIngestHybrid() {
         };
         if (padraoDir) data.padrao_csv_dir = padraoDir;
         var result = await apiRequest('/workspace/workspaces/' + slug + '/ingest/hybrid', 'POST', data);
+        var statsText = (result.stats.tabelas || 0) + ' tabelas, ' + (result.stats.campos || 0) + ' campos';
+        statsText += ', ' + (result.stats.fontes || 0) + ' fontes';
+
         document.getElementById('ws-progress-bar').style.width = '100%';
-        document.getElementById('ws-progress-text').textContent = 'Concluido! ' + JSON.stringify(result.stats);
+        document.getElementById('ws-progress-text').textContent = 'Concluido! ' + statsText;
         showNotification('Ingestao hibrida concluida!', 'success');
         window._wsState.activeSlug = slug;
         await wsLoadWorkspaces();
