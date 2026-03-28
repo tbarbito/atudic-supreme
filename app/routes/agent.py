@@ -8,7 +8,7 @@ busca BM25, ingestão de arquivos, CRUD de entradas e estatísticas.
 import json
 import logging
 import os
-from flask import Blueprint, request, jsonify, Response
+from flask import Blueprint, request, jsonify, Response, current_app
 from app.utils.security import require_auth, require_operator, require_admin
 from app.services.agent_memory import get_agent_memory
 from app.services.agent_chat import get_chat_engine
