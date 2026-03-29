@@ -557,6 +557,23 @@ async function wsRenderDashboard(container) {
 
         html += '</div>'; // row
 
+        // Top 10 Fontes (maiores por LOC)
+        if (data.top_fontes && data.top_fontes.length) {
+            html += '<div class="card mb-4"><div class="card-body">' +
+                '<h6 class="card-title">Top 10 Fontes (por linhas de codigo)</h6>' +
+                '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:0.82rem"><thead class="table-light"><tr>' +
+                '<th>Arquivo</th><th>Modulo</th><th>Funcoes</th><th>LOC</th>' +
+                '</tr></thead><tbody>';
+            data.top_fontes.forEach(function(f) {
+                html += '<tr style="cursor:pointer" data-action="wsOpenFonte" data-params=\'{"arquivo":"' + f.arquivo + '"}\'>' +
+                    '<td><code class="fw-bold">' + f.arquivo + '</code></td>' +
+                    '<td>' + (f.modulo || '') + '</td>' +
+                    '<td>' + f.funcoes + '</td>' +
+                    '<td class="fw-bold">' + f.loc + '</td></tr>';
+            });
+            html += '</tbody></table></div></div></div>';
+        }
+
         // Modulos
         if (data.modulos && data.modulos.length) {
             var maxFontes = data.modulos[0].fontes || 1;
@@ -650,7 +667,8 @@ async function wsRenderExplorer(container) {
                 '<div class="card" style="max-height:75vh;overflow-y:auto">' +
                     '<div class="card-body p-2">' +
                         '<input type="text" class="form-control form-control-sm mb-2" ' +
-                            'placeholder="Buscar tabela, fonte, rotina..." id="ws-search" oninput="wsFilterTree(this.value)">' +
+                            'placeholder="Buscar tabela, fonte, rotina..." id="ws-search" ' +
+                            'oninput="wsFilterTree(this.value)" onkeydown="if(event.key===\'Enter\')wsDoSearch()">' +
                         '<div id="ws-tree"></div>' +
                     '</div>' +
                 '</div>' +
@@ -807,7 +825,8 @@ function _wsRenderCategoryList(cat, modulo, items) {
         html += '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:0.82rem">' +
             '<thead class="table-light"><tr><th>Fonte</th><th>Funcoes</th><th>LOC</th></tr></thead><tbody>';
         items.forEach(function(f) {
-            html += '<tr><td><code class="fw-bold">' + f.arquivo + '</code></td>' +
+            html += '<tr style="cursor:pointer" data-action="wsOpenFonte" data-params=\'{"arquivo":"' + f.arquivo + '"}\'>' +
+                '<td><code class="fw-bold">' + f.arquivo + '</code></td>' +
                 '<td>' + f.funcoes + '</td><td>' + f.loc + '</td></tr>';
         });
         html += '</tbody></table></div>';
@@ -883,6 +902,7 @@ function wsRenderTableDetail(info) {
         '<li class="nav-item"><button class="nav-link" onclick="wsDetailTab(\'gatilhos\')">Gatilhos <span class="badge bg-secondary">' + gatilhosLen + '</span></button></li>' +
         '<li class="nav-item"><button class="nav-link" onclick="wsDetailTab(\'indices\')">Indices <span class="badge bg-secondary">' + indicesLen + '</span></button></li>' +
         '<li class="nav-item"><button class="nav-link" onclick="wsDetailTab(\'fontes\')">Fontes <span class="badge bg-secondary">' + fontesLen + '</span></button></li>' +
+        '<li class="nav-item"><button class="nav-link" onclick="wsDetailTab(\'diff\')">Diff</button></li>' +
     '</ul>';
 
     // Tab content: Campos (default)
@@ -901,6 +921,7 @@ function wsDetailTab(tab) {
     else if (tab === 'gatilhos') c.innerHTML = _wsRenderGatilhosTab(info);
     else if (tab === 'indices') c.innerHTML = _wsRenderIndicesTab(info);
     else if (tab === 'fontes') c.innerHTML = _wsRenderFontesTab(info);
+    else if (tab === 'diff') wsLoadDiffTab(info.codigo);
 }
 
 function _wsRenderCamposTab(info) {
@@ -980,13 +1001,273 @@ function _wsRenderFontesTab(info) {
         '<th>Arquivo</th><th>Modulo</th><th>LOC</th><th>Modo</th></tr></thead><tbody>';
     fontes.forEach(function(f) {
         var modoColor = f.modo === 'Leitura/Escrita' ? 'text-warning' : 'text-primary';
-        html += '<tr><td><code style="font-weight:600">' + f.arquivo + '</code></td>' +
+        html += '<tr style="cursor:pointer" data-action="wsOpenFonte" data-params=\'{"arquivo":"' + f.arquivo + '"}\'>' +
+            '<td><code style="font-weight:600">' + f.arquivo + '</code></td>' +
             '<td>' + (f.modulo || '') + '</td>' +
             '<td>' + (f.loc || 0) + '</td>' +
             '<td><i class="fas fa-circle ' + modoColor + '" style="font-size:0.5rem"></i> ' + f.modo + '</td></tr>';
     });
     html += '</tbody></table></div>';
     return html;
+}
+
+// =====================================================================
+// WORKSPACE — FONTE DETAIL (estilo ExtraiRPO)
+// =====================================================================
+
+async function wsOpenFonte(params) {
+    var slug = window._wsState.activeSlug;
+    var panel = document.getElementById('ws-detail-panel');
+    if (!panel) panel = document.getElementById('ws-tab-content');
+    panel.innerHTML = '<div class="card"><div class="card-body text-center"><div class="spinner-border spinner-border-sm"></div> Carregando fonte...</div></div>';
+
+    try {
+        var f = await apiRequest('/workspace/workspaces/' + slug + '/explorer/fonte/' + encodeURIComponent(params.arquivo));
+        panel.innerHTML = _wsRenderFonteDetail(f);
+    } catch (e) {
+        panel.innerHTML = '<div class="card"><div class="card-body text-danger">Erro: ' + e.message + '</div></div>';
+    }
+}
+
+function _wsRenderFonteDetail(f) {
+    var html = '<div class="card"><div class="card-body">';
+
+    // Header
+    html += '<div class="d-flex justify-content-between align-items-start mb-3">' +
+        '<div>' +
+            '<h5 class="mb-1"><i class="fas fa-file-code text-primary me-2"></i><code>' + f.arquivo + '</code></h5>' +
+            '<div class="d-flex flex-wrap gap-1">' +
+                '<span class="badge bg-secondary">' + (f.tipo || 'fonte') + '</span>' +
+                '<span class="badge bg-info">' + (f.modulo || '') + '</span>' +
+                '<span class="badge bg-primary">' + f.lines_of_code + ' LOC</span>' +
+            '</div>' +
+        '</div>' +
+    '</div>';
+
+    // Tags: PEs, tabelas leitura, tabelas escrita
+    if (f.pontos_entrada && f.pontos_entrada.length) {
+        html += '<div class="mb-2"><small class="text-muted fw-bold">Pontos de Entrada:</small> ' +
+            f.pontos_entrada.map(function(pe) { return '<span class="badge bg-success me-1">' + pe + '</span>'; }).join('') + '</div>';
+    }
+    if (f.tabelas_ref && f.tabelas_ref.length) {
+        html += '<div class="mb-2"><small class="text-muted fw-bold">Tabelas leitura:</small> ' +
+            f.tabelas_ref.map(function(t) { return '<span class="badge bg-light text-dark border me-1" style="cursor:pointer" data-action="wsSelectTable" data-params=\'{"codigo":"' + t + '"}\'>' + t + '</span>'; }).join('') + '</div>';
+    }
+    if (f.write_tables && f.write_tables.length) {
+        html += '<div class="mb-2"><small class="text-muted fw-bold">Tabelas escrita:</small> ' +
+            f.write_tables.map(function(t) { return '<span class="badge bg-warning text-dark me-1" style="cursor:pointer" data-action="wsSelectTable" data-params=\'{"codigo":"' + t + '"}\'>' + t + '</span>'; }).join('') + '</div>';
+    }
+    if (f.calls_u && f.calls_u.length) {
+        html += '<div class="mb-2"><small class="text-muted fw-bold">Chama:</small> ' +
+            f.calls_u.map(function(c) { return '<span class="badge bg-light text-dark border me-1">' + c + '</span>'; }).join('') + '</div>';
+    }
+    if (f.includes && f.includes.length) {
+        html += '<div class="mb-2"><small class="text-muted fw-bold">Includes:</small> ' +
+            f.includes.map(function(i) { return '<span class="badge bg-secondary me-1">' + i + '</span>'; }).join('') + '</div>';
+    }
+
+    // Tabs: Funcoes | Operacoes de Escrita | Vinculos
+    var funcCount = f.funcoes ? f.funcoes.length : 0;
+    var opsCount = f.operacoes_escrita ? f.operacoes_escrita.length : 0;
+    var vincCount = f.vinculos ? f.vinculos.length : 0;
+    var docsCount = f.funcao_docs ? f.funcao_docs.length : 0;
+
+    html += '<ul class="nav nav-tabs mt-3 mb-3" id="ws-fonte-tabs">' +
+        '<li class="nav-item"><button class="nav-link active" onclick="wsFonteTab(\'funcoes\')">Funcoes <span class="badge bg-secondary">' + funcCount + '</span></button></li>' +
+        (docsCount > 0 ? '<li class="nav-item"><button class="nav-link" onclick="wsFonteTab(\'docs\')">Resumos <span class="badge bg-secondary">' + docsCount + '</span></button></li>' : '') +
+        '<li class="nav-item"><button class="nav-link" onclick="wsFonteTab(\'ops\')">Operacoes Escrita <span class="badge bg-secondary">' + opsCount + '</span></button></li>' +
+        '<li class="nav-item"><button class="nav-link" onclick="wsFonteTab(\'vinculos\')">Vinculos <span class="badge bg-secondary">' + vincCount + '</span></button></li>' +
+    '</ul>';
+
+    html += '<div id="ws-fonte-tab-content">' + _wsFonteTabFuncoes(f) + '</div>';
+    html += '</div></div>';
+
+    // Guardar dados para troca de tab
+    window._wsState._currentFonte = f;
+    return html;
+}
+
+function wsFonteTab(tab) {
+    document.querySelectorAll('#ws-fonte-tabs .nav-link').forEach(function(b) { b.classList.remove('active'); });
+    event.target.classList.add('active');
+    var f = window._wsState._currentFonte;
+    var c = document.getElementById('ws-fonte-tab-content');
+    if (tab === 'funcoes') c.innerHTML = _wsFonteTabFuncoes(f);
+    else if (tab === 'docs') c.innerHTML = _wsFonteTabDocs(f);
+    else if (tab === 'ops') c.innerHTML = _wsFonteTabOps(f);
+    else if (tab === 'vinculos') c.innerHTML = _wsFonteTabVinculos(f);
+}
+
+function _wsFonteTabFuncoes(f) {
+    if (!f.funcoes || !f.funcoes.length) return '<p class="text-muted">Nenhuma funcao.</p>';
+    var isUF = new Set(f.user_funcs || []);
+    var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:0.82rem">' +
+        '<thead class="table-light"><tr><th>Funcao</th><th>Tipo</th></tr></thead><tbody>';
+    f.funcoes.forEach(function(fn) {
+        var tipo = isUF.has(fn) ? '<span class="badge bg-info">User Function</span>' : '<span class="badge bg-secondary">Static/Local</span>';
+        html += '<tr><td><code class="fw-bold">' + fn + '</code></td><td>' + tipo + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+    return html;
+}
+
+function _wsFonteTabDocs(f) {
+    if (!f.funcao_docs || !f.funcao_docs.length) return '<p class="text-muted">Nenhum resumo gerado.</p>';
+    var html = '';
+    f.funcao_docs.forEach(function(d) {
+        html += '<div class="card mb-2"><div class="card-body py-2 px-3">' +
+            '<div class="d-flex justify-content-between">' +
+                '<code class="fw-bold">' + d.funcao + '</code>' +
+                '<span class="badge bg-secondary">' + (d.tipo || '') + '</span>' +
+            '</div>' +
+            (d.assinatura ? '<div style="font-size:0.78rem" class="text-muted mt-1"><code>' + d.assinatura + '</code></div>' : '') +
+            (d.resumo ? '<div class="mt-1 ws-markdown" style="font-size:0.82rem">' + _wsRenderMarkdown(d.resumo) + '</div>' : '') +
+            (d.chama ? '<div class="mt-1" style="font-size:0.78rem"><strong>Chama:</strong> ' + d.chama + '</div>' : '') +
+            (d.chamada_por ? '<div style="font-size:0.78rem"><strong>Chamada por:</strong> ' + d.chamada_por + '</div>' : '') +
+        '</div></div>';
+    });
+    return html;
+}
+
+function _wsFonteTabOps(f) {
+    if (!f.operacoes_escrita || !f.operacoes_escrita.length) return '<p class="text-muted">Nenhuma operacao de escrita.</p>';
+    var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:0.82rem">' +
+        '<thead class="table-light"><tr><th>Funcao</th><th>Tipo</th><th>Tabela</th><th>Campos</th><th>Condicao</th><th>Linha</th></tr></thead><tbody>';
+    f.operacoes_escrita.forEach(function(o) {
+        var campos = (o.campos || []).slice(0, 5).join(', ');
+        if ((o.campos || []).length > 5) campos += ' +' + (o.campos.length - 5);
+        html += '<tr><td><code>' + o.funcao + '</code></td>' +
+            '<td><span class="badge bg-' + (o.tipo === 'insert' || o.tipo === 'INCLUSAO' ? 'success' : o.tipo === 'delete' ? 'danger' : 'warning') + '">' + o.tipo + '</span></td>' +
+            '<td><code class="text-primary" style="cursor:pointer" data-action="wsSelectTable" data-params=\'{"codigo":"' + o.tabela + '"}\'>' + o.tabela + '</code></td>' +
+            '<td style="max-width:150px" class="text-truncate">' + campos + '</td>' +
+            '<td style="max-width:120px" class="text-truncate">' + (o.condicao || '') + '</td>' +
+            '<td>' + (o.linha || '') + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+    return html;
+}
+
+function _wsFonteTabVinculos(f) {
+    if (!f.vinculos || !f.vinculos.length) return '<p class="text-muted">Nenhum vinculo.</p>';
+    var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:0.82rem">' +
+        '<thead class="table-light"><tr><th>Tipo</th><th>Origem</th><th>Destino</th><th>Contexto</th></tr></thead><tbody>';
+    f.vinculos.forEach(function(v) {
+        html += '<tr><td><span class="badge bg-secondary">' + v.tipo + '</span></td>' +
+            '<td><code>' + v.origem + '</code></td>' +
+            '<td><code>' + v.destino + '</code></td>' +
+            '<td style="max-width:150px" class="text-truncate">' + (v.contexto || '') + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+    return html;
+}
+
+// =====================================================================
+// WORKSPACE — TAB DIFF (padrao vs cliente)
+// =====================================================================
+
+async function wsLoadDiffTab(tabela) {
+    var slug = window._wsState.activeSlug;
+    var c = document.getElementById('ws-detail-tab-content');
+    c.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm"></div> Carregando diff...</div>';
+
+    try {
+        var diff = await apiRequest('/workspace/workspaces/' + slug + '/explorer/diff/' + tabela);
+        if (!diff.available) {
+            c.innerHTML = '<div class="alert alert-info">' + (diff.message || 'Dados padrao nao disponiveis.') + '</div>';
+            return;
+        }
+        c.innerHTML = _wsRenderDiffContent(diff);
+    } catch (e) {
+        c.innerHTML = '<div class="text-danger">Erro: ' + e.message + '</div>';
+    }
+}
+
+function _wsRenderDiffContent(diff) {
+    var html = '<div class="d-flex gap-3 mb-3">' +
+        '<span class="badge bg-success">' + diff.resumo.adicionados + ' adicionados</span>' +
+        '<span class="badge bg-warning text-dark">' + diff.resumo.alterados + ' alterados</span>' +
+        '<span class="badge bg-danger">' + diff.resumo.removidos + ' removidos</span>' +
+    '</div>';
+
+    // Adicionados
+    if (diff.adicionados.length) {
+        html += '<h6 class="text-success mt-3">Adicionados (nao existem no padrao)</h6>' +
+            '<div class="table-responsive"><table class="table table-sm mb-0" style="font-size:0.82rem"><thead class="table-light"><tr>' +
+            '<th>Campo</th><th>Tipo</th><th>Tam</th><th>Titulo</th></tr></thead><tbody>';
+        diff.adicionados.forEach(function(c) {
+            html += '<tr class="table-success"><td><code>' + c.campo + '</code></td><td>' + (c.tipo||'') + '</td><td>' + (c.tamanho||'') + '</td><td>' + (c.titulo||'') + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+    }
+
+    // Alterados
+    if (diff.alterados.length) {
+        html += '<h6 class="text-warning mt-3">Alterados (diferem do padrao)</h6>' +
+            '<div class="table-responsive"><table class="table table-sm mb-0" style="font-size:0.82rem"><thead class="table-light"><tr>' +
+            '<th>Campo</th><th>Propriedade</th><th>Padrao</th><th>Cliente</th></tr></thead><tbody>';
+        diff.alterados.forEach(function(c) {
+            var diffs = c.diferencas || {};
+            for (var prop in diffs) {
+                html += '<tr class="table-warning"><td><code>' + c.campo + '</code></td><td>' + prop + '</td>' +
+                    '<td class="text-muted">' + (diffs[prop].padrao || '') + '</td>' +
+                    '<td class="fw-bold">' + (diffs[prop].cliente || '') + '</td></tr>';
+            }
+        });
+        html += '</tbody></table></div>';
+    }
+
+    // Removidos
+    if (diff.removidos.length) {
+        html += '<h6 class="text-danger mt-3">Removidos (existem no padrao mas nao no cliente)</h6>' +
+            '<div class="table-responsive"><table class="table table-sm mb-0" style="font-size:0.82rem"><thead class="table-light"><tr>' +
+            '<th>Campo</th><th>Tipo</th><th>Tam</th><th>Titulo</th></tr></thead><tbody>';
+        diff.removidos.forEach(function(c) {
+            html += '<tr class="table-danger"><td><code>' + c.campo + '</code></td><td>' + (c.tipo||'') + '</td><td>' + (c.tamanho||'') + '</td><td>' + (c.titulo||'') + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+    }
+
+    if (!diff.adicionados.length && !diff.alterados.length && !diff.removidos.length) {
+        html += '<div class="alert alert-success">Nenhuma diferenca encontrada — tabela identica ao padrao.</div>';
+    }
+
+    return html;
+}
+
+// =====================================================================
+// WORKSPACE — BUSCA GLOBAL
+// =====================================================================
+
+async function wsDoSearch() {
+    var slug = window._wsState.activeSlug;
+    var input = document.getElementById('ws-search');
+    var q = input ? input.value.trim() : '';
+    if (q.length < 2) return;
+
+    var panel = document.getElementById('ws-detail-panel');
+    panel.innerHTML = '<div class="card"><div class="card-body text-center"><div class="spinner-border spinner-border-sm"></div> Buscando...</div></div>';
+
+    try {
+        var data = await apiRequest('/workspace/workspaces/' + slug + '/explorer/search?q=' + encodeURIComponent(q));
+        if (!data.results || !data.results.length) {
+            panel.innerHTML = '<div class="card"><div class="card-body text-muted">Nenhum resultado para "' + q + '".</div></div>';
+            return;
+        }
+        var html = '<div class="card"><div class="card-body">' +
+            '<h6>Resultados para "' + q + '" <span class="badge bg-info">' + data.results.length + '</span></h6>' +
+            '<div class="list-group list-group-flush">';
+        data.results.forEach(function(r) {
+            var icon = {tabela:'fa-table text-primary', fonte:'fa-file-code text-warning', menu:'fa-bars text-info', campo:'fa-columns text-success'}[r.type] || 'fa-circle';
+            var actionAttr = r.action ? 'data-action="' + r.action + '" data-params=\'' + JSON.stringify(r.params || {}) + '\'' : '';
+            html += '<div class="list-group-item list-group-item-action py-1" style="cursor:pointer;font-size:0.82rem" ' + actionAttr + '>' +
+                '<i class="fas ' + icon + ' me-2" style="font-size:0.7rem"></i>' +
+                '<span class="badge bg-light text-dark border me-1">' + r.type + '</span> ' + r.label + '</div>';
+        });
+        html += '</div></div></div>';
+        panel.innerHTML = html;
+    } catch (e) {
+        panel.innerHTML = '<div class="card"><div class="card-body text-danger">Erro: ' + e.message + '</div></div>';
+    }
 }
 
 // =====================================================================

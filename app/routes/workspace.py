@@ -641,6 +641,228 @@ def explorer_category_items(slug, modulo, cat):
     return jsonify([])
 
 
+@workspace_bp.route("/workspaces/<slug>/explorer/fonte/<arquivo>", methods=["GET"])
+def explorer_fonte_detail(slug, arquivo):
+    """Retorna detalhe de um fonte (funcoes, tabelas, PEs, operacoes de escrita)."""
+    db = _get_db(slug)
+
+    row = db.execute(
+        "SELECT arquivo, caminho, tipo, modulo, funcoes, user_funcs, pontos_entrada, "
+        "tabelas_ref, write_tables, includes, calls_u, calls_execblock, fields_ref, "
+        "lines_of_code, hash "
+        "FROM fontes WHERE arquivo = ?", (arquivo,)
+    ).fetchone()
+
+    if not row:
+        return jsonify({"error": "Fonte nao encontrado"}), 404
+
+    def _j(val):
+        try:
+            return json.loads(val) if val else []
+        except Exception:
+            return []
+
+    result = {
+        "arquivo": row[0],
+        "caminho": row[1] or "",
+        "tipo": row[2] or "",
+        "modulo": row[3] or "",
+        "funcoes": _j(row[4]),
+        "user_funcs": _j(row[5]),
+        "pontos_entrada": _j(row[6]),
+        "tabelas_ref": _j(row[7]),
+        "write_tables": _j(row[8]),
+        "includes": _j(row[9]),
+        "calls_u": _j(row[10]),
+        "calls_execblock": _j(row[11]),
+        "fields_ref": _j(row[12]),
+        "lines_of_code": row[13] or 0,
+    }
+
+    # Operacoes de escrita deste fonte
+    try:
+        ops = db.execute(
+            "SELECT funcao, tipo, tabela, campos, condicao, linha "
+            "FROM operacoes_escrita WHERE arquivo = ? ORDER BY linha",
+            (arquivo,)
+        ).fetchall()
+        result["operacoes_escrita"] = [
+            {"funcao": o[0], "tipo": o[1], "tabela": o[2],
+             "campos": json.loads(o[3]) if o[3] else [], "condicao": o[4] or "", "linha": o[5]}
+            for o in ops
+        ]
+    except Exception:
+        result["operacoes_escrita"] = []
+
+    # Vinculos deste fonte
+    try:
+        vinc = db.execute(
+            "SELECT tipo, origem, destino, contexto FROM vinculos "
+            "WHERE origem = ? OR destino = ? LIMIT 50",
+            (arquivo, arquivo)
+        ).fetchall()
+        result["vinculos"] = [
+            {"tipo": v[0], "origem": v[1], "destino": v[2], "contexto": v[3] or ""}
+            for v in vinc
+        ]
+    except Exception:
+        result["vinculos"] = []
+
+    # Funcao docs (resumos gerados)
+    try:
+        docs = db.execute(
+            "SELECT funcao, tipo, assinatura, resumo, tabelas_ref, chama, chamada_por, retorno "
+            "FROM funcao_docs WHERE arquivo = ?",
+            (arquivo,)
+        ).fetchall()
+        result["funcao_docs"] = [
+            {"funcao": d[0], "tipo": d[1], "assinatura": d[2] or "", "resumo": d[3] or "",
+             "tabelas_ref": d[4] or "", "chama": d[5] or "", "chamada_por": d[6] or "", "retorno": d[7] or ""}
+            for d in docs
+        ]
+    except Exception:
+        result["funcao_docs"] = []
+
+    return jsonify(result)
+
+
+@workspace_bp.route("/workspaces/<slug>/explorer/diff/<tabela>", methods=["GET"])
+def explorer_diff_detail(slug, tabela):
+    """Retorna diff detalhado padrao vs cliente para uma tabela."""
+    db = _get_db(slug)
+    tab = tabela.upper()
+
+    # Check if padrao data exists
+    padrao_count = 0
+    try:
+        padrao_count = db.execute("SELECT COUNT(*) FROM padrao_campos WHERE tabela = ?", (tab,)).fetchone()[0]
+    except Exception:
+        pass
+
+    if padrao_count == 0:
+        return jsonify({"available": False, "tabela": tab, "message": "Dados padrao nao ingeridos para esta tabela"})
+
+    # Adicionados: no cliente mas nao no padrao
+    adicionados = []
+    try:
+        rows = db.execute(
+            "SELECT c.campo, c.tipo, c.tamanho, c.titulo, c.validacao "
+            "FROM campos c LEFT JOIN padrao_campos p ON c.tabela = p.tabela AND c.campo = p.campo "
+            "WHERE c.tabela = ? AND p.campo IS NULL ORDER BY c.campo", (tab,)
+        ).fetchall()
+        adicionados = [{"campo": r[0], "tipo": r[1], "tamanho": r[2], "titulo": r[3] or "", "validacao": r[4] or ""} for r in rows]
+    except Exception:
+        pass
+
+    # Removidos: no padrao mas nao no cliente
+    removidos = []
+    try:
+        rows = db.execute(
+            "SELECT p.campo, p.tipo, p.tamanho, p.titulo, p.validacao "
+            "FROM padrao_campos p LEFT JOIN campos c ON p.tabela = c.tabela AND p.campo = c.campo "
+            "WHERE p.tabela = ? AND c.campo IS NULL ORDER BY p.campo", (tab,)
+        ).fetchall()
+        removidos = [{"campo": r[0], "tipo": r[1], "tamanho": r[2], "titulo": r[3] or "", "validacao": r[4] or ""} for r in rows]
+    except Exception:
+        pass
+
+    # Alterados: existe nos dois mas difere
+    alterados = []
+    try:
+        rows = db.execute(
+            "SELECT c.campo, p.tipo, c.tipo, p.tamanho, c.tamanho, p.titulo, c.titulo, p.validacao, c.validacao "
+            "FROM campos c INNER JOIN padrao_campos p ON c.tabela = p.tabela AND c.campo = p.campo "
+            "WHERE c.tabela = ? AND (c.tipo != p.tipo OR c.tamanho != p.tamanho OR c.validacao != p.validacao) "
+            "ORDER BY c.campo", (tab,)
+        ).fetchall()
+        for r in rows:
+            diffs = {}
+            if r[1] != r[2]:
+                diffs["tipo"] = {"padrao": r[1], "cliente": r[2]}
+            if r[3] != r[4]:
+                diffs["tamanho"] = {"padrao": str(r[3]), "cliente": str(r[4])}
+            if r[7] != r[8]:
+                diffs["validacao"] = {"padrao": r[7] or "", "cliente": r[8] or ""}
+            if r[5] != r[6]:
+                diffs["titulo"] = {"padrao": r[5] or "", "cliente": r[6] or ""}
+            if diffs:
+                alterados.append({"campo": r[0], "diferencas": diffs})
+    except Exception:
+        pass
+
+    return jsonify({
+        "available": True,
+        "tabela": tab,
+        "adicionados": adicionados,
+        "alterados": alterados,
+        "removidos": removidos,
+        "resumo": {
+            "adicionados": len(adicionados),
+            "alterados": len(alterados),
+            "removidos": len(removidos)
+        }
+    })
+
+
+@workspace_bp.route("/workspaces/<slug>/explorer/search", methods=["GET"])
+def explorer_search(slug):
+    """Busca global no workspace: tabelas, fontes, menus, campos."""
+    db = _get_db(slug)
+    q = request.args.get("q", "").strip()
+    if len(q) < 2:
+        return jsonify({"results": [], "total": 0})
+
+    q_upper = q.upper()
+    q_like = f"%{q_upper}%"
+    results = []
+
+    # Search tabelas
+    try:
+        rows = db.execute(
+            "SELECT codigo, nome FROM tabelas WHERE upper(codigo) LIKE ? OR upper(nome) LIKE ? LIMIT 15",
+            (q_like, q_like)
+        ).fetchall()
+        for r in rows:
+            results.append({"type": "tabela", "key": r[0], "label": r[0] + " — " + (r[1] or ""), "action": "wsSelectTable", "params": {"codigo": r[0]}})
+    except Exception:
+        pass
+
+    # Search fontes
+    try:
+        rows = db.execute(
+            "SELECT arquivo, modulo FROM fontes WHERE upper(arquivo) LIKE ? LIMIT 15",
+            (q_like,)
+        ).fetchall()
+        for r in rows:
+            results.append({"type": "fonte", "key": r[0], "label": r[0] + " (" + (r[1] or "") + ")", "action": "wsOpenFonte", "params": {"arquivo": r[0]}})
+    except Exception:
+        pass
+
+    # Search menus
+    try:
+        rows = db.execute(
+            "SELECT rotina, nome FROM menus WHERE upper(rotina) LIKE ? OR upper(nome) LIKE ? LIMIT 10",
+            (q_like, q_like)
+        ).fetchall()
+        for r in rows:
+            results.append({"type": "menu", "key": r[0], "label": r[0] + " — " + (r[1] or "")})
+    except Exception:
+        pass
+
+    # Search campos
+    try:
+        rows = db.execute(
+            "SELECT tabela, campo, titulo FROM campos WHERE upper(campo) LIKE ? LIMIT 10",
+            (q_like,)
+        ).fetchall()
+        for r in rows:
+            results.append({"type": "campo", "key": r[0] + "." + r[1], "label": r[1] + " (" + r[0] + ") — " + (r[2] or ""), "action": "wsSelectTable", "params": {"codigo": r[0]}})
+    except Exception:
+        pass
+
+    return jsonify({"results": results[:30], "total": len(results)})
+
+
 @workspace_bp.route("/workspaces/<slug>/dashboard", methods=["GET"])
 def workspace_dashboard(slug):
     """Retorna dados ricos para dashboard do workspace (similar ao ExtraiRPO)."""
@@ -826,11 +1048,25 @@ def workspace_dashboard(slug):
     except Exception as e:
         logger.warning("Erro ao calcular modulos: %s", e)
 
+    # --- TOP FONTES (maiores por LOC) ---
+    top_fontes = []
+    try:
+        rows = db.execute(
+            "SELECT arquivo, funcoes, lines_of_code, modulo FROM fontes "
+            "WHERE lines_of_code > 0 ORDER BY lines_of_code DESC LIMIT 10"
+        ).fetchall()
+        for r in rows:
+            funcs = json.loads(r[1]) if r[1] else []
+            top_fontes.append({"arquivo": r[0], "funcoes": len(funcs), "loc": r[2], "modulo": r[3] or ""})
+    except Exception:
+        pass
+
     return jsonify({
         "resumo": resumo,
         "distribuicao_risco": distribuicao_risco,
         "top_tabelas": top_tabelas,
         "top_interacao": top_interacao,
+        "top_fontes": top_fontes,
         "modulos": modulos,
     })
 
