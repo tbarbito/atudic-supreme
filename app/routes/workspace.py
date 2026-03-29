@@ -708,6 +708,28 @@ def export_diff(slug):
 # PROCESSOS DO CLIENTE — Detecçao, analise, chat e registro
 # ========================================================================
 
+@workspace_bp.route("/workspaces/<slug>/processos/descobrir", methods=["POST"])
+def descobrir_processos_endpoint(slug):
+    """Roda pipeline de descoberta automatica de processos (5 passos SQL + LLM)."""
+    data = request.get_json() or {}
+    force = data.get("force", False)
+
+    db = _get_db(slug)
+
+    try:
+        llm = _get_llm_provider()
+    except Exception as e:
+        return jsonify({"error": f"LLM nao disponivel: {str(e)[:200]}"}), 500
+
+    try:
+        from app.services.workspace.descoberta_processos import descobrir_processos
+        processos = descobrir_processos(db, llm, force=force)
+        return jsonify({"total": len(processos), "processos": processos})
+    except Exception as e:
+        logger.exception(f"Erro na descoberta de processos: {e}")
+        return jsonify({"error": str(e)[:300]}), 500
+
+
 @workspace_bp.route("/workspaces/<slug>/processos", methods=["GET"])
 def listar_processos(slug):
     """Lista processos de negocio detectados no workspace."""
@@ -759,6 +781,21 @@ def gerar_fluxo_processo(slug, processo_id):
     if row[7] and not force:
         return jsonify({"fluxo_mermaid": row[7]})
 
+    # Gather write operations for real flow data
+    ks = KnowledgeService(db)
+    flow_context_parts = []
+    tabelas_list = json.loads(row[5]) if row[5] else []
+    for tab in tabelas_list[:5]:
+        ops = db.execute(
+            "SELECT DISTINCT arquivo, funcao, tipo FROM operacoes_escrita WHERE upper(tabela) = ?",
+            (tab.upper(),)
+        ).fetchall()
+        if ops:
+            flow_context_parts.append(f"Tabela {tab}: " + ", ".join(
+                [f"{o[0]}:{o[1]}({o[2]})" for o in ops[:10]]
+            ))
+    flow_context = "\n".join(flow_context_parts)
+
     # Gerar via LLM
     try:
         llm = _get_llm_provider()
@@ -770,8 +807,9 @@ def gerar_fluxo_processo(slug, processo_id):
         f"Descricao: {row[3]}\n"
         f"Tabelas envolvidas: {row[5]}\n"
         f"Criticidade: {row[4]}\n"
-        f"Represente as etapas principais do processo de forma clara. "
-        f"Retorne APENAS o codigo Mermaid, sem explicacoes."
+        + (f"Operacoes de escrita reais:\n{flow_context}\n" if flow_context else "")
+        + "Represente as etapas principais do processo de forma clara. "
+        + "Retorne APENAS o codigo Mermaid, sem explicacoes."
     )
 
     try:
@@ -848,6 +886,46 @@ def get_analise_processo(slug, processo_id):
                     tool_results_parts.append(f"### Tabela {tab}\n{json.dumps(info, ensure_ascii=False, indent=2)}")
             except Exception:
                 pass
+
+            # Operacoes de escrita por tabela
+            try:
+                ops_rows = db.execute(
+                    "SELECT arquivo, funcao, tipo, campos, condicao, linha "
+                    "FROM operacoes_escrita WHERE upper(tabela) = ?", (tab.upper(),)
+                ).fetchall()
+                if ops_rows:
+                    ops_details = [{"arquivo": r[0], "funcao": r[1], "tipo": r[2], "campos": r[3], "condicao": r[4], "linha": r[5]} for r in ops_rows]
+                    tool_results_parts.append(
+                        f"### Operacoes {tab}\nTotal: {len(ops_rows)} operacoes\n{json.dumps(ops_details, ensure_ascii=False)}"
+                    )
+            except Exception:
+                pass
+
+            # Fontes que escrevem na tabela
+            try:
+                fontes_rows = db.execute(
+                    "SELECT arquivo, modulo, lines_of_code FROM fontes WHERE write_tables LIKE ?",
+                    (f'%"{tab}"%',)
+                ).fetchall()
+                if fontes_rows:
+                    fontes_list = [{"arquivo": r[0], "modulo": r[1], "loc": r[2]} for r in fontes_rows]
+                    tool_results_parts.append(f"### Fontes escrita {tab}\n{json.dumps(fontes_list, ensure_ascii=False)}")
+            except Exception:
+                pass
+
+        # Parametros relacionados (SX6)
+        try:
+            for tab in tabelas[:4]:
+                param_rows = db.execute(
+                    "SELECT variavel, tipo, descricao, conteudo FROM parametros "
+                    "WHERE upper(descricao) LIKE ? OR upper(variavel) LIKE ? LIMIT 10",
+                    (f'%{tab}%', f'%{tab}%')
+                ).fetchall()
+                if param_rows:
+                    params_list = [{"variavel": r[0], "tipo": r[1], "descricao": r[2], "conteudo": r[3]} for r in param_rows]
+                    tool_results_parts.append(f"### Parametros {tab}\n{json.dumps(params_list, ensure_ascii=False)}")
+        except Exception:
+            pass
 
         tool_results_text = "\n\n".join(tool_results_parts) or "Nenhum dado de investigacao encontrado."
 
@@ -999,6 +1077,19 @@ def chat_processo(slug, processo_id):
                 info = ks.get_table_info(tab)
                 if info:
                     tool_results_parts.append(f"Info {tab}: {json.dumps(info, ensure_ascii=False)}")
+            except Exception:
+                pass
+
+        # Operacoes de escrita
+        for tab in proc_tabelas[:5]:
+            try:
+                ops_rows = db.execute(
+                    "SELECT arquivo, funcao, tipo, campos, condicao FROM operacoes_escrita WHERE upper(tabela) = ? LIMIT 20",
+                    (tab.upper(),)
+                ).fetchall()
+                if ops_rows:
+                    ops_list = [{"arquivo": r[0], "funcao": r[1], "tipo": r[2], "campos": r[3], "condicao": r[4]} for r in ops_rows]
+                    tool_results_parts.append(f"Operacoes escrita {tab}: {json.dumps(ops_list, ensure_ascii=False)}")
             except Exception:
                 pass
 

@@ -854,6 +854,9 @@ async function wsRenderProcessos(container) {
                 '<h5 class="mb-0">Processos do Cliente <span class="badge bg-primary">' + processos.length + '</span></h5>' +
             '</div>' +
             '<div class="d-flex gap-2">' +
+                '<button class="btn btn-outline-secondary btn-sm" data-action="wsRedescobrir">' +
+                    '<i class="fas fa-sync-alt me-1"></i>Redescobrir' +
+                '</button>' +
                 '<button class="btn btn-outline-primary btn-sm" data-action="wsIncluirProcesso">' +
                     '<i class="fas fa-plus me-1"></i>Incluir Processo' +
                 '</button>' +
@@ -861,7 +864,11 @@ async function wsRenderProcessos(container) {
         '</div>';
 
         if (!processos.length) {
-            html += '<div class="alert alert-secondary">Nenhum processo detectado. Use o agente GolIAs para analisar o ambiente ou inclua manualmente.</div>';
+            html += '<div class="alert alert-secondary">' +
+                '<i class="fas fa-info-circle me-2"></i>Nenhum processo detectado. ' +
+                'Clique em <strong>Redescobrir</strong> para rodar o pipeline de deteccao automatica, ' +
+                'ou <strong>Incluir Processo</strong> para registrar manualmente.' +
+            '</div>';
         } else {
             html += '<div class="table-responsive"><table class="table table-hover mb-0" style="font-size:0.85rem">' +
                 '<thead class="table-light"><tr>' +
@@ -908,6 +915,28 @@ function _wsScoreBadge(score) {
     var s = score || 0;
     var color = s >= 0.85 ? 'success' : s >= 0.7 ? 'warning' : 'danger';
     return '<span class="badge bg-' + color + '">' + s.toFixed(2) + '</span>';
+}
+
+async function wsRedescobrir() {
+    var slug = window._wsState.activeSlug;
+    if (!slug) return;
+
+    var container = document.getElementById('ws-tab-content');
+    container.innerHTML =
+        '<div class="text-center p-5">' +
+            '<div class="spinner-border text-primary mb-3"></div>' +
+            '<p class="text-muted">Rodando pipeline de descoberta de processos...</p>' +
+            '<small class="text-muted">Isso pode levar ate 2 minutos (analise SQL + classificacao LLM)</small>' +
+        '</div>';
+
+    try {
+        var result = await apiRequest('/workspace/workspaces/' + slug + '/processos/descobrir', 'POST', { force: true });
+        showNotification('Descoberta concluida! ' + (result.total || 0) + ' processos detectados.', 'success');
+        await wsRenderProcessos(container);
+    } catch (e) {
+        showNotification('Erro na descoberta: ' + e.message, 'error');
+        await wsRenderProcessos(container);
+    }
 }
 
 async function wsIncluirProcesso() {
@@ -1023,10 +1052,27 @@ async function wsGerarAnalise(params) {
     el.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm"></div> Gerando analise tecnica...</div>';
     try {
         var result = await apiRequest('/workspace/workspaces/' + slug + '/processos/' + params.id + '/analise?force=true');
-        el.innerHTML = '<div style="font-size:0.85rem;max-height:400px;overflow:auto">' + (result.analise_markdown || '').replace(/\n/g, '<br>') + '</div>';
+        el.innerHTML = '<div class="ws-markdown" style="font-size:0.85rem;max-height:400px;overflow:auto">' + _wsRenderMarkdown(result.analise_markdown || '') + '</div>';
     } catch (e) {
         el.innerHTML = '<div class="text-danger">Erro: ' + e.message + '</div>';
     }
+}
+
+// Renderizacao simples de markdown para HTML (sem dependencia externa)
+function _wsRenderMarkdown(md) {
+    if (!md) return '';
+    return md
+        .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="bg-dark text-light p-2 rounded" style="font-size:0.78rem"><code>$2</code></pre>')
+        .replace(/^### (.+)$/gm, '<h6 class="mt-3 mb-1 fw-bold">$1</h6>')
+        .replace(/^## (.+)$/gm, '<h5 class="mt-3 mb-2 fw-bold text-primary">$1</h5>')
+        .replace(/^# (.+)$/gm, '<h4 class="mt-3 mb-2 fw-bold">$1</h4>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/`([^`]+)`/g, '<code class="bg-light px-1 rounded">$1</code>')
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
+        .replace(/\n{2,}/g, '<br><br>')
+        .replace(/\n/g, '<br>');
 }
 
 async function wsSendProcChat(params) {
@@ -1065,7 +1111,7 @@ async function wsSendProcChat(params) {
                     } catch(e) {}
                 }
             }
-            if (streamEl) streamEl.innerHTML = '<span class="d-inline-block p-2 rounded bg-light" style="max-width:80%;font-size:0.85rem;text-align:left">' + fullText + '</span>';
+            if (streamEl) streamEl.innerHTML = '<span class="d-inline-block p-2 rounded bg-light ws-markdown" style="max-width:80%;font-size:0.85rem;text-align:left">' + _wsRenderMarkdown(fullText) + '</span>';
         }
         msgsEl.scrollTop = msgsEl.scrollHeight;
     } catch (e) {
