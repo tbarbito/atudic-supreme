@@ -147,7 +147,9 @@ CREATE TABLE IF NOT EXISTS fontes (
     calls_execblock TEXT DEFAULT '',
     fields_ref  TEXT DEFAULT '',
     lines_of_code INTEGER DEFAULT 0,
-    hash        TEXT
+    hash        TEXT,
+    reclock_tables TEXT DEFAULT '[]',
+    encoding TEXT DEFAULT 'cp1252'
 );
 
 CREATE TABLE IF NOT EXISTS chat_history (
@@ -370,6 +372,12 @@ CREATE TABLE IF NOT EXISTS schedules (
 CREATE INDEX IF NOT EXISTS idx_schedules_rotina ON schedules(rotina);
 CREATE INDEX IF NOT EXISTS idx_schedules_status ON schedules(status);
 
+CREATE TABLE IF NOT EXISTS record_counts (
+    tabela      TEXT PRIMARY KEY,
+    registros   INTEGER DEFAULT 0,
+    updated_at  TEXT DEFAULT (datetime('now'))
+);
+
 -- Processos de negocio detectados no ambiente do cliente
 CREATE TABLE IF NOT EXISTS processos_detectados (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -457,12 +465,28 @@ class Database:
             "ALTER TABLE processos_detectados ADD COLUMN analise_markdown TEXT DEFAULT NULL",
             "ALTER TABLE processos_detectados ADD COLUMN analise_json TEXT DEFAULT NULL",
             "ALTER TABLE processos_detectados ADD COLUMN analise_updated_at TEXT DEFAULT NULL",
+            "ALTER TABLE fontes ADD COLUMN reclock_tables TEXT DEFAULT '[]'",
+            "ALTER TABLE fontes ADD COLUMN encoding TEXT DEFAULT 'cp1252'",
         ]:
             try:
                 self._conn.execute(col_ddl)
                 self._conn.commit()
             except Exception:
                 pass  # coluna ja existe ou tabela nao existe ainda
+
+        # Tabelas novas (idempotente — CREATE IF NOT EXISTS)
+        for tbl_ddl in [
+            """CREATE TABLE IF NOT EXISTS record_counts (
+                tabela      TEXT PRIMARY KEY,
+                registros   INTEGER DEFAULT 0,
+                updated_at  TEXT DEFAULT (datetime('now'))
+            )""",
+        ]:
+            try:
+                self._conn.execute(tbl_ddl)
+                self._conn.commit()
+            except Exception:
+                pass
 
     def execute(self, sql: str, params: tuple = ()):
         return self._conn.execute(sql, params)

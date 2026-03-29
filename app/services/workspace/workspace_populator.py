@@ -259,6 +259,12 @@ class WorkspacePopulator:
 
         logger.info(f"Encontrados {len(arquivos)} fontes para parsear")
 
+        # Limpar dados antigos para evitar duplicatas no re-parse
+        self.db.execute("DELETE FROM fontes")
+        self.db.execute("DELETE FROM fonte_chunks")
+        self.db.execute("DELETE FROM operacoes_escrita")
+        self.db.commit()
+
         # Pass 1: Metadata
         for i, arquivo in enumerate(arquivos):
             if progress_callback:
@@ -277,13 +283,15 @@ class WorkspacePopulator:
             self.db.execute(
                 "INSERT OR REPLACE INTO fontes (arquivo, caminho, tipo, modulo, funcoes, user_funcs, "
                 "pontos_entrada, tabelas_ref, write_tables, includes, calls_u, calls_execblock, "
-                "fields_ref, lines_of_code, hash) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "fields_ref, lines_of_code, hash, reclock_tables, encoding) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (result["arquivo"], result["caminho"], result.get("source_type", "custom"),
                  modulo, json.dumps(result["funcoes"]), json.dumps(result["user_funcs"]),
                  json.dumps(result["pontos_entrada"]), json.dumps(result["tabelas_ref"]),
                  json.dumps(result["write_tables"]), json.dumps(result["includes"]),
                  json.dumps(result["calls_u"]), json.dumps(result["calls_execblock"]),
-                 json.dumps(result["fields_ref"]), result["lines_of_code"], result["hash"])
+                 json.dumps(result["fields_ref"]), result["lines_of_code"], result["hash"],
+                 json.dumps(result.get("reclock_tables", [])), result.get("encoding", "cp1252"))
             )
 
             # Operacoes de escrita
@@ -352,13 +360,19 @@ class WorkspacePopulator:
 
     # Prefixos de rotina → modulo (padrao Protheus + clientes comuns)
     _PREFIX_TO_MODULE = {
-        "MATA1": "compras", "MATA2": "estoque", "MATA4": "faturamento", "MATA6": "pcp",
-        "MATA9": "fiscal", "FINA": "financeiro", "CTBA": "contabilidade",
+        # Protheus padrao (ordenado por tamanho desc para match correto)
+        "MGFCOM": "compras", "MGFFAT": "faturamento", "MGFFIN": "financeiro",
+        "MGFEST": "estoque", "MGFFIS": "fiscal", "MGFCTB": "contabilidade",
+        "MGFEEC": "engenharia", "MGFGFE": "gestao_frota", "MGFCRM": "crm",
+        "MGFINT": "integracao", "MGFWSS": "webservice", "MGFWSC": "webservice",
+        "MGFTAE": "tae", "MGFPCP": "pcp", "MGFRH": "rh",
+        "MGF02R": "compras", "MGF05R": "estoque", "MGF06R": "fiscal",
+        "MATA1": "compras", "MATA2": "estoque", "MATA3": "estoque",
+        "MATA4": "faturamento", "MATA6": "pcp", "MATA9": "fiscal",
+        "CTBA": "contabilidade",
+        "FINA": "financeiro",
         "GPEA": "rh", "GPEM": "rh", "GPER": "rh",
         "TMSA": "logistica", "TMSP": "logistica",
-        "MGFCOM": "compras", "MGFFAT": "faturamento", "MGFEST": "estoque",
-        "MGFFIN": "financeiro", "MGFFIS": "fiscal", "MGFCTB": "contabilidade",
-        "MGF02R": "compras", "MGF05R": "estoque", "MGF06R": "fiscal",
     }
 
     def _detect_module(self, parse_result: dict, mapa_modulos: dict) -> str:
@@ -382,6 +396,7 @@ class WorkspacePopulator:
         # Estrategia 2: table overlap
         if mapa_modulos:
             tabelas = set(t.upper() for t in parse_result.get("tabelas_ref", []))
+            tabelas |= set(t.upper() for t in parse_result.get("write_tables", []))
             best_module = ""
             best_score = 0
             for modulo, info in mapa_modulos.items():
@@ -395,7 +410,8 @@ class WorkspacePopulator:
 
         # Estrategia 3: prefixo do nome do arquivo (heuristica)
         if stem:
-            for prefix, modulo in self._PREFIX_TO_MODULE.items():
+            for prefix in sorted(self._PREFIX_TO_MODULE.keys(), key=len, reverse=True):
+                modulo = self._PREFIX_TO_MODULE[prefix]
                 if stem.startswith(prefix.upper()):
                     return modulo
 

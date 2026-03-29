@@ -488,7 +488,11 @@ def explorer_stats(slug):
     return jsonify({
         "tabelas": {"total": _c("SELECT COUNT(*) FROM tabelas"), "custom": _c("SELECT COUNT(*) FROM tabelas WHERE custom=1")},
         "campos": {"total": _c("SELECT COUNT(*) FROM campos"), "custom": _c("SELECT COUNT(*) FROM campos WHERE custom=1")},
-        "fontes": {"total": _c("SELECT COUNT(*) FROM fontes")},
+        "fontes": {"total": _c("SELECT COUNT(*) FROM fontes"), "com_pe": _c("SELECT COUNT(*) FROM fontes WHERE pontos_entrada IS NOT NULL AND pontos_entrada != '[]'")},
+        "indices": {"total": _c("SELECT COUNT(*) FROM indices"), "custom": _c("SELECT COUNT(*) FROM indices WHERE custom=1")},
+        "gatilhos": {"total": _c("SELECT COUNT(*) FROM gatilhos"), "custom": _c("SELECT COUNT(*) FROM gatilhos WHERE custom=1")},
+        "parametros": {"total": _c("SELECT COUNT(*) FROM parametros"), "custom": _c("SELECT COUNT(*) FROM parametros WHERE custom=1")},
+        "vinculos": {"total": _c("SELECT COUNT(*) FROM vinculos")},
         "menus": {"total": _c("SELECT COUNT(*) FROM menus")},
         "diff": {
             "adicionados": _c("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx IN ('campo','SX3') AND acao='adicionado'"),
@@ -571,9 +575,8 @@ def explorer_tree(slug):
             if mod in modulos:
                 modulos[mod]["menus_cliente"] += r[1]
             else:
-                # Criar modulo se nao existir
-                modulos.setdefault(mod, {"tabelas": set(), "fontes": 0, "pes": 0, "menus_cliente": 0, "menus_padrao": 0})
-                modulos[mod]["menus_cliente"] += r[1]
+                modulos.setdefault("outros", {"tabelas": set(), "fontes": 0, "pes": 0, "menus_cliente": 0, "menus_padrao": 0})
+                modulos["outros"]["menus_cliente"] += r[1]
     except Exception:
         pass
 
@@ -1370,8 +1373,16 @@ def workspace_dashboard(slug):
                 "escrita": escr,
                 "total": leit + escr,
             })
+        interacao_list = [x for x in interacao_list if x["total"] >= 5]
         interacao_list.sort(key=lambda x: x["total"], reverse=True)
         top_interacao = interacao_list[:10]
+        # Enriquecer com nome da tabela
+        for item in top_interacao:
+            try:
+                row = db.execute("SELECT nome FROM tabelas WHERE upper(codigo) = ?", (item["tabela"],)).fetchone()
+                item["nome"] = row[0] if row else ""
+            except Exception:
+                item["nome"] = ""
     except Exception as e:
         logger.warning("Erro ao calcular top_interacao: %s", e)
 
@@ -1402,10 +1413,23 @@ def workspace_dashboard(slug):
         for mr in mod_rows:
             mod_name = mr[0]
             modulos.append({
-                "modulo": mod_name,
+                "modulo": mod_name.capitalize(),
                 "fontes": mr[1],
                 "tabelas": mapa_tab_map.get(mod_name.lower(), 0),
+                "menus": 0,  # populated below
             })
+
+        # Enriquecer modulos com contagem de menus
+        try:
+            menu_rows = db.execute("SELECT modulo, COUNT(*) FROM menus WHERE modulo IS NOT NULL GROUP BY modulo").fetchall()
+            for mr in menu_rows:
+                mod_normalized = _normalize_menu_module(mr[0])
+                for m in modulos:
+                    if m["modulo"].lower() == mod_normalized:
+                        m["menus"] += mr[1]
+                        break
+        except Exception:
+            pass
     except Exception as e:
         logger.warning("Erro ao calcular modulos: %s", e)
 
@@ -1418,7 +1442,7 @@ def workspace_dashboard(slug):
         ).fetchall()
         for r in rows:
             funcs = json.loads(r[1]) if r[1] else []
-            top_fontes.append({"arquivo": r[0], "funcoes": len(funcs), "loc": r[2], "modulo": r[3] or ""})
+            top_fontes.append({"arquivo": r[0], "funcoes": len(funcs), "loc": r[2], "modulo": (r[3] or "").capitalize()})
     except Exception:
         pass
 
