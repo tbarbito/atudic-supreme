@@ -79,6 +79,21 @@ def list_workspaces():
     return jsonify(workspaces)
 
 
+@workspace_bp.route("/workspaces/<slug>", methods=["DELETE"])
+def delete_workspace(slug):
+    """Exclui workspace e todos os dados."""
+    import shutil
+    ws_path = _get_workspace_path(slug)
+    if not ws_path.exists():
+        return jsonify({"error": "Workspace nao encontrado"}), 404
+    try:
+        shutil.rmtree(ws_path)
+        logger.info("Workspace %s excluido: %s", slug, ws_path)
+        return jsonify({"success": True, "slug": slug})
+    except Exception as e:
+        return jsonify({"error": str(e)[:200]}), 500
+
+
 @workspace_bp.route("/workspaces/<slug>/stats", methods=["GET"])
 def workspace_stats(slug):
     """Retorna estatisticas do workspace."""

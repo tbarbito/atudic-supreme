@@ -381,11 +381,29 @@ async function wsLoadWorkspaces() {
                         (ws.stats.vinculos || 0) + ' vinculos' +
                     '</small>' +
                 '</div>' +
-                '<span class="badge bg-primary">' + (ws.stats.vinculos || 0) + '</span>' +
+                '<div class="d-flex align-items-center gap-2">' +
+                    '<span class="badge bg-primary">' + (ws.stats.vinculos || 0) + '</span>' +
+                    '<button class="btn btn-outline-danger btn-sm py-0 px-1" style="font-size:0.7rem" ' +
+                        'onclick="event.stopPropagation();wsDeleteWorkspace(\'' + ws.slug + '\')" title="Excluir workspace">' +
+                        '<i class="fas fa-trash"></i>' +
+                    '</button>' +
+                '</div>' +
             '</div>';
         }).join('');
     } catch (e) {
         document.getElementById('ws-list').innerHTML = '<p class="text-danger">Erro ao carregar: ' + e.message + '</p>';
+    }
+}
+
+async function wsDeleteWorkspace(slug) {
+    if (!confirm('Excluir workspace "' + slug + '" e todos os dados? Esta acao nao pode ser desfeita.')) return;
+    try {
+        await apiRequest('/workspace/workspaces/' + slug, 'DELETE');
+        showNotification('Workspace "' + slug + '" excluido.', 'success');
+        if (window._wsState.activeSlug === slug) window._wsState.activeSlug = null;
+        await wsLoadWorkspaces();
+    } catch (e) {
+        showNotification('Erro: ' + e.message, 'error');
     }
 }
 

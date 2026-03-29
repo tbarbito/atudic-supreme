@@ -145,19 +145,26 @@ class WorkspacePopulator:
         mpmenu_menu = _find_csv_ci(csv_dir, "mpmenu_menu.csv")
         if mpmenu_menu:
             _report("parse_csv", "mpmenu")
+            logger.info(f"  mpmenu_menu.csv encontrado: {mpmenu_menu}")
             try:
                 menus = parser_sx.parse_mpmenu(csv_dir)
+                logger.info(f"  parse_mpmenu retornou {len(menus) if menus else 0} registros")
                 if menus:
                     self.db.executemany(
                         "INSERT OR REPLACE INTO menus (modulo, rotina, nome, menu, ordem) VALUES (?,?,?,?,?)",
                         [(m["modulo"], m["rotina"], m["nome"], m["menu"], m["ordem"]) for m in menus]
                     )
+                    self.db.commit()
                     stats["menus"] = len(menus)
-                    logger.info(f"  menus: {len(menus)} registros ingeridos")
+                    logger.info(f"  menus: {len(menus)} registros ingeridos e commitados")
+                else:
+                    logger.warning("  parse_mpmenu retornou lista vazia")
             except Exception as e:
+                import traceback
                 logger.warning(f"Erro ao parsear mpmenu: {e}")
+                traceback.print_exc()
         else:
-            logger.info("  mpmenu_menu.csv nao encontrado — menus nao ingeridos (CSVs: mpmenu_menu, mpmenu_item, mpmenu_function, mpmenu_i18n)")
+            logger.info("  mpmenu_menu.csv nao encontrado em %s — menus nao ingeridos", csv_dir)
 
         # jobs (opcional)
         jobs_path = _find_csv_ci(csv_dir, "job_detalhado_bash.csv")
