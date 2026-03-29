@@ -532,11 +532,21 @@ def parse_mpmenu(csv_dir: Path) -> List[dict]:
         parts.reverse()
         return parts
 
+    import logging as _log
+    _logger = _log.getLogger(__name__)
+    _logger.info("parse_mpmenu: %d menus, %d funcs, %d i18n, %d items", len(module_map), len(func_map), len(name_map), len(items_raw))
+
     result = []
+    _skipped_no_func = 0
+    _skipped_no_match = 0
     for it in items_raw:
         func_id = it["I_ID_FUNC"]
-        if not func_id or func_id not in func_map:
-            continue  # skip non-leaf / non-function items
+        if not func_id:
+            _skipped_no_func += 1
+            continue
+        if func_id not in func_map:
+            _skipped_no_match += 1
+            continue
         rotina = func_map[func_id]
         modulo = module_map.get(it["I_ID_MENU"], "")
         nome = name_map.get(it["I_ID"], "")
@@ -557,6 +567,10 @@ def parse_mpmenu(csv_dir: Path) -> List[dict]:
         })
 
     del items_raw, item_by_id
+    _logger.info("parse_mpmenu: %d menus encontrados, %d skipped (sem func_id), %d skipped (func_id nao encontrado no func_map)",
+                 len(result), _skipped_no_func, _skipped_no_match)
+    if _skipped_no_match > 0 and len(result) == 0:
+        _logger.warning("parse_mpmenu: TODOS os items foram rejeitados — possivel incompatibilidade de formato de func_id")
     return result
 
 
