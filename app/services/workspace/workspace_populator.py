@@ -125,7 +125,7 @@ class WorkspacePopulator:
                 stats[table_name] = len(rows)
                 logger.info(f"  {table_name}: {len(rows)} registros")
 
-        # mpmenu (opcional)
+        # mpmenu (opcional — precisa de mpmenu_menu.csv, mpmenu_item.csv, mpmenu_function.csv, mpmenu_i18n.csv)
         mpmenu_menu = csv_dir / "mpmenu_menu.csv"
         if mpmenu_menu.exists():
             _report("parse_csv", "mpmenu")
@@ -137,8 +137,11 @@ class WorkspacePopulator:
                         [(m["modulo"], m["rotina"], m["nome"], m["menu"], m["ordem"]) for m in menus]
                     )
                     stats["menus"] = len(menus)
+                    logger.info(f"  menus: {len(menus)} registros ingeridos")
             except Exception as e:
                 logger.warning(f"Erro ao parsear mpmenu: {e}")
+        else:
+            logger.info("  mpmenu_menu.csv nao encontrado — menus nao ingeridos (CSVs: mpmenu_menu, mpmenu_item, mpmenu_function, mpmenu_i18n)")
 
         # jobs (opcional)
         jobs_path = csv_dir / "job_detalhado_bash.csv"
@@ -324,23 +327,56 @@ class WorkspacePopulator:
         logger.info(f"Parse de fontes completo em {elapsed:.1f}s — {stats}")
         return stats
 
+    # Prefixos de rotina → modulo (padrao Protheus + clientes comuns)
+    _PREFIX_TO_MODULE = {
+        "MATA1": "compras", "MATA2": "estoque", "MATA4": "faturamento", "MATA6": "pcp",
+        "MATA9": "fiscal", "FINA": "financeiro", "CTBA": "contabilidade",
+        "GPEA": "rh", "GPEM": "rh", "GPER": "rh",
+        "TMSA": "logistica", "TMSP": "logistica",
+        "MGFCOM": "compras", "MGFFAT": "faturamento", "MGFEST": "estoque",
+        "MGFFIN": "financeiro", "MGFFIS": "fiscal", "MGFCTB": "contabilidade",
+        "MGF02R": "compras", "MGF05R": "estoque", "MGF06R": "fiscal",
+    }
+
     def _detect_module(self, parse_result: dict, mapa_modulos: dict) -> str:
-        """Detecta modulo do fonte baseado nas tabelas referenciadas."""
-        if not mapa_modulos:
-            return ""
+        """Detecta modulo do fonte — 3 estrategias (igual ExtraiRPO).
 
-        tabelas = set(parse_result.get("tabelas_ref", []))
-        best_module = ""
-        best_score = 0
+        Prioridade:
+        1. Nome da rotina bate com rotinas do mapa (mais confiavel)
+        2. Tabelas referenciadas batem com tabelas do mapa
+        3. Prefixo do nome do arquivo (heuristica)
+        """
+        arquivo = parse_result.get("arquivo", "")
+        stem = arquivo.rsplit(".", 1)[0].upper() if arquivo else ""
 
-        for modulo, info in mapa_modulos.items():
-            mod_tabelas = set(info.get("tabelas", []))
-            score = len(tabelas & mod_tabelas)
-            if score > best_score:
-                best_score = score
-                best_module = modulo
+        # Estrategia 1: rotina name match (mais precisa)
+        if mapa_modulos and stem:
+            for modulo, info in mapa_modulos.items():
+                rotinas = [r.upper() for r in info.get("rotinas", [])]
+                if stem in rotinas:
+                    return modulo
 
-        return best_module
+        # Estrategia 2: table overlap
+        if mapa_modulos:
+            tabelas = set(t.upper() for t in parse_result.get("tabelas_ref", []))
+            best_module = ""
+            best_score = 0
+            for modulo, info in mapa_modulos.items():
+                mod_tabelas = set(t.upper() for t in info.get("tabelas", []))
+                score = len(tabelas & mod_tabelas)
+                if score > best_score:
+                    best_score = score
+                    best_module = modulo
+            if best_module:
+                return best_module
+
+        # Estrategia 3: prefixo do nome do arquivo (heuristica)
+        if stem:
+            for prefix, modulo in self._PREFIX_TO_MODULE.items():
+                if stem.startswith(prefix.upper()):
+                    return modulo
+
+        return ""
 
     # ========================================================================
     # MODO LIVE — Conexao direta ao banco Protheus (futuro)
