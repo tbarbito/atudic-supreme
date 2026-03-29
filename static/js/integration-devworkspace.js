@@ -499,6 +499,17 @@ async function wsRenderDashboard(container) {
             wsStatCard(r.jobs_total + r.schedules_total, 'Jobs/Schedules', 'fa-clock', 'secondary') +
         '</div>';
 
+        // Alerta se vinculos = 0 e fontes > 0
+        if (r.vinculos === 0 && r.fontes_total > 0) {
+            html += '<div class="alert alert-warning d-flex align-items-center mb-3">' +
+                '<i class="fas fa-exclamation-triangle me-2"></i>' +
+                '<span>Vinculos nao construidos. </span>' +
+                '<button class="btn btn-warning btn-sm ms-2" data-action="wsBuildVinculos">' +
+                    '<i class="fas fa-project-diagram me-1"></i>Construir Vinculos' +
+                '</button>' +
+            '</div>';
+        }
+
         // Card: Distribuicao de Customizacao
         var totalDist = (dist.campos_so_padrao || 0) + (dist.campos_adicionados || 0) + (dist.campos_alterados || 0) + (dist.campos_removidos || 0);
         if (totalDist > 0) {
@@ -622,6 +633,19 @@ function wsStatCard(value, label, icon, color) {
             '</div>' +
         '</div>' +
     '</div>';
+}
+
+async function wsBuildVinculos() {
+    var slug = window._wsState.activeSlug;
+    if (!slug) return;
+    showNotification('Construindo vinculos...', 'info');
+    try {
+        var result = await apiRequest('/workspace/workspaces/' + slug + '/build-vinculos', 'POST');
+        showNotification('Vinculos construidos: ' + result.total + ' relacionamentos', 'success');
+        await wsRenderDashboard(document.getElementById('ws-tab-content'));
+    } catch (e) {
+        showNotification('Erro: ' + e.message, 'error');
+    }
 }
 
 // Helper para navegar do dashboard para explorer

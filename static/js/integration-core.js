@@ -836,6 +836,7 @@ const actionHandlers = {
     'wsRefreshList': () => wsRefreshList(),
     'wsIngestLive': () => wsIngestLive(),
     'wsIngestHybrid': () => wsIngestHybrid(),
+    'wsBuildVinculos': () => wsBuildVinculos(),
     'wsGoToTable': (params) => wsGoToTable(params),
     'wsLoadCategory': (params) => wsLoadCategory(params),
     'wsOpenFonte': (params) => wsOpenFonte(params),

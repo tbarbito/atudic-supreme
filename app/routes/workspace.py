@@ -1242,6 +1242,31 @@ def export_diff(slug):
 # PROCESSOS DO CLIENTE — Detecçao, analise, chat e registro
 # ========================================================================
 
+@workspace_bp.route("/workspaces/<slug>/build-vinculos", methods=["POST"])
+def rebuild_vinculos(slug):
+    """Reconstroi grafo de vinculos do workspace (11 tipos de relacionamento)."""
+    ws_path = _get_workspace_path(slug)
+    db_path = ws_path / "workspace.db"
+    if not db_path.exists():
+        return jsonify({"error": "Workspace nao encontrado"}), 404
+
+    try:
+        from app.services.workspace.build_vinculos import build_vinculos
+        build_vinculos(db_path)
+        # Contar vinculos criados
+        db = _get_db(slug)
+        count = db.execute("SELECT COUNT(*) FROM vinculos").fetchone()[0]
+        tipos = db.execute("SELECT tipo, COUNT(*) FROM vinculos GROUP BY tipo ORDER BY COUNT(*) DESC").fetchall()
+        return jsonify({
+            "success": True,
+            "total": count,
+            "por_tipo": {r[0]: r[1] for r in tipos}
+        })
+    except Exception as e:
+        logger.exception(f"Erro ao construir vinculos: {e}")
+        return jsonify({"error": str(e)[:300]}), 500
+
+
 @workspace_bp.route("/workspaces/<slug>/processos/descobrir", methods=["POST"])
 def descobrir_processos_endpoint(slug):
     """Roda pipeline de descoberta automatica de processos (5 passos SQL + LLM)."""
