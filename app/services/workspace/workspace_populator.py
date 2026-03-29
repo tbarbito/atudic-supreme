@@ -305,6 +305,10 @@ class WorkspacePopulator:
                 )
                 stats["chunks"] += 1
 
+        try:
+            conn.commit()
+        except Exception:
+            pass
         conn.execute("PRAGMA synchronous=FULL")
         conn.commit()
 
@@ -761,6 +765,10 @@ def ingest_padrao_sxs(db: Database, padrao_csv_dir: Path) -> dict:
             summary[sx_name] = f"error: {e}"
             logger.warning("Erro ingestao padrao %s: %s", sx_name, e)
 
+    try:
+        conn.commit()
+    except Exception:
+        pass
     conn.execute("PRAGMA synchronous=FULL")
     conn.commit()
     return summary
