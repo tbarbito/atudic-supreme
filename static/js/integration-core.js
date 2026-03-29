@@ -837,6 +837,7 @@ const actionHandlers = {
     'wsIngestLive': () => wsIngestLive(),
     'wsIngestHybrid': () => wsIngestHybrid(),
     'wsGoToTable': (params) => wsGoToTable(params),
+    'wsLoadCategory': (params) => wsLoadCategory(params),
     'wsRedescobrir': () => wsRedescobrir(),
     'wsIncluirProcesso': () => wsIncluirProcesso(),
     'wsOpenProcesso': (params) => wsOpenProcesso(params),

@@ -615,7 +615,7 @@ async function wsGoToTable(params) {
 }
 
 // =====================================================================
-// WORKSPACE — EXPLORER TAB (estilo ExtraiRPO)
+// WORKSPACE — EXPLORER TAB (estilo ExtraiRPO — tree hierarquica)
 // =====================================================================
 
 async function wsRenderExplorer(container) {
@@ -625,64 +625,220 @@ async function wsRenderExplorer(container) {
         return;
     }
 
-    container.innerHTML =
+    container.innerHTML = '<div class="text-center p-4"><div class="spinner-border spinner-border-sm"></div> Carregando explorer...</div>';
+
+    try {
+        // Carregar stats e tree em paralelo
+        var statsP = apiRequest('/workspace/workspaces/' + slug + '/explorer/stats');
+        var treeP = apiRequest('/workspace/workspaces/' + slug + '/explorer/tree');
+        var stats = await statsP;
+        var tree = await treeP;
+        window._wsState._tree = tree;
+
+        // Stats bar
+        var statsHtml = '<div class="d-flex flex-wrap gap-2 mb-3">' +
+            '<span class="badge bg-info">' + (stats.tabelas.total || 0) + ' Tabelas</span>' +
+            '<span class="badge bg-info">' + (stats.fontes.total || 0) + ' Fontes</span>' +
+            '<span class="badge bg-info">' + (stats.menus.total || 0) + ' Menus</span>' +
+            '<span class="badge bg-success">+' + (stats.diff.adicionados || 0) + ' Add</span>' +
+            '<span class="badge bg-warning text-dark">~' + (stats.diff.alterados || 0) + ' Alt</span>' +
+        '</div>';
+
+        container.innerHTML = statsHtml +
         '<div class="row">' +
             '<div class="col-md-3">' +
                 '<div class="card" style="max-height:75vh;overflow-y:auto">' +
                     '<div class="card-body p-2">' +
                         '<input type="text" class="form-control form-control-sm mb-2" ' +
-                            'placeholder="Buscar tabela..." id="ws-search" oninput="wsFilterTables(this.value)">' +
-                        '<div id="ws-table-tree"><div class="text-muted p-2">Carregando...</div></div>' +
+                            'placeholder="Buscar tabela, fonte, rotina..." id="ws-search" oninput="wsFilterTree(this.value)">' +
+                        '<div id="ws-tree"></div>' +
                     '</div>' +
                 '</div>' +
             '</div>' +
             '<div class="col-md-9">' +
-                '<div id="ws-table-detail">' +
+                '<div id="ws-detail-panel">' +
                     '<div class="card"><div class="card-body text-muted text-center py-5">' +
                         '<i class="fas fa-sitemap fa-3x mb-3 text-muted"></i>' +
-                        '<p>Selecione uma tabela para visualizar detalhes.</p>' +
+                        '<p>Selecione um item na arvore para visualizar.</p>' +
                     '</div></div>' +
                 '</div>' +
             '</div>' +
         '</div>';
 
-    try {
-        window._wsState.tabelas = await apiRequest('/workspace/workspaces/' + slug + '/explorer/tabelas');
-        wsRenderTableTree(window._wsState.tabelas);
-        // Se veio do dashboard com tabela pendente, abrir direto
+        _wsRenderTree(tree);
+
+        // Se veio do dashboard com tabela pendente
         if (window._wsState._pendingTable) {
             var codigo = window._wsState._pendingTable;
             delete window._wsState._pendingTable;
             await wsSelectTable({ codigo: codigo });
         }
     } catch (e) {
-        document.getElementById('ws-table-tree').innerHTML = '<p class="text-danger p-2">Erro: ' + e.message + '</p>';
+        container.innerHTML = '<div class="alert alert-danger">Erro: ' + e.message + '</div>';
     }
 }
 
-function wsRenderTableTree(tabelas) {
-    var tree = document.getElementById('ws-table-tree');
-    if (!tabelas || !tabelas.length) {
-        tree.innerHTML = '<p class="text-muted p-2">Nenhuma tabela.</p>';
-        return;
-    }
-    tree.innerHTML = tabelas.map(function(t) {
-        var badge = t.custom ? '<span class="badge bg-warning text-dark ms-1" style="font-size:0.65rem">C</span>' : '';
-        return '<div class="list-group-item list-group-item-action py-1 px-2 d-flex align-items-center" ' +
-            'style="cursor:pointer;font-size:0.82rem" data-action="wsSelectTable" data-params=\'{"codigo":"' + t.codigo + '"}\'>' +
-            '<code class="me-1 text-primary" style="font-size:0.78rem">' + t.codigo + '</code>' +
-            '<span class="text-muted text-truncate" style="flex:1">' + (t.nome || '').substring(0, 22) + '</span>' +
-            badge +
-        '</div>';
-    }).join('');
-}
+function _wsRenderTree(tree) {
+    var el = document.getElementById('ws-tree');
+    if (!tree || !tree.length) { el.innerHTML = '<p class="text-muted p-2">Nenhum modulo.</p>'; return; }
 
-function wsFilterTables(query) {
-    var q = query.toUpperCase();
-    var filtered = window._wsState.tabelas.filter(function(t) {
-        return t.codigo.toUpperCase().indexOf(q) >= 0 || (t.nome || '').toUpperCase().indexOf(q) >= 0;
+    var html = '';
+    tree.forEach(function(node) {
+        if (node.type === 'modulo') {
+            var icon = '<i class="fas fa-folder text-warning me-1" style="font-size:0.75rem"></i>';
+            html += '<div class="ws-tree-module" style="margin-bottom:2px">' +
+                '<div class="d-flex align-items-center py-1 px-1" style="cursor:pointer;font-size:0.82rem" ' +
+                    'onclick="wsToggleModule(this,\'' + node.key + '\')">' +
+                    '<i class="fas fa-chevron-right me-1 ws-tree-arrow" style="font-size:0.6rem;transition:transform 0.15s"></i>' +
+                    icon + '<strong>' + node.label + '</strong>' +
+                '</div>' +
+                '<div class="ws-tree-children" style="display:none;padding-left:16px">';
+            if (node.children && node.children.length) {
+                node.children.forEach(function(cat) {
+                    var catIcon = _wsCatIcon(cat.data.cat);
+                    html += '<div class="d-flex align-items-center py-1 px-1" style="cursor:pointer;font-size:0.8rem" ' +
+                        'data-action="wsLoadCategory" data-params=\'' + JSON.stringify({modulo: cat.data.modulo, cat: cat.data.cat}) + '\'>' +
+                        catIcon + ' ' + cat.label +
+                        ' <span class="badge bg-secondary ms-auto" style="font-size:0.65rem">' + cat.data.count + '</span>' +
+                    '</div>';
+                });
+            }
+            html += '</div></div>';
+        } else if (node.type === 'leaf_category') {
+            // Jobs, Schedules (root level)
+            var leafIcon = node.data.cat === 'jobs' ? '<i class="fas fa-clock text-info me-1" style="font-size:0.7rem"></i>' : '<i class="fas fa-calendar text-info me-1" style="font-size:0.7rem"></i>';
+            html += '<div class="d-flex align-items-center py-1 px-1" style="cursor:pointer;font-size:0.8rem" ' +
+                'data-action="wsLoadCategory" data-params=\'' + JSON.stringify({modulo: "_root", cat: node.data.cat}) + '\'>' +
+                leafIcon + node.label +
+            '</div>';
+        }
     });
-    wsRenderTableTree(filtered);
+    el.innerHTML = html;
+}
+
+function _wsCatIcon(cat) {
+    var icons = {
+        tabelas: '<i class="fas fa-table text-primary me-1" style="font-size:0.7rem"></i>',
+        pes: '<i class="fas fa-sign-in-alt text-success me-1" style="font-size:0.7rem"></i>',
+        menus_cliente: '<i class="fas fa-bars text-info me-1" style="font-size:0.7rem"></i>',
+        fontes: '<i class="fas fa-file-code text-warning me-1" style="font-size:0.7rem"></i>',
+        jobs: '<i class="fas fa-clock text-info me-1" style="font-size:0.7rem"></i>',
+        schedules: '<i class="fas fa-calendar text-info me-1" style="font-size:0.7rem"></i>',
+    };
+    return icons[cat] || '<i class="fas fa-circle me-1" style="font-size:0.5rem"></i>';
+}
+
+function wsToggleModule(el, key) {
+    var children = el.parentElement.querySelector('.ws-tree-children');
+    var arrow = el.querySelector('.ws-tree-arrow');
+    if (children.style.display === 'none') {
+        children.style.display = 'block';
+        arrow.style.transform = 'rotate(90deg)';
+    } else {
+        children.style.display = 'none';
+        arrow.style.transform = 'rotate(0deg)';
+    }
+}
+
+function wsFilterTree(query) {
+    var q = query.toLowerCase();
+    if (!q) { _wsRenderTree(window._wsState._tree); return; }
+    // Filtro: mostrar modulos que contenham o termo no nome ou nos filhos
+    var filtered = (window._wsState._tree || []).filter(function(node) {
+        if (node.label.toLowerCase().indexOf(q) >= 0) return true;
+        if (node.children) return node.children.some(function(c) { return c.label.toLowerCase().indexOf(q) >= 0; });
+        return false;
+    });
+    _wsRenderTree(filtered);
+}
+
+// Carregar itens de uma categoria (tabelas, PEs, menus, fontes, jobs, schedules)
+async function wsLoadCategory(params) {
+    var slug = window._wsState.activeSlug;
+    var panel = document.getElementById('ws-detail-panel');
+    panel.innerHTML = '<div class="card"><div class="card-body text-center"><div class="spinner-border spinner-border-sm"></div> Carregando...</div></div>';
+
+    try {
+        var items = await apiRequest('/workspace/workspaces/' + slug + '/explorer/category/' + params.modulo + '/' + params.cat);
+        panel.innerHTML = _wsRenderCategoryList(params.cat, params.modulo, items);
+    } catch (e) {
+        panel.innerHTML = '<div class="card"><div class="card-body text-danger">Erro: ' + e.message + '</div></div>';
+    }
+}
+
+function _wsRenderCategoryList(cat, modulo, items) {
+    var title = {tabelas:'Tabelas',pes:'Pontos de Entrada',menus_cliente:'Menus Cliente',fontes:'Fontes Custom',jobs:'Jobs',schedules:'Schedules'}[cat] || cat;
+    var html = '<div class="card"><div class="card-body">' +
+        '<h5>' + title + ' <span class="badge bg-info">' + items.length + ' itens</span></h5>';
+
+    if (cat === 'tabelas') {
+        html += '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:0.82rem">' +
+            '<thead class="table-light"><tr><th>Codigo</th><th>Nome</th><th>+Add</th><th></th></tr></thead><tbody>';
+        items.forEach(function(t) {
+            var badge = t.custom ? '<span class="badge bg-warning text-dark" style="font-size:0.6rem">C</span>' : '';
+            html += '<tr style="cursor:pointer" data-action="wsSelectTable" data-params=\'{"codigo":"' + t.codigo + '"}\'>' +
+                '<td><code class="text-primary">' + t.codigo + '</code></td>' +
+                '<td>' + (t.nome || '') + '</td>' +
+                '<td>' + (t.campos_add > 0 ? '<span class="text-success fw-bold">+' + t.campos_add + '</span>' : '') + '</td>' +
+                '<td>' + badge + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+
+    } else if (cat === 'pes') {
+        html += '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:0.82rem">' +
+            '<thead class="table-light"><tr><th>Ponto de Entrada</th><th>Fonte</th></tr></thead><tbody>';
+        items.forEach(function(p) {
+            html += '<tr><td><code class="text-primary fw-bold">' + p.pe + '</code></td>' +
+                '<td><code>' + (p.fonte || '') + '</code></td></tr>';
+        });
+        html += '</tbody></table></div>';
+
+    } else if (cat === 'menus_cliente') {
+        html += '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:0.82rem">' +
+            '<thead class="table-light"><tr><th>Rotina</th><th>Nome</th><th>Fonte</th></tr></thead><tbody>';
+        items.forEach(function(m) {
+            html += '<tr><td><code class="fw-bold">' + m.rotina + '</code></td>' +
+                '<td>' + (m.nome || '') + '</td>' +
+                '<td>' + (m.fonte ? '<code class="text-success">' + m.fonte + '</code>' : '') + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+
+    } else if (cat === 'fontes') {
+        html += '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:0.82rem">' +
+            '<thead class="table-light"><tr><th>Fonte</th><th>Funcoes</th><th>LOC</th></tr></thead><tbody>';
+        items.forEach(function(f) {
+            html += '<tr><td><code class="fw-bold">' + f.arquivo + '</code></td>' +
+                '<td>' + f.funcoes + '</td><td>' + f.loc + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+
+    } else if (cat === 'jobs') {
+        html += '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:0.82rem">' +
+            '<thead class="table-light"><tr><th>Rotina</th><th>Sessao</th><th>Refresh (s)</th><th>Arquivo INI</th></tr></thead><tbody>';
+        items.forEach(function(j) {
+            html += '<tr><td><code class="fw-bold">' + j.rotina + '</code></td>' +
+                '<td>' + (j.sessao || '') + '</td>' +
+                '<td>' + (j.refresh_rate || '') + '</td>' +
+                '<td>' + (j.arquivo || '') + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+
+    } else if (cat === 'schedules') {
+        html += '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:0.82rem">' +
+            '<thead class="table-light"><tr><th>Rotina</th><th>Empresa/Filial</th><th>Status</th><th>Recorrencia</th><th>Exec/Dia</th></tr></thead><tbody>';
+        items.forEach(function(s) {
+            var statusBadge = s.status === 'Ativo' ? 'bg-success' : 'bg-secondary';
+            html += '<tr><td><code class="fw-bold">' + s.rotina + '</code></td>' +
+                '<td>' + (s.empresa_filial || '') + '</td>' +
+                '<td><span class="badge ' + statusBadge + '">' + (s.status || '') + '</span></td>' +
+                '<td>' + (s.tipo_recorrencia || '') + '</td>' +
+                '<td>' + (s.execucoes_dia || '') + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+    }
+
+    html += '</div></div>';
+    return html;
 }
 
 async function wsSelectTable(params) {

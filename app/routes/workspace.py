@@ -390,6 +390,257 @@ def explorer_summary(slug):
     return jsonify(ks.get_custom_summary())
 
 
+@workspace_bp.route("/workspaces/<slug>/explorer/stats", methods=["GET"])
+def explorer_stats(slug):
+    """Retorna estatisticas resumidas para a barra de stats do Explorer."""
+    db = _get_db(slug)
+
+    def _c(q, p=()):
+        try:
+            return db.execute(q, p).fetchone()[0]
+        except Exception:
+            return 0
+
+    return jsonify({
+        "tabelas": {"total": _c("SELECT COUNT(*) FROM tabelas"), "custom": _c("SELECT COUNT(*) FROM tabelas WHERE custom=1")},
+        "campos": {"total": _c("SELECT COUNT(*) FROM campos"), "custom": _c("SELECT COUNT(*) FROM campos WHERE custom=1")},
+        "fontes": {"total": _c("SELECT COUNT(*) FROM fontes")},
+        "menus": {"total": _c("SELECT COUNT(*) FROM menus")},
+        "diff": {
+            "adicionados": _c("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx IN ('campo','SX3') AND acao='adicionado'"),
+            "alterados": _c("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx IN ('campo','SX3') AND acao='alterado'"),
+            "removidos": _c("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx IN ('campo','SX3') AND acao='removido'")
+        },
+        "jobs": {"total": _c("SELECT COUNT(*) FROM jobs")},
+        "schedules": {"total": _c("SELECT COUNT(*) FROM schedules"), "ativos": _c("SELECT COUNT(*) FROM schedules WHERE status='Ativo'")}
+    })
+
+
+@workspace_bp.route("/workspaces/<slug>/explorer/tree", methods=["GET"])
+def explorer_tree(slug):
+    """Retorna arvore hierarquica de modulos com contagens por categoria."""
+    db = _get_db(slug)
+
+    # Build module -> tables map from mapa_modulos
+    modulos = {}
+
+    # From mapa_modulos (standard mapping)
+    try:
+        mapa_rows = db.execute("SELECT modulo, tabelas, rotinas FROM mapa_modulos").fetchall()
+        for mr in mapa_rows:
+            mod = mr[0]
+            tabs = json.loads(mr[1]) if mr[1] else []
+            modulos[mod] = {"tabelas": set(t.upper() for t in tabs), "fontes": 0, "pes": 0, "menus_cliente": 0, "menus_padrao": 0}
+    except Exception:
+        pass
+
+    # Count fontes per module
+    try:
+        rows = db.execute("SELECT modulo, COUNT(*) FROM fontes WHERE modulo IS NOT NULL AND modulo != '' GROUP BY modulo").fetchall()
+        for r in rows:
+            mod = r[0].lower()
+            if mod not in modulos:
+                modulos[mod] = {"tabelas": set(), "fontes": 0, "pes": 0, "menus_cliente": 0, "menus_padrao": 0}
+            modulos[mod]["fontes"] = r[1]
+    except Exception:
+        pass
+
+    # Count PEs per module (from fontes.pontos_entrada JSON)
+    try:
+        rows = db.execute("SELECT modulo, pontos_entrada FROM fontes WHERE pontos_entrada IS NOT NULL AND pontos_entrada != '[]'").fetchall()
+        for r in rows:
+            mod = (r[0] or "outros").lower()
+            pes = json.loads(r[1]) if r[1] else []
+            if mod not in modulos:
+                modulos[mod] = {"tabelas": set(), "fontes": 0, "pes": 0, "menus_cliente": 0, "menus_padrao": 0}
+            modulos[mod]["pes"] += len(pes)
+    except Exception:
+        pass
+
+    # Count menus per module
+    try:
+        rows = db.execute("SELECT modulo, COUNT(*) FROM menus WHERE modulo IS NOT NULL GROUP BY modulo").fetchall()
+        for r in rows:
+            mod = r[0].lower()
+            if mod in modulos:
+                modulos[mod]["menus_cliente"] = r[1]
+    except Exception:
+        pass
+
+    # Assign tables to modules (check which tables belong to which module)
+    all_tabelas = set()
+    try:
+        rows = db.execute("SELECT codigo FROM tabelas").fetchall()
+        all_tabelas = {r[0].upper() for r in rows}
+    except Exception:
+        pass
+
+    assigned_tabelas = set()
+    for mod_data in modulos.values():
+        assigned_tabelas |= mod_data["tabelas"]
+
+    # Tables not assigned to any module go to "outros"
+    unassigned = all_tabelas - assigned_tabelas
+    if unassigned:
+        modulos.setdefault("outros", {"tabelas": set(), "fontes": 0, "pes": 0, "menus_cliente": 0, "menus_padrao": 0})
+        modulos["outros"]["tabelas"] |= unassigned
+
+    # Build tree
+    tree = []
+    for mod_name in sorted(modulos.keys()):
+        mod = modulos[mod_name]
+        tab_count = len(mod["tabelas"] & all_tabelas)  # Only count tables that actually exist
+        children = []
+        if tab_count > 0:
+            children.append({"key": mod_name + "_tabelas", "label": "Tabelas", "type": "category", "data": {"cat": "tabelas", "count": tab_count, "modulo": mod_name}})
+        if mod["pes"] > 0:
+            children.append({"key": mod_name + "_pes", "label": "Pontos de Entrada", "type": "category", "data": {"cat": "pes", "count": mod["pes"], "modulo": mod_name}})
+        if mod["menus_cliente"] > 0:
+            children.append({"key": mod_name + "_menus", "label": "Menus Cliente", "type": "category", "data": {"cat": "menus_cliente", "count": mod["menus_cliente"], "modulo": mod_name}})
+        if mod["fontes"] > 0:
+            children.append({"key": mod_name + "_fontes", "label": "Fontes Custom", "type": "category", "data": {"cat": "fontes", "count": mod["fontes"], "modulo": mod_name}})
+
+        tree.append({
+            "key": mod_name,
+            "label": mod_name.capitalize(),
+            "type": "modulo",
+            "data": {"fontes": mod["fontes"], "tabelas": tab_count, "menus": mod["menus_cliente"], "pes": mod["pes"]},
+            "children": children
+        })
+
+    # Add Jobs and Schedules at root level
+    try:
+        jobs_count = db.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+        if jobs_count > 0:
+            tree.append({"key": "_jobs", "label": "Jobs (" + str(jobs_count) + ")", "type": "leaf_category", "data": {"cat": "jobs", "count": jobs_count}})
+    except Exception:
+        pass
+    try:
+        sched_count = db.execute("SELECT COUNT(*) FROM schedules").fetchone()[0]
+        if sched_count > 0:
+            tree.append({"key": "_schedules", "label": "Schedules (" + str(sched_count) + ")", "type": "leaf_category", "data": {"cat": "schedules", "count": sched_count}})
+    except Exception:
+        pass
+
+    return jsonify(tree)
+
+
+@workspace_bp.route("/workspaces/<slug>/explorer/category/<modulo>/<cat>", methods=["GET"])
+def explorer_category_items(slug, modulo, cat):
+    """Retorna itens de uma categoria dentro de um modulo."""
+    db = _get_db(slug)
+
+    if cat == "tabelas":
+        # Get tables for this module from mapa_modulos
+        try:
+            row = db.execute("SELECT tabelas FROM mapa_modulos WHERE modulo = ?", (modulo,)).fetchone()
+            tab_codes = json.loads(row[0]) if row else []
+        except Exception:
+            tab_codes = []
+
+        if not tab_codes:
+            # Fallback: infer from fontes.tabelas_ref
+            try:
+                rows = db.execute("SELECT tabelas_ref FROM fontes WHERE lower(modulo) = ?", (modulo.lower(),)).fetchall()
+                tab_set = set()
+                for r in rows:
+                    refs = json.loads(r[0]) if r[0] else []
+                    tab_set.update(t.upper() for t in refs if isinstance(t, str))
+                tab_codes = sorted(tab_set)
+            except Exception:
+                tab_codes = []
+
+        items = []
+        for tc in sorted(tab_codes):
+            row = db.execute("SELECT codigo, nome, custom FROM tabelas WHERE upper(codigo) = ?", (tc.upper(),)).fetchone()
+            if row:
+                # Count custom fields
+                add_count = 0
+                try:
+                    add_count = db.execute("SELECT COUNT(*) FROM campos WHERE tabela = ? AND custom = 1", (row[0],)).fetchone()[0]
+                except Exception:
+                    pass
+                items.append({"codigo": row[0], "nome": row[1], "custom": bool(row[2]), "campos_add": add_count})
+        return jsonify(items)
+
+    elif cat == "pes":
+        # PEs from fontes in this module
+        items = []
+        try:
+            rows = db.execute(
+                "SELECT arquivo, pontos_entrada FROM fontes WHERE lower(modulo) = ? AND pontos_entrada IS NOT NULL AND pontos_entrada != '[]'",
+                (modulo.lower(),)
+            ).fetchall()
+            for r in rows:
+                pes = json.loads(r[1]) if r[1] else []
+                for pe in pes:
+                    if isinstance(pe, str) and pe.strip():
+                        items.append({"pe": pe.strip(), "fonte": r[0]})
+        except Exception:
+            pass
+        items.sort(key=lambda x: x["pe"])
+        return jsonify(items)
+
+    elif cat == "menus_cliente":
+        items = []
+        try:
+            rows = db.execute(
+                "SELECT rotina, nome, menu FROM menus WHERE lower(modulo) = ? ORDER BY rotina",
+                (modulo.lower(),)
+            ).fetchall()
+            # Try to find matching fonte
+            for r in rows:
+                fonte = ""
+                try:
+                    f = db.execute("SELECT arquivo FROM fontes WHERE upper(arquivo) LIKE ?", (r[0].upper() + '%',)).fetchone()
+                    if f:
+                        fonte = f[0]
+                except Exception:
+                    pass
+                items.append({"rotina": r[0], "nome": r[1], "menu": r[2] or "", "fonte": fonte})
+        except Exception:
+            pass
+        return jsonify(items)
+
+    elif cat == "fontes":
+        items = []
+        try:
+            rows = db.execute(
+                "SELECT arquivo, funcoes, lines_of_code FROM fontes WHERE lower(modulo) = ? ORDER BY arquivo",
+                (modulo.lower(),)
+            ).fetchall()
+            for r in rows:
+                funcs = json.loads(r[1]) if r[1] else []
+                items.append({"arquivo": r[0], "funcoes": len(funcs), "loc": r[2] or 0})
+        except Exception:
+            pass
+        return jsonify(items)
+
+    elif cat == "jobs":
+        items = []
+        try:
+            rows = db.execute("SELECT arquivo_ini, sessao, rotina, refresh_rate, parametros FROM jobs ORDER BY rotina").fetchall()
+            for r in rows:
+                items.append({"arquivo": r[0], "sessao": r[1], "rotina": r[2], "refresh_rate": r[3], "parametros": r[4] or ""})
+        except Exception:
+            pass
+        return jsonify(items)
+
+    elif cat == "schedules":
+        items = []
+        try:
+            rows = db.execute(
+                "SELECT codigo, rotina, empresa_filial, status, tipo_recorrencia, execucoes_dia, hora_inicio FROM schedules ORDER BY rotina"
+            ).fetchall()
+            for r in rows:
+                items.append({"codigo": r[0], "rotina": r[1], "empresa_filial": r[2], "status": r[3], "tipo_recorrencia": r[4], "execucoes_dia": r[5], "hora_inicio": r[6] or ""})
+        except Exception:
+            pass
+        return jsonify(items)
+
+    return jsonify([])
+
+
 @workspace_bp.route("/workspaces/<slug>/dashboard", methods=["GET"])
 def workspace_dashboard(slug):
     """Retorna dados ricos para dashboard do workspace (similar ao ExtraiRPO)."""
