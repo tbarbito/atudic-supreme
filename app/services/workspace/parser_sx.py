@@ -351,33 +351,66 @@ _MPMENU_I18N_COLS = [
 
 
 def _read_mpmenu_csv(file_path: Path, columns: list[str]) -> list[dict]:
-    """Read a headerless semicolon-delimited mpmenu CSV.
+    """Read mpmenu CSV — auto-detecta formato (com/sem header, separador ; ou ,).
 
-    Tries utf-8-sig first (BOM), then cp1252 for Portuguese accents.
+    Suporta:
+    - Formato antigo: headerless, semicolon-delimited, colunas na ordem de `columns`
+    - Formato novo: com header, comma-delimited, colunas pelo nome
     """
     rows = []
-    ncols = len(columns)
-    # Try utf-8-sig first, fall back to cp1252 for accented chars
-    for enc in ("utf-8-sig", "cp1252", "latin-1"):
+    # Detectar encoding
+    enc = "utf-8-sig"
+    for try_enc in ("utf-8-sig", "cp1252", "latin-1"):
         try:
-            with open(file_path, "r", encoding=enc, errors="replace") as f:
-                f.read(100)  # test read
+            with open(file_path, "r", encoding=try_enc, errors="replace") as f:
+                f.read(200)
+            enc = try_enc
             break
         except UnicodeDecodeError:
             continue
+
+    # Ler primeira linha para detectar formato
     with open(file_path, "r", encoding=enc, errors="replace") as f:
-        reader = csv.reader(f, delimiter=";")
-        for raw in reader:
-            if len(raw) < ncols:
-                raw.extend([""] * (ncols - len(raw)))
-            row = {}
-            for i, col in enumerate(columns):
-                val = raw[i].strip().strip('"').strip() if i < len(raw) else ""
-                row[col] = _sanitize_text(val)
-            # Filter deleted records
-            if row.get("D_E_L_E_T_", "").strip() not in ("", " "):
-                continue
-            rows.append(row)
+        first_line = f.readline()
+
+    # Detectar delimitador e presenca de header
+    has_header = False
+    delimiter = ";"
+    if "," in first_line and first_line.count(",") > first_line.count(";"):
+        delimiter = ","
+    # Verificar se primeira linha contem nomes de colunas conhecidos
+    first_upper = first_line.upper()
+    known_cols = ["F_ID", "F_FUNCTION", "M_ID", "M_NAME", "I_ID", "I_FATHER", "N_PAREN_ID", "N_DESC", "D_E_L_E_T_"]
+    if any(col in first_upper for col in known_cols):
+        has_header = True
+
+    with open(file_path, "r", encoding=enc, errors="replace") as f:
+        if has_header:
+            reader = csv.DictReader(f, delimiter=delimiter)
+            for raw in reader:
+                row = {}
+                for col in columns:
+                    val = raw.get(col, "")
+                    if val is None:
+                        val = ""
+                    row[col] = _sanitize_text(val.strip().strip('"').strip())
+                if row.get("D_E_L_E_T_", "").strip() not in ("", " "):
+                    continue
+                rows.append(row)
+        else:
+            # Formato antigo: headerless, colunas por posicao
+            ncols = len(columns)
+            reader = csv.reader(f, delimiter=delimiter)
+            for raw in reader:
+                if len(raw) < ncols:
+                    raw.extend([""] * (ncols - len(raw)))
+                row = {}
+                for i, col in enumerate(columns):
+                    val = raw[i].strip().strip('"').strip() if i < len(raw) else ""
+                    row[col] = _sanitize_text(val)
+                if row.get("D_E_L_E_T_", "").strip() not in ("", " "):
+                    continue
+                rows.append(row)
     return rows
 
 
