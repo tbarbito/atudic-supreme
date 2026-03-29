@@ -536,6 +536,12 @@ def parse_mpmenu(csv_dir: Path) -> List[dict]:
     _logger = _log.getLogger(__name__)
     _logger.info("parse_mpmenu: %d menus, %d funcs, %d i18n, %d items", len(module_map), len(func_map), len(name_map), len(items_raw))
 
+    # Debug: mostrar amostras para diagnostico
+    func_keys_sample = list(func_map.keys())[:5]
+    item_func_ids_sample = [it["I_ID_FUNC"] for it in items_raw if it["I_ID_FUNC"]][:5]
+    _logger.info("parse_mpmenu DEBUG: func_map keys amostra: %s", func_keys_sample)
+    _logger.info("parse_mpmenu DEBUG: item I_ID_FUNC amostra: %s", item_func_ids_sample)
+
     result = []
     _skipped_no_func = 0
     _skipped_no_match = 0
