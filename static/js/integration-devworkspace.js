@@ -915,6 +915,14 @@ function wsRenderTableDetail(info) {
                     (altCount > 0 ? '<span class="badge bg-warning text-dark">~' + altCount + ' alt</span>' : '') +
                 '</div>' +
             '</div>' +
+            '<div class="d-flex gap-1">' +
+                '<button class="btn btn-outline-danger btn-sm" data-action="wsImpactAnalysis" data-params=\'{"tabela":"' + info.codigo + '"}\'>' +
+                    '<i class="fas fa-exclamation-triangle me-1"></i>Analise de Impacto' +
+                '</button>' +
+                '<button class="btn btn-outline-secondary btn-sm" data-action="wsExportTable" data-params=\'{"tabela":"' + info.codigo + '"}\'>' +
+                    '<i class="fas fa-download me-1"></i>Exportar' +
+                '</button>' +
+            '</div>' +
         '</div>';
 
     // Tabs: Campos | Gatilhos | Indices | Fontes
@@ -1034,6 +1042,95 @@ function _wsRenderFontesTab(info) {
     });
     html += '</tbody></table></div>';
     return html;
+}
+
+// =====================================================================
+// WORKSPACE — ANALISE DE IMPACTO + EXPORTAR
+// =====================================================================
+
+async function wsImpactAnalysis(params) {
+    var slug = window._wsState.activeSlug;
+    var panel = document.getElementById('ws-detail-panel');
+    panel.innerHTML = '<div class="card"><div class="card-body text-center"><div class="spinner-border spinner-border-sm"></div> Analisando impacto de ' + params.tabela + '...</div></div>';
+
+    try {
+        // Usar agent_tools analyze_impact via endpoint existente
+        var info = await apiRequest('/workspace/workspaces/' + slug + '/explorer/tabela/' + params.tabela);
+        var fontes_esc = info.fontes_vinculados ? info.fontes_vinculados.filter(function(f) { return f.modo === 'Leitura/Escrita'; }) : [];
+        var fontes_leit = info.fontes_vinculados ? info.fontes_vinculados.filter(function(f) { return f.modo === 'Leitura'; }) : [];
+        var gatilhos = info.gatilhos || [];
+        var gatilhos_custom = gatilhos.filter(function(g) { return g.custom; });
+
+        var risco = fontes_esc.length > 5 || gatilhos_custom.length > 3 ? 'ALTO' : fontes_esc.length > 2 || gatilhos_custom.length > 0 ? 'MEDIO' : 'BAIXO';
+        var riscoCor = risco === 'ALTO' ? 'danger' : risco === 'MEDIO' ? 'warning' : 'success';
+
+        var html = '<div class="card"><div class="card-body">' +
+            '<div class="d-flex justify-content-between align-items-center mb-3">' +
+                '<h5 class="mb-0"><i class="fas fa-exclamation-triangle text-danger me-2"></i>Analise de Impacto — ' + params.tabela + '</h5>' +
+                '<span class="badge bg-' + riscoCor + ' fs-6">' + risco + '</span>' +
+            '</div>';
+
+        // Resumo
+        html += '<div class="row g-3 mb-3">' +
+            '<div class="col-3 text-center"><h4 class="text-primary mb-0">' + fontes_leit.length + '</h4><small>Fontes Leitura</small></div>' +
+            '<div class="col-3 text-center"><h4 class="text-warning mb-0">' + fontes_esc.length + '</h4><small>Fontes Escrita</small></div>' +
+            '<div class="col-3 text-center"><h4 class="text-danger mb-0">' + gatilhos_custom.length + '</h4><small>Gatilhos Custom</small></div>' +
+            '<div class="col-3 text-center"><h4 class="text-info mb-0">' + (info.campos_custom ? info.campos_custom.length : 0) + '</h4><small>Campos Custom</small></div>' +
+        '</div>';
+
+        // Fontes que ESCREVEM (risco real)
+        if (fontes_esc.length) {
+            html += '<h6 class="text-warning mt-3">Fontes que ESCREVEM nesta tabela (' + fontes_esc.length + ')</h6>' +
+                '<div class="table-responsive"><table class="table table-sm mb-0" style="font-size:0.82rem"><thead class="table-light"><tr>' +
+                '<th>Arquivo</th><th>Modulo</th><th>LOC</th></tr></thead><tbody>';
+            fontes_esc.forEach(function(f) {
+                html += '<tr style="cursor:pointer" data-action="wsOpenFonte" data-params=\'{"arquivo":"' + f.arquivo + '"}\'>' +
+                    '<td><code class="fw-bold text-warning">' + f.arquivo + '</code></td>' +
+                    '<td>' + (f.modulo || '') + '</td><td>' + f.loc + '</td></tr>';
+            });
+            html += '</tbody></table></div>';
+        }
+
+        // Gatilhos custom
+        if (gatilhos_custom.length) {
+            html += '<h6 class="text-danger mt-3">Gatilhos Custom (' + gatilhos_custom.length + ')</h6>' +
+                '<div class="table-responsive"><table class="table table-sm mb-0" style="font-size:0.82rem"><thead class="table-light"><tr>' +
+                '<th>Origem</th><th>Destino</th><th>Regra</th></tr></thead><tbody>';
+            gatilhos_custom.forEach(function(g) {
+                html += '<tr><td><code>' + g.campo_origem + '</code></td><td><code>' + g.campo_destino + '</code></td>' +
+                    '<td style="max-width:200px" class="text-truncate">' + (g.regra || '') + '</td></tr>';
+            });
+            html += '</tbody></table></div>';
+        }
+
+        // Botao voltar
+        html += '<div class="mt-3"><button class="btn btn-outline-secondary btn-sm" data-action="wsSelectTable" data-params=\'{"codigo":"' + params.tabela + '"}\'>' +
+            '<i class="fas fa-arrow-left me-1"></i>Voltar para ' + params.tabela + '</button></div>';
+
+        html += '</div></div>';
+        panel.innerHTML = html;
+    } catch (e) {
+        panel.innerHTML = '<div class="card"><div class="card-body text-danger">Erro: ' + e.message + '</div></div>';
+    }
+}
+
+async function wsExportTable(params) {
+    var slug = window._wsState.activeSlug;
+    try {
+        showNotification('Exportando ' + params.tabela + '...', 'info');
+        var data = await apiRequest('/workspace/workspaces/' + slug + '/export/atudic?tabela=' + params.tabela);
+        // Download como JSON
+        var blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = params.tabela + '_export.json';
+        a.click();
+        URL.revokeObjectURL(url);
+        showNotification('Exportado!', 'success');
+    } catch (e) {
+        showNotification('Erro: ' + e.message, 'error');
+    }
 }
 
 // =====================================================================
@@ -1311,11 +1408,25 @@ async function wsRenderProcessos(container) {
     try {
         var processos = await apiRequest('/workspace/workspaces/' + slug + '/processos');
 
+        // Guardar para filtros
+        window._wsState._processos = processos;
+
         var html = '<div class="d-flex justify-content-between align-items-center mb-3">' +
             '<div>' +
                 '<h5 class="mb-0">Processos do Cliente <span class="badge bg-primary">' + processos.length + '</span></h5>' +
             '</div>' +
-            '<div class="d-flex gap-2">' +
+            '<div class="d-flex gap-2 align-items-center">' +
+                '<select class="form-select form-select-sm" style="width:auto" onchange="wsFiltrarProcessos()"  id="ws-proc-tipo">' +
+                    '<option value="">Todos os tipos</option>' +
+                    '<option value="workflow">Workflow</option><option value="integracao">Integracao</option>' +
+                    '<option value="logistica">Logistica</option><option value="fiscal">Fiscal</option>' +
+                    '<option value="automacao">Automacao</option><option value="qualidade">Qualidade</option>' +
+                    '<option value="outro">Outro</option>' +
+                '</select>' +
+                '<select class="form-select form-select-sm" style="width:auto" onchange="wsFiltrarProcessos()" id="ws-proc-crit">' +
+                    '<option value="">Criticidade</option>' +
+                    '<option value="alta">Alta</option><option value="media">Media</option><option value="baixa">Baixa</option>' +
+                '</select>' +
                 '<button class="btn btn-outline-secondary btn-sm" data-action="wsRedescobrir">' +
                     '<i class="fas fa-sync-alt me-1"></i>Redescobrir' +
                 '</button>' +
@@ -1335,31 +1446,45 @@ async function wsRenderProcessos(container) {
             html += '<div class="table-responsive"><table class="table table-hover mb-0" style="font-size:0.85rem">' +
                 '<thead class="table-light"><tr>' +
                 '<th>Nome</th><th>Tipo</th><th>Criticidade</th><th>Score</th><th>Tabelas</th>' +
-                '</tr></thead><tbody>';
-            processos.forEach(function(p) {
-                var tipoBadge = _wsTipoBadge(p.tipo);
-                var critBadge = _wsCritBadge(p.criticidade);
-                var scoreBadge = _wsScoreBadge(p.score);
-                var tabChips = (p.tabelas || []).slice(0, 4).map(function(t) {
-                    return '<span class="badge bg-light text-dark border me-1" style="font-size:0.7rem">' + t + '</span>';
-                }).join('');
-                if ((p.tabelas || []).length > 4) tabChips += '<span class="text-muted" style="font-size:0.7rem">+' + (p.tabelas.length - 4) + '</span>';
-
-                html += '<tr style="cursor:pointer" data-action="wsOpenProcesso" data-params=\'{"id":' + p.id + '}\'>' +
-                    '<td class="fw-semibold text-primary">' + p.nome + '</td>' +
-                    '<td>' + tipoBadge + '</td>' +
-                    '<td>' + critBadge + '</td>' +
-                    '<td>' + scoreBadge + '</td>' +
-                    '<td>' + tabChips + '</td>' +
-                '</tr>';
-            });
-            html += '</tbody></table></div>';
+                '</tr></thead><tbody id="ws-proc-tbody">' +
+                _wsRenderProcessoRows(processos) +
+                '</tbody></table></div>';
         }
 
         container.innerHTML = html;
     } catch (e) {
         container.innerHTML = '<div class="alert alert-danger">Erro: ' + e.message + '</div>';
     }
+}
+
+function wsFiltrarProcessos() {
+    var tipo = document.getElementById('ws-proc-tipo').value;
+    var crit = document.getElementById('ws-proc-crit').value;
+    var all = window._wsState._processos || [];
+    var filtered = all.filter(function(p) {
+        if (tipo && p.tipo !== tipo) return false;
+        if (crit && p.criticidade !== crit) return false;
+        return true;
+    });
+    var tbody = document.getElementById('ws-proc-tbody');
+    if (tbody) tbody.innerHTML = _wsRenderProcessoRows(filtered);
+}
+
+function _wsRenderProcessoRows(processos) {
+    if (!processos.length) return '<tr><td colspan="5" class="text-muted text-center">Nenhum processo.</td></tr>';
+    return processos.map(function(p) {
+        var tipoBadge = _wsTipoBadge(p.tipo);
+        var critBadge = _wsCritBadge(p.criticidade);
+        var scoreBadge = _wsScoreBadge(p.score);
+        var tabChips = (p.tabelas || []).slice(0, 4).map(function(t) {
+            return '<span class="badge bg-light text-dark border me-1" style="font-size:0.7rem">' + t + '</span>';
+        }).join('');
+        if ((p.tabelas || []).length > 4) tabChips += '<span class="text-muted" style="font-size:0.7rem">+' + (p.tabelas.length - 4) + '</span>';
+        return '<tr style="cursor:pointer" data-action="wsOpenProcesso" data-params=\'{"id":' + p.id + '}\'>' +
+            '<td class="fw-semibold text-primary">' + p.nome + '</td>' +
+            '<td>' + tipoBadge + '</td><td>' + critBadge + '</td><td>' + scoreBadge + '</td>' +
+            '<td>' + tabChips + '</td></tr>';
+    }).join('');
 }
 
 function _wsTipoBadge(tipo) {
