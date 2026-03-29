@@ -88,6 +88,11 @@ def delete_workspace(slug):
         return jsonify({"error": "Workspace nao encontrado"}), 404
     try:
         shutil.rmtree(ws_path)
+        # Limpar cache de DBs inicializados para permitir re-criacao
+        from app.services.workspace.workspace_db import _initialized_dbs
+        keys_to_remove = [k for k in _initialized_dbs if slug in k]
+        for k in keys_to_remove:
+            _initialized_dbs.discard(k)
         logger.info("Workspace %s excluido: %s", slug, ws_path)
         return jsonify({"success": True, "slug": slug})
     except Exception as e:

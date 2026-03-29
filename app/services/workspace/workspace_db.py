@@ -433,7 +433,14 @@ class Database:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(self.db_path))
         key = str(self.db_path)
-        if key not in _initialized_dbs:
+        # Verificar se DB existe e tem tabelas (pode ter sido excluido)
+        needs_init = key not in _initialized_dbs
+        if not needs_init:
+            try:
+                self._conn.execute("SELECT 1 FROM tabelas LIMIT 1")
+            except Exception:
+                needs_init = True  # DB existe mas schema nao — reinicializar
+        if needs_init:
             self._conn.executescript(SCHEMA)
             # Seed mapa de modulos padrao Protheus
             existing = self._conn.execute("SELECT COUNT(*) FROM mapa_modulos").fetchone()[0]
