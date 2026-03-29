@@ -567,11 +567,8 @@ def parse_mpmenu(csv_dir: Path) -> List[dict]:
 
     import logging as _log
     _logger = _log.getLogger(__name__)
-    print(f"[parse_mpmenu] {len(module_map)} menus, {len(func_map)} funcs, {len(name_map)} i18n, {len(items_raw)} items")
-    func_keys_sample = list(func_map.keys())[:5]
-    item_func_ids_sample = [it["I_ID_FUNC"] for it in items_raw if it["I_ID_FUNC"]][:5]
-    print(f"[parse_mpmenu] func_map keys amostra: {func_keys_sample}")
-    print(f"[parse_mpmenu] item I_ID_FUNC amostra: {item_func_ids_sample}")
+    import logging as _log
+    _log.getLogger(__name__).info("parse_mpmenu: %d modulos, %d funcs, %d i18n, %d items", len(module_map), len(func_map), len(name_map), len(items_raw))
 
     result = []
     _skipped_no_func = 0
@@ -604,9 +601,7 @@ def parse_mpmenu(csv_dir: Path) -> List[dict]:
         })
 
     del items_raw, item_by_id
-    print(f"[parse_mpmenu] {len(result)} menus encontrados, {_skipped_no_func} skipped (sem func_id), {_skipped_no_match} skipped (func_id nao encontrado)")
-    if _skipped_no_match > 0 and len(result) == 0:
-        print("[parse_mpmenu] TODOS os items foram rejeitados — possivel incompatibilidade de formato de func_id")
+    _log.getLogger(__name__).info("parse_mpmenu: %d menus encontrados, %d skipped (sem func_id), %d skipped (nao match)", len(result), _skipped_no_func, _skipped_no_match)
     return result
 
 

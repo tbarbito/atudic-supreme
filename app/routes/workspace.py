@@ -37,6 +37,24 @@ def _llm_chat_text(provider, messages):
         return result
     return result.get("content", result.get("response", ""))
 
+# Mapa de normalizacao SIGA* → nome curto do modulo
+_SIGA_TO_MODULE = {
+    "sigacom": "compras", "sigafat": "faturamento", "sigafin": "financeiro",
+    "sigaest": "estoque", "sigafis": "fiscal", "sigactb": "contabilidade",
+    "sigagpe": "rh", "sigapcp": "pcp", "sigamnt": "manutencao",
+    "sigatms": "logistica", "sigaqie": "qualidade", "sigacrm": "crm",
+    "sigajuri": "juridico", "sigaorg": "organizacional", "sigaoms": "oms",
+    "sigagpr": "gestao_projetos", "sigaloja": "loja", "sigataf": "taf",
+    "sigamdi": "mdi", "sigapls": "plano_saude",
+}
+
+
+def _normalize_menu_module(mod_name: str) -> str:
+    """Normaliza nome de modulo do menu (SIGACOM → compras)."""
+    clean = mod_name.strip().lower()
+    return _SIGA_TO_MODULE.get(clean, clean)
+
+
 # Diretorio base para workspaces
 WORKSPACE_BASE = Path("workspace/clients")
 
@@ -499,13 +517,17 @@ def explorer_tree(slug):
     except Exception:
         pass
 
-    # Count menus per module
+    # Count menus per module (normaliza SIGA* → nome curto)
     try:
         rows = db.execute("SELECT modulo, COUNT(*) FROM menus WHERE modulo IS NOT NULL GROUP BY modulo").fetchall()
         for r in rows:
-            mod = r[0].lower()
+            mod = _normalize_menu_module(r[0])
             if mod in modulos:
-                modulos[mod]["menus_cliente"] = r[1]
+                modulos[mod]["menus_cliente"] += r[1]
+            else:
+                # Criar modulo se nao existir
+                modulos.setdefault(mod, {"tabelas": set(), "fontes": 0, "pes": 0, "menus_cliente": 0, "menus_padrao": 0})
+                modulos[mod]["menus_cliente"] += r[1]
     except Exception:
         pass
 
@@ -651,9 +673,13 @@ def explorer_category_items(slug, modulo, cat):
     elif cat == "menus_cliente":
         items = []
         try:
+            # Buscar menus: por nome curto OU pelo nome SIGA* original
+            siga_names = [k for k, v in _SIGA_TO_MODULE.items() if v == modulo.lower()]
+            placeholders = ",".join(["?"] * (len(siga_names) + 1))
+            params = [modulo.lower()] + siga_names
             rows = db.execute(
-                "SELECT rotina, nome, menu FROM menus WHERE lower(modulo) = ? ORDER BY rotina",
-                (modulo.lower(),)
+                f"SELECT rotina, nome, menu FROM menus WHERE lower(TRIM(modulo)) IN ({placeholders}) ORDER BY rotina",
+                params
             ).fetchall()
             # Try to find matching fonte
             for r in rows:
