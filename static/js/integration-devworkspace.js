@@ -1775,7 +1775,8 @@ async function wsOpenProcesso(params) {
         }
         html += '</div>' +
             '<div class="input-group">' +
-                '<input type="text" class="form-control" id="ws-proc-chat-input" placeholder="Pergunte sobre este processo...">' +
+                '<input type="text" class="form-control" id="ws-proc-chat-input" placeholder="Pergunte sobre este processo..." ' +
+                    'onkeydown="if(event.key===\'Enter\'){var btn=this.nextElementSibling;if(btn)btn.click();}">' +
                 '<button class="btn btn-primary" data-action="wsSendProcChat" data-params=\'{"id":' + params.id + '}\'>' +
                     '<i class="fas fa-paper-plane"></i>' +
                 '</button>' +
@@ -1844,7 +1845,7 @@ async function wsSendProcChat(params) {
     try {
         var response = await fetch('/api/workspace/workspaces/' + slug + '/processos/' + params.id + '/chat', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessionStorage.getItem('auth_token') },
+            headers: { 'Content-Type': 'application/json', 'Authorization': sessionStorage.getItem('auth_token') || '' },
             body: JSON.stringify({ message: msg })
         });
         var reader = response.body.getReader();
