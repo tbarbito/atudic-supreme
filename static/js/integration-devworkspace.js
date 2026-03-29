@@ -922,6 +922,9 @@ function wsRenderTableDetail(info) {
                 '<button class="btn btn-outline-secondary btn-sm" data-action="wsExportTable" data-params=\'{"tabela":"' + info.codigo + '"}\'>' +
                     '<i class="fas fa-download me-1"></i>Exportar' +
                 '</button>' +
+                '<button class="btn btn-outline-info btn-sm" data-action="wsAnotar" data-params=\'{"tipo":"tabela","chave":"' + info.codigo + '"}\'>' +
+                    '<i class="fas fa-comment me-1"></i>Anotar' +
+                '</button>' +
             '</div>' +
         '</div>';
 
@@ -1164,6 +1167,17 @@ function _wsRenderFonteDetail(f) {
                 '<span class="badge bg-primary">' + f.lines_of_code + ' LOC</span>' +
             '</div>' +
         '</div>' +
+        '<div class="d-flex gap-1">' +
+            '<button class="btn btn-success btn-sm" data-action="wsFonteOverview" data-params=\'{"arquivo":"' + f.arquivo + '"}\'>' +
+                '<i class="fas fa-search me-1"></i>Overview' +
+            '</button>' +
+            '<button class="btn btn-info btn-sm text-white" data-action="wsFonteResumirTodas" data-params=\'{"arquivo":"' + f.arquivo + '"}\'>' +
+                '<i class="fas fa-magic me-1"></i>Resumir Todas' +
+            '</button>' +
+            '<button class="btn btn-outline-secondary btn-sm" data-action="wsAnotar" data-params=\'{"tipo":"fonte","chave":"' + f.arquivo + '"}\'>' +
+                '<i class="fas fa-comment me-1"></i>Anotar' +
+            '</button>' +
+        '</div>' +
     '</div>';
 
     // Tags: PEs, tabelas leitura, tabelas escrita
@@ -1223,14 +1237,57 @@ function wsFonteTab(tab) {
 function _wsFonteTabFuncoes(f) {
     if (!f.funcoes || !f.funcoes.length) return '<p class="text-muted">Nenhuma funcao.</p>';
     var isUF = new Set(f.user_funcs || []);
+    // Mapa de docs ja existentes
+    var docsMap = {};
+    if (f.funcao_docs) f.funcao_docs.forEach(function(d) { docsMap[d.funcao] = d; });
+
     var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:0.82rem">' +
-        '<thead class="table-light"><tr><th>Funcao</th><th>Tipo</th></tr></thead><tbody>';
-    f.funcoes.forEach(function(fn) {
+        '<thead class="table-light"><tr><th></th><th>Funcao</th><th>Tipo</th><th>Resumo</th><th>Acoes</th></tr></thead><tbody>';
+    f.funcoes.forEach(function(fn, idx) {
         var tipo = isUF.has(fn) ? '<span class="badge bg-info">User Function</span>' : '<span class="badge bg-secondary">Static/Local</span>';
-        html += '<tr><td><code class="fw-bold">' + fn + '</code></td><td>' + tipo + '</td></tr>';
+        var doc = docsMap[fn];
+        var resumo = doc && doc.resumo ? '<span style="font-size:0.78rem">' + doc.resumo.substring(0, 80) + (doc.resumo.length > 80 ? '...' : '') + '</span>' : '<span class="text-muted" style="font-size:0.78rem">-</span>';
+        html += '<tr>' +
+            '<td><i class="fas fa-chevron-right" style="cursor:pointer;font-size:0.6rem" onclick="wsToggleFuncRow(this,' + idx + ')"></i></td>' +
+            '<td><code class="fw-bold">' + fn + '</code></td><td>' + tipo + '</td>' +
+            '<td>' + resumo + '</td>' +
+            '<td class="text-nowrap">' +
+                '<button class="btn btn-outline-info btn-sm py-0 px-1 me-1" style="font-size:0.7rem" ' +
+                    'data-action="wsFonteResumirFuncao" data-params=\'' + JSON.stringify({arquivo: f.arquivo, funcao: fn}) + '\'>' +
+                    '<i class="fas fa-magic"></i>' +
+                '</button>' +
+                '<button class="btn btn-outline-secondary btn-sm py-0 px-1" style="font-size:0.7rem" ' +
+                    'data-action="wsFonteVerCodigo" data-params=\'' + JSON.stringify({arquivo: f.arquivo, funcao: fn}) + '\'>' +
+                    '<i class="fas fa-code"></i>' +
+                '</button>' +
+            '</td></tr>';
+        // Row expansion (hidden)
+        var expandHtml = '';
+        if (doc) {
+            if (doc.assinatura) expandHtml += '<div><small class="text-muted">Assinatura:</small> <code>' + doc.assinatura + '</code></div>';
+            if (doc.chama) expandHtml += '<div><small class="text-muted">Chama:</small> ' + doc.chama + '</div>';
+            if (doc.chamada_por) expandHtml += '<div><small class="text-muted">Chamada por:</small> ' + doc.chamada_por + '</div>';
+            if (doc.tabelas_ref) expandHtml += '<div><small class="text-muted">Tabelas:</small> ' + doc.tabelas_ref + '</div>';
+            if (doc.retorno) expandHtml += '<div><small class="text-muted">Retorno:</small> ' + doc.retorno + '</div>';
+        }
+        html += '<tr id="ws-func-exp-' + idx + '" style="display:none"><td colspan="5" class="bg-light px-3 py-2" style="font-size:0.78rem">' +
+            (expandHtml || '<span class="text-muted">Sem detalhes. Clique em <i class="fas fa-magic"></i> para resumir.</span>') +
+            '<div id="ws-func-code-' + idx + '"></div>' +
+        '</td></tr>';
     });
     html += '</tbody></table></div>';
     return html;
+}
+
+function wsToggleFuncRow(el, idx) {
+    var row = document.getElementById('ws-func-exp-' + idx);
+    if (row.style.display === 'none') {
+        row.style.display = '';
+        el.classList.replace('fa-chevron-right', 'fa-chevron-down');
+    } else {
+        row.style.display = 'none';
+        el.classList.replace('fa-chevron-down', 'fa-chevron-right');
+    }
 }
 
 function _wsFonteTabDocs(f) {
@@ -1281,6 +1338,116 @@ function _wsFonteTabVinculos(f) {
     });
     html += '</tbody></table></div>';
     return html;
+}
+
+// =====================================================================
+// WORKSPACE — ACOES IA (Overview, Resumir, Ver Codigo, Anotar)
+// =====================================================================
+
+async function wsFonteOverview(params) {
+    var slug = window._wsState.activeSlug;
+    showNotification('Gerando overview de ' + params.arquivo + '...', 'info');
+    try {
+        var result = await apiRequest('/workspace/workspaces/' + slug + '/explorer/fonte/' + encodeURIComponent(params.arquivo) + '/overview', 'POST');
+        // Mostrar overview num card acima das tabs
+        var panel = document.getElementById('ws-detail-panel');
+        if (!panel) return;
+        var existingCard = document.getElementById('ws-fonte-overview-card');
+        if (existingCard) existingCard.remove();
+        var card = document.createElement('div');
+        card.id = 'ws-fonte-overview-card';
+        card.className = 'card mb-3 border-success';
+        card.innerHTML = '<div class="card-body">' +
+            '<div class="d-flex justify-content-between align-items-center mb-2">' +
+                '<h6 class="mb-0 text-success"><i class="fas fa-search me-1"></i>Overview — ' + params.arquivo + '</h6>' +
+                '<button class="btn btn-sm btn-outline-secondary" onclick="this.closest(\'.card\').remove()"><i class="fas fa-times"></i></button>' +
+            '</div>' +
+            '<div class="ws-markdown" style="font-size:0.85rem">' + _wsRenderMarkdown(result.overview || '') + '</div>' +
+            (result.cached ? '<small class="text-muted"><i class="fas fa-database me-1"></i>Cache</small>' : '') +
+        '</div>';
+        var firstCard = panel.querySelector('.card');
+        if (firstCard) panel.insertBefore(card, firstCard);
+        else panel.appendChild(card);
+        showNotification('Overview gerado!', 'success');
+    } catch (e) {
+        showNotification('Erro: ' + e.message, 'error');
+    }
+}
+
+async function wsFonteResumirTodas(params) {
+    var slug = window._wsState.activeSlug;
+    var f = window._wsState._currentFonte;
+    if (!f || !f.funcoes || !f.funcoes.length) return showNotification('Nenhuma funcao para resumir', 'warning');
+
+    showNotification('Resumindo ' + f.funcoes.length + ' funcoes...', 'info');
+    var done = 0;
+    for (var i = 0; i < f.funcoes.length; i++) {
+        try {
+            await apiRequest('/workspace/workspaces/' + slug + '/explorer/funcao/' + encodeURIComponent(params.arquivo) + '/' + encodeURIComponent(f.funcoes[i]) + '/resumir', 'POST');
+            done++;
+        } catch (e) { /* skip */ }
+    }
+    showNotification(done + '/' + f.funcoes.length + ' funcoes resumidas!', 'success');
+    // Recarregar fonte para pegar resumos
+    await wsOpenFonte(params);
+}
+
+async function wsFonteResumirFuncao(params) {
+    showNotification('Resumindo ' + params.funcao + '...', 'info');
+    var slug = window._wsState.activeSlug;
+    try {
+        var result = await apiRequest('/workspace/workspaces/' + slug + '/explorer/funcao/' + encodeURIComponent(params.arquivo) + '/' + encodeURIComponent(params.funcao) + '/resumir', 'POST');
+        showNotification('Resumido!', 'success');
+        // Recarregar fonte para atualizar resumo na tabela
+        await wsOpenFonte({arquivo: params.arquivo});
+    } catch (e) {
+        showNotification('Erro: ' + e.message, 'error');
+    }
+}
+
+async function wsFonteVerCodigo(params) {
+    var slug = window._wsState.activeSlug;
+    try {
+        var result = await apiRequest('/workspace/workspaces/' + slug + '/explorer/funcao/' + encodeURIComponent(params.arquivo) + '/' + encodeURIComponent(params.funcao) + '/codigo');
+        // Encontrar o row expansion correspondente e mostrar codigo
+        var funcoes = window._wsState._currentFonte ? window._wsState._currentFonte.funcoes : [];
+        var idx = funcoes.indexOf(params.funcao);
+        if (idx >= 0) {
+            var codeEl = document.getElementById('ws-func-code-' + idx);
+            if (codeEl) {
+                codeEl.innerHTML = '<div class="mt-2"><strong>Codigo:</strong>' +
+                    '<pre class="bg-dark text-light p-2 rounded mt-1" style="font-size:0.75rem;max-height:400px;overflow:auto"><code>' +
+                    (result.codigo || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') +
+                    '</code></pre></div>';
+            }
+            // Expandir row se estiver fechado
+            var row = document.getElementById('ws-func-exp-' + idx);
+            if (row && row.style.display === 'none') {
+                row.style.display = '';
+            }
+        }
+    } catch (e) {
+        showNotification('Erro: ' + e.message, 'error');
+    }
+}
+
+// =====================================================================
+// WORKSPACE — ANOTACOES
+// =====================================================================
+
+async function wsAnotar(params) {
+    var texto = prompt('Anotacao para ' + params.tipo + ' ' + params.chave + ':');
+    if (!texto) return;
+
+    var slug = window._wsState.activeSlug;
+    try {
+        await apiRequest('/workspace/workspaces/' + slug + '/explorer/anotacoes', 'POST', {
+            tipo: params.tipo, chave: params.chave, texto: texto
+        });
+        showNotification('Anotacao salva!', 'success');
+    } catch (e) {
+        showNotification('Erro: ' + e.message, 'error');
+    }
 }
 
 // =====================================================================

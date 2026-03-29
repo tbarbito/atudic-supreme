@@ -910,6 +910,228 @@ def explorer_search(slug):
     return jsonify({"results": results[:30], "total": len(results)})
 
 
+# ---------------------------------------------------------------------------
+#  Explorer — IA Overview, Funcao Resumir/Codigo, Anotacoes
+# ---------------------------------------------------------------------------
+
+
+@workspace_bp.route("/workspaces/<slug>/explorer/fonte/<arquivo>/overview", methods=["POST"])
+def explorer_fonte_overview(slug, arquivo):
+    """Gera overview IA do fonte (resumo do programa)."""
+    db = _get_db(slug)
+    force = request.args.get("force", "false").lower() == "true"
+
+    row = db.execute(
+        "SELECT arquivo, modulo, funcoes, pontos_entrada, tabelas_ref, write_tables, lines_of_code "
+        "FROM fontes WHERE arquivo = ?", (arquivo,)
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "Fonte nao encontrado"}), 404
+
+    def _j(v):
+        try:
+            return json.loads(v) if v else []
+        except Exception:
+            return []
+
+    # Check cache in funcao_docs
+    if not force:
+        try:
+            cached = db.execute(
+                "SELECT resumo FROM funcao_docs WHERE arquivo = ? AND funcao = '__overview__'",
+                (arquivo,)
+            ).fetchone()
+            if cached and cached[0]:
+                return jsonify({"arquivo": arquivo, "overview": cached[0], "cached": True})
+        except Exception:
+            pass
+
+    try:
+        llm = _get_llm_provider()
+    except Exception as e:
+        return jsonify({"error": f"LLM nao disponivel: {str(e)[:200]}"}), 500
+
+    funcoes = _j(row[2])
+    pes = _j(row[3])
+    tabs_ref = _j(row[4])
+    tabs_write = _j(row[5])
+
+    # Buscar operacoes de escrita
+    ops = []
+    try:
+        ops_rows = db.execute(
+            "SELECT funcao, tipo, tabela, condicao FROM operacoes_escrita WHERE arquivo = ? LIMIT 30",
+            (arquivo,)
+        ).fetchall()
+        ops = [f"{r[0]}: {r[1]} em {r[2]}" + (f" (cond: {r[3]})" if r[3] else "") for r in ops_rows]
+    except Exception:
+        pass
+
+    prompt = f"""Analise o fonte Protheus ADVPL/TLPP "{arquivo}" e gere um overview tecnico.
+
+Modulo: {row[1] or 'desconhecido'}
+Funcoes: {', '.join(funcoes[:20])}
+Pontos de Entrada: {', '.join(pes) if pes else 'Nenhum'}
+Tabelas leitura: {', '.join(tabs_ref[:15])}
+Tabelas escrita: {', '.join(tabs_write[:10])}
+Linhas de codigo: {row[6]}
+Operacoes de escrita: {chr(10).join(ops[:15]) if ops else 'Nenhuma detectada'}
+
+Gere um overview TECNICO em markdown com:
+## Ecossistema
+## Cadeia de Chamadas
+## Write Points
+## Pontos de Atencao
+## Resumo
+
+Baseie-se APENAS nos dados fornecidos. Seja conciso."""
+
+    text = _llm_chat_text(llm, [{"role": "user", "content": prompt}])
+
+    # Cache
+    try:
+        db.execute(
+            "INSERT OR REPLACE INTO funcao_docs (arquivo, funcao, tipo, resumo, fonte) VALUES (?, '__overview__', 'overview', ?, 'auto')",
+            (arquivo, text)
+        )
+        db.commit()
+    except Exception:
+        pass
+
+    return jsonify({"arquivo": arquivo, "overview": text, "cached": False})
+
+
+@workspace_bp.route("/workspaces/<slug>/explorer/funcao/<arquivo>/<funcao>/resumir", methods=["POST"])
+def explorer_funcao_resumir(slug, arquivo, funcao):
+    """Gera resumo IA de uma funcao especifica."""
+    db = _get_db(slug)
+
+    # Check cache
+    try:
+        cached = db.execute(
+            "SELECT resumo FROM funcao_docs WHERE arquivo = ? AND funcao = ?",
+            (arquivo, funcao)
+        ).fetchone()
+        if cached and cached[0]:
+            return jsonify({"arquivo": arquivo, "funcao": funcao, "resumo": cached[0], "cached": True})
+    except Exception:
+        pass
+
+    # Get function context from chunks
+    chunk_content = ""
+    try:
+        row = db.execute(
+            "SELECT content FROM fonte_chunks WHERE arquivo = ? AND funcao = ?",
+            (arquivo, funcao)
+        ).fetchone()
+        if row:
+            chunk_content = row[0][:3000]  # Limit to 3000 chars
+    except Exception:
+        pass
+
+    if not chunk_content:
+        return jsonify({"error": "Codigo da funcao nao encontrado nos chunks"}), 404
+
+    try:
+        llm = _get_llm_provider()
+    except Exception as e:
+        return jsonify({"error": f"LLM nao disponivel: {str(e)[:200]}"}), 500
+
+    prompt = f"""Analise a funcao ADVPL/TLPP "{funcao}" do arquivo "{arquivo}" e gere um resumo tecnico.
+
+CODIGO:
+{chunk_content}
+
+Retorne um resumo conciso (2-3 frases) explicando:
+- O que a funcao faz
+- Quais tabelas manipula
+- Se tem condicoes especiais ou tratamento de erro
+Seja direto e tecnico."""
+
+    text = _llm_chat_text(llm, [{"role": "user", "content": prompt}])
+
+    # Cache
+    try:
+        db.execute(
+            "INSERT OR REPLACE INTO funcao_docs (arquivo, funcao, tipo, resumo, fonte) VALUES (?, ?, 'function', ?, 'auto')",
+            (arquivo, funcao, text)
+        )
+        db.commit()
+    except Exception:
+        pass
+
+    return jsonify({"arquivo": arquivo, "funcao": funcao, "resumo": text, "cached": False})
+
+
+@workspace_bp.route("/workspaces/<slug>/explorer/funcao/<arquivo>/<funcao>/codigo", methods=["GET"])
+def explorer_funcao_codigo(slug, arquivo, funcao):
+    """Retorna codigo fonte de uma funcao (do chunk)."""
+    db = _get_db(slug)
+
+    try:
+        row = db.execute(
+            "SELECT content FROM fonte_chunks WHERE arquivo = ? AND funcao = ?",
+            (arquivo, funcao)
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "Chunk nao encontrado"}), 404
+        return jsonify({"arquivo": arquivo, "funcao": funcao, "codigo": row[0]})
+    except Exception as e:
+        return jsonify({"error": str(e)[:200]}), 500
+
+
+@workspace_bp.route("/workspaces/<slug>/explorer/anotacoes/<tipo>/<chave>", methods=["GET"])
+def explorer_listar_anotacoes(slug, tipo, chave):
+    """Lista anotacoes de uma tabela/fonte/campo."""
+    db = _get_db(slug)
+    try:
+        rows = db.execute(
+            "SELECT id, texto, autor, tags, data FROM anotacoes WHERE tipo = ? AND chave = ? ORDER BY data DESC",
+            (tipo, chave)
+        ).fetchall()
+        return jsonify([
+            {"id": r[0], "texto": r[1], "autor": r[2], "tags": json.loads(r[3]) if r[3] else [], "data": r[4]}
+            for r in rows
+        ])
+    except Exception:
+        return jsonify([])
+
+
+@workspace_bp.route("/workspaces/<slug>/explorer/anotacoes", methods=["POST"])
+def explorer_criar_anotacao(slug):
+    """Cria anotacao em tabela/fonte/campo."""
+    db = _get_db(slug)
+    data = request.get_json()
+    tipo = data.get("tipo", "")
+    chave = data.get("chave", "")
+    texto = data.get("texto", "")
+    if not tipo or not chave or not texto:
+        return jsonify({"error": "tipo, chave e texto obrigatorios"}), 400
+
+    try:
+        db.execute(
+            "INSERT INTO anotacoes (tipo, chave, texto, autor, tags) VALUES (?, ?, ?, 'consultor', '[]')",
+            (tipo, chave, texto)
+        )
+        db.commit()
+        new_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+        return jsonify({"id": new_id, "success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)[:200]}), 500
+
+
+@workspace_bp.route("/workspaces/<slug>/explorer/anotacoes/<int:anotacao_id>", methods=["DELETE"])
+def explorer_deletar_anotacao(slug, anotacao_id):
+    """Deleta anotacao."""
+    db = _get_db(slug)
+    try:
+        db.execute("DELETE FROM anotacoes WHERE id = ?", (anotacao_id,))
+        db.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)[:200]}), 500
+
+
 @workspace_bp.route("/workspaces/<slug>/dashboard", methods=["GET"])
 def workspace_dashboard(slug):
     """Retorna dados ricos para dashboard do workspace (similar ao ExtraiRPO)."""
