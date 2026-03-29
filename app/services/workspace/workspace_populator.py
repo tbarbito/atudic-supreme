@@ -280,6 +280,11 @@ class WorkspacePopulator:
 
         # Pass 2: Chunks (com PRAGMAs otimizadas)
         conn = self.db.get_raw_conn()
+        # Garantir que nao ha transacao ativa antes de mudar PRAGMAs
+        try:
+            conn.commit()
+        except Exception:
+            pass
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
         conn.execute("PRAGMA cache_size=2000")
@@ -704,6 +709,11 @@ def ingest_padrao_sxs(db: Database, padrao_csv_dir: Path) -> dict:
     import gc
     summary = {}
     conn = db.get_raw_conn()
+    # Garantir que nao ha transacao ativa antes de mudar PRAGMAs
+    try:
+        conn.commit()
+    except Exception:
+        pass
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
 
