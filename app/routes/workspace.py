@@ -434,14 +434,36 @@ def explorer_tree(slug):
     except Exception:
         pass
 
-    # Count fontes per module
+    # Count fontes per module AND enriquecer tabelas com fontes.tabelas_ref
     try:
-        rows = db.execute("SELECT modulo, COUNT(*) FROM fontes WHERE modulo IS NOT NULL AND modulo != '' GROUP BY modulo").fetchall()
+        rows = db.execute(
+            "SELECT modulo, COUNT(*) FROM fontes WHERE modulo IS NOT NULL AND modulo != '' GROUP BY modulo"
+        ).fetchall()
         for r in rows:
             mod = r[0].lower()
             if mod not in modulos:
                 modulos[mod] = {"tabelas": set(), "fontes": 0, "pes": 0, "menus_cliente": 0, "menus_padrao": 0}
             modulos[mod]["fontes"] = r[1]
+    except Exception:
+        pass
+
+    # Enriquecer tabelas por modulo usando fontes.tabelas_ref (real)
+    try:
+        rows = db.execute(
+            "SELECT modulo, tabelas_ref, write_tables FROM fontes WHERE modulo IS NOT NULL AND modulo != ''"
+        ).fetchall()
+        for r in rows:
+            mod = r[0].lower()
+            if mod not in modulos:
+                continue
+            for field in [r[1], r[2]]:
+                try:
+                    refs = json.loads(field) if field else []
+                    for t in refs:
+                        if isinstance(t, str) and t.strip():
+                            modulos[mod]["tabelas"].add(t.strip().upper())
+                except (json.JSONDecodeError, TypeError):
+                    pass
     except Exception:
         pass
 
@@ -531,36 +553,61 @@ def explorer_category_items(slug, modulo, cat):
     db = _get_db(slug)
 
     if cat == "tabelas":
-        # Get tables for this module from mapa_modulos
+        # Combinar mapa_modulos (seed) + fontes.tabelas_ref (real) para pegar TODAS as tabelas
+        tab_set = set()
+
+        # Fonte 1: mapa_modulos (tabelas seed)
         try:
             row = db.execute("SELECT tabelas FROM mapa_modulos WHERE modulo = ?", (modulo,)).fetchone()
-            tab_codes = json.loads(row[0]) if row else []
+            if row:
+                for t in json.loads(row[0]):
+                    tab_set.add(t.upper())
         except Exception:
-            tab_codes = []
+            pass
 
-        if not tab_codes:
-            # Fallback: infer from fontes.tabelas_ref
-            try:
-                rows = db.execute("SELECT tabelas_ref FROM fontes WHERE lower(modulo) = ?", (modulo.lower(),)).fetchall()
-                tab_set = set()
-                for r in rows:
-                    refs = json.loads(r[0]) if r[0] else []
-                    tab_set.update(t.upper() for t in refs if isinstance(t, str))
-                tab_codes = sorted(tab_set)
-            except Exception:
-                tab_codes = []
+        # Fonte 2: fontes.tabelas_ref (tabelas reais referenciadas por fontes do modulo)
+        try:
+            rows = db.execute(
+                "SELECT tabelas_ref, write_tables FROM fontes WHERE lower(modulo) = ?",
+                (modulo.lower(),)
+            ).fetchall()
+            for r in rows:
+                for field in [r[0], r[1]]:
+                    try:
+                        refs = json.loads(field) if field else []
+                        for t in refs:
+                            if isinstance(t, str) and t.strip():
+                                tab_set.add(t.strip().upper())
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+        except Exception:
+            pass
+
+        # Buscar info de cada tabela e contar campos custom + alterados
+        diff_alt_map = {}
+        try:
+            diff_rows = db.execute(
+                "SELECT tabela, COUNT(DISTINCT chave) FROM diff "
+                "WHERE tipo_sx IN ('campo','SX3') AND acao='alterado' GROUP BY tabela"
+            ).fetchall()
+            diff_alt_map = {r[0]: r[1] for r in diff_rows}
+        except Exception:
+            pass
 
         items = []
-        for tc in sorted(tab_codes):
-            row = db.execute("SELECT codigo, nome, custom FROM tabelas WHERE upper(codigo) = ?", (tc.upper(),)).fetchone()
+        for tc in sorted(tab_set):
+            row = db.execute("SELECT codigo, nome, custom FROM tabelas WHERE upper(codigo) = ?", (tc,)).fetchone()
             if row:
-                # Count custom fields
                 add_count = 0
                 try:
                     add_count = db.execute("SELECT COUNT(*) FROM campos WHERE tabela = ? AND custom = 1", (row[0],)).fetchone()[0]
                 except Exception:
                     pass
-                items.append({"codigo": row[0], "nome": row[1], "custom": bool(row[2]), "campos_add": add_count})
+                alt_count = diff_alt_map.get(row[0], 0)
+                items.append({
+                    "codigo": row[0], "nome": row[1], "custom": bool(row[2]),
+                    "campos_add": add_count, "campos_alt": alt_count
+                })
         return jsonify(items)
 
     elif cat == "pes":

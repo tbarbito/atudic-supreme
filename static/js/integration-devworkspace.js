@@ -791,13 +791,14 @@ function _wsRenderCategoryList(cat, modulo, items) {
 
     if (cat === 'tabelas') {
         html += '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:0.82rem">' +
-            '<thead class="table-light"><tr><th>Codigo</th><th>Nome</th><th>+Add</th><th></th></tr></thead><tbody>';
+            '<thead class="table-light"><tr><th>Codigo</th><th>Nome</th><th class="text-success">Custom</th><th class="text-warning">Alter.</th><th></th></tr></thead><tbody>';
         items.forEach(function(t) {
             var badge = t.custom ? '<span class="badge bg-warning text-dark" style="font-size:0.6rem">C</span>' : '';
             html += '<tr style="cursor:pointer" data-action="wsSelectTable" data-params=\'{"codigo":"' + t.codigo + '"}\'>' +
                 '<td><code class="text-primary">' + t.codigo + '</code></td>' +
                 '<td>' + (t.nome || '') + '</td>' +
                 '<td>' + (t.campos_add > 0 ? '<span class="text-success fw-bold">+' + t.campos_add + '</span>' : '') + '</td>' +
+                '<td>' + (t.campos_alt > 0 ? '<span class="text-warning fw-bold">~' + t.campos_alt + '</span>' : '') + '</td>' +
                 '<td>' + badge + '</td></tr>';
         });
         html += '</tbody></table></div>';
@@ -862,7 +863,7 @@ function _wsRenderCategoryList(cat, modulo, items) {
 
 async function wsSelectTable(params) {
     var slug = window._wsState.activeSlug;
-    var detail = document.getElementById('ws-table-detail');
+    var detail = document.getElementById('ws-detail-panel');
     detail.innerHTML = '<div class="card"><div class="card-body text-center"><div class="spinner-border spinner-border-sm"></div> Carregando...</div></div>';
 
     try {
