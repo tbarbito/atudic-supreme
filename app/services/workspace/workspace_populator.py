@@ -24,6 +24,22 @@ from app.services.workspace.build_vinculos import build_vinculos
 logger = logging.getLogger(__name__)
 
 
+def _find_csv_ci(directory: Path, filename: str) -> Optional[Path]:
+    """Busca arquivo CSV case-insensitive (modo offline). Retorna Path ou None."""
+    exact = directory / filename
+    if exact.exists():
+        return exact
+    # Fallback: busca case-insensitive
+    lower = filename.lower()
+    try:
+        for f in directory.iterdir():
+            if f.name.lower() == lower:
+                return f
+    except Exception:
+        pass
+    return None
+
+
 class WorkspacePopulator:
     """Popula workspace SQLite a partir de CSVs, DB direto ou hibrido."""
 
@@ -111,11 +127,11 @@ class WorkspacePopulator:
              lambda r: (r["alias"], r["tipo"], r["sequencia"], r["coluna"], r["descricao"], r["conteudo"])),
         ]
 
-        # Processar cada SX
+        # Processar cada SX (busca case-insensitive para modo offline/CSV)
         for filename, parser_func, table_name, sql, mapper in sx_map:
-            csv_path = csv_dir / filename
-            if not csv_path.exists():
-                logger.warning(f"CSV nao encontrado: {csv_path}")
+            csv_path = _find_csv_ci(csv_dir, filename)
+            if not csv_path:
+                logger.warning(f"CSV nao encontrado: {csv_dir / filename}")
                 continue
 
             _report("parse_csv", filename)
@@ -126,8 +142,8 @@ class WorkspacePopulator:
                 logger.info(f"  {table_name}: {len(rows)} registros")
 
         # mpmenu (opcional — precisa de mpmenu_menu.csv, mpmenu_item.csv, mpmenu_function.csv, mpmenu_i18n.csv)
-        mpmenu_menu = csv_dir / "mpmenu_menu.csv"
-        if mpmenu_menu.exists():
+        mpmenu_menu = _find_csv_ci(csv_dir, "mpmenu_menu.csv")
+        if mpmenu_menu:
             _report("parse_csv", "mpmenu")
             try:
                 menus = parser_sx.parse_mpmenu(csv_dir)
@@ -144,8 +160,8 @@ class WorkspacePopulator:
             logger.info("  mpmenu_menu.csv nao encontrado — menus nao ingeridos (CSVs: mpmenu_menu, mpmenu_item, mpmenu_function, mpmenu_i18n)")
 
         # jobs (opcional)
-        jobs_path = csv_dir / "job_detalhado_bash.csv"
-        if jobs_path.exists():
+        jobs_path = _find_csv_ci(csv_dir, "job_detalhado_bash.csv")
+        if jobs_path:
             _report("parse_csv", "jobs")
             try:
                 jobs = parser_sx.parse_jobs(jobs_path)
@@ -160,8 +176,8 @@ class WorkspacePopulator:
                 logger.warning(f"Erro ao parsear jobs: {e}")
 
         # schedules (opcional)
-        schedules_path = csv_dir / "schedule_decodificado.csv"
-        if schedules_path.exists():
+        schedules_path = _find_csv_ci(csv_dir, "schedule_decodificado.csv")
+        if schedules_path:
             _report("parse_csv", "schedules")
             try:
                 schedules = parser_sx.parse_schedules(schedules_path)
@@ -758,10 +774,8 @@ def ingest_padrao_sxs(db: Database, padrao_csv_dir: Path) -> dict:
     conn.execute("PRAGMA synchronous=NORMAL")
 
     for sx_name, (parser_fn, table_name, insert_sql) in _PADRAO_SX_MAP.items():
-        csv_path = padrao_csv_dir / f"{sx_name}.csv"
-        if not csv_path.exists():
-            csv_path = padrao_csv_dir / f"{sx_name.lower()}.csv"
-        if not csv_path.exists():
+        csv_path = _find_csv_ci(padrao_csv_dir, f"{sx_name}.csv")
+        if not csv_path:
             summary[sx_name] = "skipped"
             continue
 

@@ -10,6 +10,21 @@ import chardet
 csv.field_size_limit(10_000_000)  # 10MB — some SX fields are very large
 
 
+def _find_file_ci(directory: Path, filename: str) -> Path:
+    """Busca arquivo case-insensitive (modo offline CSV). Retorna Path ou None."""
+    exact = directory / filename
+    if exact.exists():
+        return exact
+    lower = filename.lower()
+    try:
+        for f in directory.iterdir():
+            if f.name.lower() == lower:
+                return f
+    except Exception:
+        pass
+    return None
+
+
 def _detect_encoding(file_path: Path) -> str:
     raw = file_path.read_bytes()[:4096]  # Only scan first 4KB
     # Check for BOM (UTF-8-BOM)
@@ -450,13 +465,13 @@ def parse_mpmenu(csv_dir: Path) -> List[dict]:
 
     Returns list of dicts: {modulo, rotina, nome, menu, ordem}
     """
-    menu_path = csv_dir / "mpmenu_menu.csv"
-    item_path = csv_dir / "mpmenu_item.csv"
-    func_path = csv_dir / "mpmenu_function.csv"
-    i18n_path = csv_dir / "mpmenu_i18n.csv"
+    menu_path = _find_file_ci(csv_dir, "mpmenu_menu.csv")
+    item_path = _find_file_ci(csv_dir, "mpmenu_item.csv")
+    func_path = _find_file_ci(csv_dir, "mpmenu_function.csv")
+    i18n_path = _find_file_ci(csv_dir, "mpmenu_i18n.csv")
 
     for p in (menu_path, item_path, func_path, i18n_path):
-        if not p.exists():
+        if not p or not p.exists():
             raise FileNotFoundError(f"mpmenu file not found: {p}")
 
     # 1. Modules: M_ID → M_NAME
