@@ -388,8 +388,8 @@ def explorer_fontes(slug):
 
     if modulo:
         rows = db.execute(
-            "SELECT arquivo, tipo, modulo, lines_of_code FROM fontes WHERE modulo = ? ORDER BY arquivo",
-            (modulo,)
+            "SELECT arquivo, tipo, modulo, lines_of_code FROM fontes WHERE lower(modulo) = ? ORDER BY arquivo",
+            (modulo.lower(),)
         ).fetchall()
     else:
         rows = db.execute(

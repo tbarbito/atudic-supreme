@@ -93,7 +93,7 @@ class KnowledgeService:
 
     def get_tables_for_module(self, modulo: str) -> list[dict]:
         rows = self.db.execute(
-            "SELECT DISTINCT tabelas_ref FROM fontes WHERE modulo = ?", (modulo,)).fetchall()
+            "SELECT DISTINCT tabelas_ref FROM fontes WHERE lower(modulo) = ?", (modulo.lower(),)).fetchall()
         tables = set()
         for row in rows:
             if row[0]:
@@ -102,8 +102,8 @@ class KnowledgeService:
 
     def get_fontes_for_module(self, modulo: str) -> list[dict]:
         rows = self.db.execute(
-            "SELECT arquivo, tipo, funcoes, user_funcs, pontos_entrada, tabelas_ref FROM fontes WHERE modulo = ?",
-            (modulo,)).fetchall()
+            "SELECT arquivo, tipo, funcoes, user_funcs, pontos_entrada, tabelas_ref FROM fontes WHERE lower(modulo) = ?",
+            (modulo.lower(),)).fetchall()
         return [{
             "arquivo": r[0], "tipo": r[1],
             "funcoes": json.loads(r[2]) if r[2] else [],
@@ -216,8 +216,8 @@ class KnowledgeService:
         """Get all vinculos for a given module."""
         rows = self.db.execute(
             "SELECT tipo, origem_tipo, origem, destino_tipo, destino, modulo, contexto, peso "
-            "FROM vinculos WHERE modulo = ? ORDER BY tipo, peso DESC",
-            (modulo.upper(),)).fetchall()
+            "FROM vinculos WHERE lower(modulo) = ? ORDER BY tipo, peso DESC",
+            (modulo.lower(),)).fetchall()
         return [{
             "tipo": r[0], "origem_tipo": r[1], "origem": r[2],
             "destino_tipo": r[3], "destino": r[4], "modulo": r[5],
