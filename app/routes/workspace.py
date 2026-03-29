@@ -39,20 +39,66 @@ def _llm_chat_text(provider, messages):
 
 # Mapa de normalizacao SIGA* → nome curto do modulo
 _SIGA_TO_MODULE = {
+    # Modulos principais
     "sigacom": "compras", "sigafat": "faturamento", "sigafin": "financeiro",
     "sigaest": "estoque", "sigafis": "fiscal", "sigactb": "contabilidade",
     "sigagpe": "rh", "sigapcp": "pcp", "sigamnt": "manutencao",
     "sigatms": "logistica", "sigaqie": "qualidade", "sigacrm": "crm",
-    "sigajuri": "juridico", "sigaorg": "organizacional", "sigaoms": "oms",
-    "sigagpr": "gestao_projetos", "sigaloja": "loja", "sigataf": "taf",
-    "sigamdi": "mdi", "sigapls": "plano_saude",
+    "sigaloja": "loja", "sigataf": "taf", "sigapls": "plano_saude",
+    # Modulos secundarios → agrupados nos principais
+    "sigajuri": "financeiro", "sigaorg": "rh", "sigaoms": "estoque",
+    "sigagpr": "pcp", "sigapco": "contabilidade", "sigaofi": "manutencao",
+    "sigapon": "rh", "sigaqdo": "qualidade", "sigappap": "qualidade",
+    "sigaqnc": "qualidade", "sigaqmt": "qualidade",
+    "sigatmk": "faturamento", "sigaapt": "rh", "sigaeec": "rh",
+    "sigagct": "contabilidade", "sigamdi": "rh",
+}
+
+
+# Prefixos de perfis de menu → modulo
+_MENU_PREFIX_TO_MODULE = {
+    "fat_": "faturamento", "faturamento": "faturamento",
+    "cap_": "financeiro", "cre_": "financeiro", "tsr_": "financeiro", "finan": "financeiro",
+    "fis_": "fiscal",
+    "sup_": "compras", "compra": "compras", "rpa_compras": "compras",
+    "est_": "estoque", "estoque": "estoque",
+    "log_": "logistica",
+    "pcp_": "pcp", "planej": "pcp", "prd_": "pcp", "ind_": "pcp",
+    "rh_": "rh", "sesmt_": "rh", "adm_": "rh",
+    "ctb_": "contabilidade", "rpa_contabilidade": "contabilidade",
+    "jur_": "financeiro",
+    "exp_": "faturamento", "imp_": "compras",
+    "lab_": "qualidade", "cq_": "qualidade",
+    "vdp_": "faturamento", "mfg_": "estoque",
+    "aud_": "financeiro",
+    "pcm_": "manutencao",
+    "ti_": "outros", "monitor": "outros", "teste_": "outros",
+    "key_": "logistica",
+    "rpa_": "outros",
 }
 
 
 def _normalize_menu_module(mod_name: str) -> str:
-    """Normaliza nome de modulo do menu (SIGACOM → compras)."""
+    """Normaliza nome de modulo/perfil do menu → modulo Protheus.
+    Perfis como FAT_ANALISTA → faturamento, CRE_GERENTE → financeiro."""
     clean = mod_name.strip().lower()
-    return _SIGA_TO_MODULE.get(clean, clean)
+    # 1. Mapa SIGA* direto
+    mapped = _SIGA_TO_MODULE.get(clean)
+    if mapped:
+        return mapped
+    # SIGA* com sufixo (ex: "sigacom - sem item")
+    if clean.startswith("siga"):
+        base = clean.split(" ")[0].split("-")[0].strip()
+        mapped = _SIGA_TO_MODULE.get(base)
+        if mapped:
+            return mapped
+        return "outros"
+    # 2. Prefixo de perfil
+    for prefix, mod in _MENU_PREFIX_TO_MODULE.items():
+        if clean.startswith(prefix):
+            return mod
+    # 3. Fallback
+    return "outros"
 
 
 # Diretorio base para workspaces
