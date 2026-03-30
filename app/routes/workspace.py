@@ -1919,10 +1919,19 @@ Baseie-se APENAS nos dados de investigacao fornecidos. Nao invente dados."""
             except json.JSONDecodeError:
                 analise_json_str = "{}"
 
-        # Remover TODOS os blocos ```json...``` do markdown
-        analise_md = re.sub(r"```json\s*[\s\S]*?```", "", text).strip()
-        # Tambem remover texto residual tipo "**JSON Estruturado**" ou similar
-        analise_md = re.sub(r"\*\*JSON Estruturado\*\*.*$", "", analise_md, flags=re.DOTALL).strip()
+        # Extrair apenas o markdown — cortar antes do JSON estruturado
+        # Estrategia: encontrar onde comeca o JSON e pegar so o que vem antes
+        analise_md = text
+        # 1. Cortar no bloco ```json (fechado ou nao)
+        json_start = re.search(r"```json", analise_md)
+        if json_start:
+            analise_md = analise_md[:json_start.start()]
+        # 2. Cortar em "JSON ESTRUTURADO" ou "**JSON Estruturado**" (qualquer variacao)
+        json_header = re.search(r"(?:^|\n)\s*[-#*]*\s*JSON\s+ESTRUTURADO", analise_md, re.IGNORECASE)
+        if json_header:
+            analise_md = analise_md[:json_header.start()]
+        # 3. Remover separadores finais (---)
+        analise_md = re.sub(r"\n---\s*$", "", analise_md).strip()
 
         # Fase 4: Salvar
         from datetime import datetime
