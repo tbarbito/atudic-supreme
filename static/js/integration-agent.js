@@ -1114,7 +1114,7 @@ function agStopStepStream() {
 function agRenderUserMessage(msg) {
     return `
         <div class="d-flex justify-content-end mb-3">
-            <div class="bg-primary text-white rounded-3 px-3 py-2" style="max-width: 75%;">
+            <div class="bg-primary text-white rounded-3 px-3 py-2" style="max-width: 85%;">
                 <div>${agEscapeHtml(msg.content)}</div>
                 <div class="text-end mt-1" style="opacity: 0.7; font-size: 0.7rem;">${agFormatTime(msg.created_at)}</div>
             </div>
@@ -1213,7 +1213,7 @@ function agRenderAssistantMessage(msg) {
             <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-2 flex-shrink-0" style="width:32px;height:32px;font-size:0.8rem;">
                 <i class="fas fa-robot"></i>
             </div>
-            <div class="rounded-3 px-3 py-2 ag-msg-assistant" style="max-width: 85%;">
+            <div class="rounded-3 px-3 py-2 ag-msg-assistant" style="max-width: 95%;">
                 <div class="d-flex align-items-center flex-wrap mb-1">
                     ${modeBadge}
                     ${confidenceBadge}
