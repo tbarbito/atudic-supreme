@@ -885,7 +885,7 @@ def create_release_from_run(run_id):
         # 4.1 Verificar lock de ambiente — acesso exclusivo ao RPO
         environment_id = request.headers.get('X-Environment-Id') or run_dict.get('environment_id')
         if environment_id:
-            running = get_env_running_info(release_env_id)
+            running = get_env_running_info(environment_id)
             if running:
                 release_db_connection(conn)
                 return jsonify({
