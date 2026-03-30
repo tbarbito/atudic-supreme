@@ -1544,15 +1544,43 @@ def generate_llm_insights(findings, ini_type, environment_id=None, commented_fin
 
     messages = [{"role": "user", "content": user_content}]
 
+    # Log diagnóstico: verificar se o prompt está sendo montado corretamente
+    logger.info(
+        "Auditor LLM: provider=%s, model=%s, ini_type=%s, ini_role=%s, "
+        "findings=%d, system_len=%d, user_len=%d",
+        row["provider_id"], row.get("model"), ini_type, ini_role,
+        len(findings), len(system_prompt), len(user_content),
+    )
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug("Auditor LLM system_prompt (primeiros 500 chars): %s", system_prompt[:500])
+        logger.debug("Auditor LLM user_content (primeiros 500 chars): %s", user_content[:500])
+
     try:
         result = provider.chat(
             messages,
             system_prompt=system_prompt,
-            temperature=0.3,
+            temperature=0.1,
             max_tokens=2000,
         )
+        summary = result.get("content", "")
+
+        # Validação anti-alucinação: detecta se LLM ignorou o contexto Protheus
+        if _is_hallucinated_response(summary, ini_type):
+            logger.warning(
+                "LLM retornou análise genérica (alucinação detectada) — descartando resposta. "
+                "Modelo: %s, provider: %s",
+                result.get("model", "?"), row["provider_id"],
+            )
+            return {
+                "summary": _build_fallback_summary(findings, commented_findings,
+                                                   ini_type, ini_role, ok_count=len(ok_items),
+                                                   unknown_keys=unknown_keys),
+                "provider": "fallback",
+                "model": "deterministic",
+            }
+
         return {
-            "summary": result.get("content", ""),
+            "summary": summary,
             "provider": row["provider_id"],
             "model": result.get("model", row.get("model")),
         }
@@ -1561,12 +1589,137 @@ def generate_llm_insights(findings, ini_type, environment_id=None, commented_fin
         return None
 
 
+def _is_hallucinated_response(summary, ini_type):
+    """Detecta se a resposta do LLM é uma alucinação genérica.
+
+    Verifica sinais claros de que o modelo ignorou o contexto Protheus:
+    - Menção a tecnologias erradas (Apache, Nginx, IIS)
+    - Ausência total de termos Protheus
+    - Formato categorizado genérico em vez do resumo executivo
+    """
+    if not summary:
+        return True
+
+    lower = summary.lower()
+
+    # Sinais de alucinação: tecnologias que NÃO são Protheus
+    hallucination_markers = [
+        "apache", "nginx", "iis ", "tomcat", "caddy",
+        "servidor web genérico", "servidor web,",
+        "provavelmente um",  # "provavelmente um Apache/Nginx"
+    ]
+    for marker in hallucination_markers:
+        if marker in lower:
+            return True
+
+    # Se a resposta não menciona NENHUM termo Protheus, é suspeita
+    protheus_terms = ["protheus", "totvs", "appserver", "dbaccess", "smartclient",
+                      "tss", "environment", "rpo", "ini", "licenseserver"]
+    has_protheus = any(term in lower for term in protheus_terms)
+    if not has_protheus:
+        return True
+
+    return False
+
+
+def _build_fallback_summary(findings, commented_findings, ini_type, ini_role,
+                            ok_count=0, unknown_keys=None):
+    """Gera resumo determinístico quando LLM falha ou alucina.
+
+    Produz uma análise estruturada usando apenas os dados reais da auditoria,
+    sem depender de LLM.
+    """
+    problems = [f for f in findings if f["status"] in ("mismatch", "missing")]
+    critical = [p for p in problems if p["severity"] == "critical"]
+    warning = [p for p in problems if p["severity"] == "warning"]
+
+    type_labels = {
+        "appserver": "AppServer Protheus",
+        "dbaccess": "DBAccess",
+        "tss": "TSS (transmissão fiscal)",
+        "smartclient": "SmartClient",
+    }
+    title = type_labels.get(ini_type, "Arquivo INI Protheus")
+
+    role_labels = {
+        "broker_http": "Broker HTTP/WebApp",
+        "broker_soap": "Broker SOAP",
+        "broker_rest": "Broker REST",
+        "slave": "Application Server",
+        "slave_ws": "Application Server com WS SOAP",
+        "slave_rest": "Application Server com REST",
+        "job_server": "Servidor de Jobs",
+        "rest_server": "Servidor REST",
+        "standalone": "Standalone",
+        "standalone_multi_env": "Multi-environment",
+        "tss": "TSS Fiscal",
+        "dbaccess_master": "DBAccess Master",
+        "dbaccess_slave": "DBAccess Slave",
+        "dbaccess_standalone": "DBAccess Standalone",
+    }
+    role_label = role_labels.get(ini_role, ini_role)
+
+    lines = [f"### {title} ({role_label})"]
+
+    total = ok_count + len(problems)
+    if not problems:
+        lines.append("Arquivo em conformidade — nenhum problema detectado na auditoria.")
+    elif not critical:
+        lines.append(f"Arquivo em bom estado. {ok_count}/{total} chaves OK, "
+                     f"com {len(warning)} alertas menores.")
+    else:
+        lines.append(f"Atenção necessária: {len(critical)} problema(s) crítico(s) "
+                     f"e {len(warning)} alerta(s) entre {total} chaves avaliadas.")
+
+    if critical or warning:
+        lines.append("")
+        lines.append("### Pontos de atenção")
+        shown = 0
+        for p in critical + warning:
+            if shown >= 5:
+                break
+            sev = "CRÍTICO" if p["severity"] == "critical" else "ALERTA"
+            status = "ausente" if p["status"] == "missing" else "incorreto"
+            desc = p.get("description", "")
+            bullet = f"- **[{sev}]** `[{p['section']}] {p['key_name']}` — {status}"
+            if p.get("current_value") is not None and p.get("recommended_value"):
+                bullet += f" (atual: `{p['current_value']}`, recomendado: `{p['recommended_value']}`)"
+            elif p.get("recommended_value"):
+                bullet += f" (recomendado: `{p['recommended_value']}`)"
+            if desc:
+                bullet += f". {desc}"
+            lines.append(bullet)
+            shown += 1
+
+    if unknown_keys:
+        lines.append("")
+        lines.append("### Sujeira detectada")
+        for uk in unknown_keys[:5]:
+            lines.append(f"- `[{uk['section']}] {uk['key_name']}` — chave não documentada na TDN")
+
+    if commented_findings:
+        commented_critical = [cf for cf in commented_findings if cf["severity"] == "critical"]
+        if commented_critical:
+            lines.append("")
+            lines.append("### Chaves comentadas importantes")
+            for cf in commented_critical[:3]:
+                lines.append(f"- `[{cf['section']}] ;{cf['key_name']}={cf['commented_value']}`")
+
+    lines.append("")
+    lines.append("*Análise gerada automaticamente a partir das regras TDN.*")
+
+    return "\n".join(lines)
+
+
 def _build_user_prompt(findings, commented_findings, ini_type, ini_role,
                       parsed=None, filename=None, ok_count=0, unknown_keys=None):
     """Monta user prompt com FICHA TÉCNICA extraída do arquivo real.
 
     A ficha técnica ancora o LLM em dados reais — seções, servidores, portas
     e bancos que EXISTEM no arquivo. Isso evita alucinação.
+
+    IMPORTANTE: As instruções de formato são replicadas aqui (não apenas no
+    system prompt) porque modelos mais leves ignoram systemInstruction.
     """
     sections = parsed.get("sections", {}) if parsed else {}
     problems = [f for f in findings if f["status"] in ("mismatch", "missing")]
@@ -1574,7 +1727,21 @@ def _build_user_prompt(findings, commented_findings, ini_type, ini_role,
     warning = [p for p in problems if p["severity"] == "warning"]
     info = [p for p in problems if p["severity"] == "info"]
 
-    lines = ["## Ficha Técnica do Arquivo"]
+    # Âncora de contexto — reforça no user prompt para modelos que ignoram system prompt
+    type_labels = {
+        "appserver": "TOTVS Protheus Application Server",
+        "dbaccess": "TOTVS DBAccess",
+        "tss": "TOTVS TSS (transmissão fiscal)",
+        "smartclient": "TOTVS SmartClient",
+    }
+    type_label = type_labels.get(ini_type, "TOTVS Protheus")
+
+    lines = [
+        f"CONTEXTO: Este é um arquivo INI do **{type_label}** (papel: {ini_role}). "
+        "NÃO é Apache, Nginx ou qualquer outro servidor web genérico. "
+        "É um ERP TOTVS Protheus.\n",
+        "## Ficha Técnica do Arquivo",
+    ]
     lines.append(f"- **Arquivo:** {filename or 'desconhecido'}")
     lines.append(f"- **Tipo detectado:** {ini_type}")
     lines.append(f"- **Papel na infraestrutura:** {ini_role}")
@@ -1635,6 +1802,26 @@ def _build_user_prompt(findings, commented_findings, ini_type, ini_role,
         lines.append("Estas chaves NÃO existem na documentação TDN. Podem ser erro de digitação ou sujeira:")
         for uk in unknown_keys:
             lines.append(f"- [{uk['section']}] {uk['key_name']}={uk['value']} — {uk['reason']}")
+
+    # Instruções de formato reforçadas no final do user prompt
+    # (modelos mais leves prestam mais atenção ao final da mensagem)
+    lines.append("")
+    lines.append("---")
+    lines.append("## INSTRUÇÕES DE RESPOSTA (OBRIGATÓRIO)")
+    lines.append(f"Este arquivo é do **{type_label}** — NÃO é Apache, Nginx ou servidor web genérico.")
+    lines.append("Responda EXATAMENTE neste formato markdown, sem desviar:")
+    lines.append("")
+    lines.append("### [Título: tipo do servidor, ex: 'AppServer Protheus', 'Broker HTTP', 'TSS Fiscal']")
+    lines.append("[1-2 frases sobre estado geral]")
+    lines.append("")
+    lines.append("### Pontos de atenção")
+    lines.append("[máximo 5 bullets com problemas REAIS da auditoria acima]")
+    lines.append("")
+    lines.append("### Dicas")
+    lines.append("[máximo 3 bullets opcionais]")
+    lines.append("")
+    lines.append("REGRAS: máximo 200 palavras. NÃO invente dados. NÃO organize por categorias "
+                 "genéricas (Segurança, Cache, etc). Use APENAS os dados da ficha técnica acima.")
 
     return "\n".join(lines)
 
@@ -2006,6 +2193,8 @@ def run_audit(content, filename, user_id=None, environment_id=None):
         "encoding_info": parsed.get("encoding_info", {}),
         "suggested_ini": comparison.get("suggested_ini", ""),
         "llm_summary": llm_result["summary"] if llm_result else None,
+        "llm_provider": llm_result["provider"] if llm_result else None,
+        "llm_model": llm_result["model"] if llm_result else None,
         "parsed": {
             "total_sections": parsed["meta"]["total_sections"],
             "total_keys": parsed["meta"]["total_keys"],
