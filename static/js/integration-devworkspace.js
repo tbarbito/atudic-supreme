@@ -1763,7 +1763,7 @@ async function wsOpenProcesso(params) {
                     '</button>' +
                 '</div>' +
                 '<div id="ws-fluxo-content">' +
-                    (proc.fluxo_mermaid ? '<pre class="bg-light p-2 rounded" style="font-size:0.78rem;max-height:300px;overflow:auto">' + proc.fluxo_mermaid + '</pre>' : '<p class="text-muted">Clique em "Gerar fluxo" para criar o diagrama.</p>') +
+                    (proc.fluxo_mermaid ? '<div class="mermaid-pending" data-mermaid="' + btoa(unescape(encodeURIComponent(proc.fluxo_mermaid))) + '"></div>' : '<p class="text-muted">Clique em "Gerar fluxo" para criar o diagrama.</p>') +
                 '</div>' +
             '</div></div></div>' +
             '<div class="col-md-6"><div class="card"><div class="card-body">' +
@@ -1802,6 +1802,8 @@ async function wsOpenProcesso(params) {
         '</div></div>';
 
         container.innerHTML = html;
+        // Renderizar Mermaid se houver diagrama
+        _wsRenderMermaidPending();
     } catch (e) {
         container.innerHTML = '<div class="alert alert-danger">Erro: ' + e.message + '</div>';
     }
@@ -1813,7 +1815,9 @@ async function wsGerarFluxo(params) {
     el.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm"></div> Gerando fluxo...</div>';
     try {
         var result = await apiRequest('/workspace/workspaces/' + slug + '/processos/' + params.id + '/fluxo?force=true', 'POST');
-        el.innerHTML = '<pre class="bg-light p-2 rounded" style="font-size:0.78rem;max-height:300px;overflow:auto">' + (result.fluxo_mermaid || '') + '</pre>';
+        var mermaidCode = result.fluxo_mermaid || '';
+        el.innerHTML = '<div class="mermaid-pending" data-mermaid="' + btoa(unescape(encodeURIComponent(mermaidCode))) + '"></div>';
+        _wsRenderMermaidPending();
     } catch (e) {
         el.innerHTML = '<div class="text-danger">Erro: ' + e.message + '</div>';
     }
@@ -1891,4 +1895,58 @@ async function wsSendProcChat(params) {
         var streamEl2 = document.getElementById('ws-proc-streaming');
         if (streamEl2) streamEl2.innerHTML = '<span class="d-inline-block p-2 rounded bg-danger text-white" style="font-size:0.85rem">Erro: ' + e.message + '</span>';
     }
+}
+
+// =====================================================================
+// MERMAID RENDERING (carrega via CDN sob demanda)
+// =====================================================================
+
+var _wsMermaidLoaded = false;
+var _wsMermaidLoading = false;
+
+function _wsLoadMermaid(callback) {
+    if (_wsMermaidLoaded) { callback(); return; }
+    if (_wsMermaidLoading) { setTimeout(function() { _wsLoadMermaid(callback); }, 200); return; }
+    _wsMermaidLoading = true;
+    var script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+    script.onload = function() {
+        window.mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' });
+        _wsMermaidLoaded = true;
+        _wsMermaidLoading = false;
+        callback();
+    };
+    script.onerror = function() {
+        _wsMermaidLoading = false;
+        console.error('Erro ao carregar Mermaid.js');
+    };
+    document.head.appendChild(script);
+}
+
+function _wsRenderMermaidPending() {
+    var elements = document.querySelectorAll('.mermaid-pending');
+    if (!elements.length) return;
+
+    _wsLoadMermaid(function() {
+        elements.forEach(function(el, idx) {
+            try {
+                var encoded = el.getAttribute('data-mermaid');
+                var code = decodeURIComponent(escape(atob(encoded)));
+                var id = 'ws-mermaid-' + Date.now() + '-' + idx;
+                el.classList.remove('mermaid-pending');
+                el.innerHTML = '<div class="text-center p-2"><div class="spinner-border spinner-border-sm"></div></div>';
+
+                window.mermaid.render(id, code).then(function(result) {
+                    el.innerHTML = '<div class="border rounded p-3 bg-white text-center" style="overflow-x:auto">' + result.svg + '</div>';
+                }).catch(function(err) {
+                    // Fallback: mostrar como texto
+                    el.innerHTML = '<pre class="bg-light p-2 rounded" style="font-size:0.78rem;max-height:300px;overflow:auto">' +
+                        code.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>' +
+                        '<small class="text-warning">Diagrama nao renderizavel: ' + (err.message || err) + '</small>';
+                });
+            } catch (e) {
+                el.innerHTML = '<small class="text-danger">Erro ao decodificar diagrama</small>';
+            }
+        });
+    });
 }
