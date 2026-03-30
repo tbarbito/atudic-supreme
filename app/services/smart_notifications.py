@@ -1,5 +1,5 @@
 """
-Serviço de Notificações Inteligentes do AtuDIC.
+Serviço de Notificações Inteligentes do BiizHubOps.
 
 Avalia regras de notificação configuráveis para decidir QUANDO alertar,
 evitando spam e notificando apenas quando realmente necessário.

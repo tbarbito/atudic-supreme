@@ -1,5 +1,5 @@
 """
-Providers de LLM para o Agente Inteligente do AtuDIC.
+Providers de LLM para o Agente Inteligente do BiizHubOps.
 
 Suporta 10+ providers via 3 adaptadores:
 - OpenAI-compatible (Ollama, OpenAI, Grok, DeepSeek, OpenRouter, Groq, Mistral, Together)
@@ -378,7 +378,7 @@ class LLMProvider:
             headers["Authorization"] = f"Bearer {self.api_key}"
         if self.provider_id == "openrouter":
             headers["HTTP-Referer"] = "https://atudic.dev"
-            headers["X-Title"] = "AtuDIC Agent"
+            headers["X-Title"] = "BiizHubOps Agent"
 
         try:
             timeout = self.options.get("timeout", PROVIDER_TIMEOUTS.get(self.provider_id, DEFAULT_TIMEOUT))
@@ -801,7 +801,7 @@ class LLMProvider:
         # OpenRouter precisa de headers extras
         if self.provider_id == "openrouter":
             headers["HTTP-Referer"] = "https://atudic.dev"
-            headers["X-Title"] = "AtuDIC Agent"
+            headers["X-Title"] = "BiizHubOps Agent"
 
         try:
             timeout = self.options.get("timeout", PROVIDER_TIMEOUTS.get(self.provider_id, DEFAULT_TIMEOUT))

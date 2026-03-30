@@ -1,5 +1,5 @@
 """
-Serviço de Memória Persistente do Agente Inteligente do AtuDIC.
+Serviço de Memória Persistente do Agente Inteligente do BiizHubOps.
 
 Gerencia 3 camadas de memória (semântica, episódica, procedural) com
 armazenamento em arquivos Markdown e indexação FTS5 no SQLite para

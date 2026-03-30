@@ -1,5 +1,5 @@
 """
-Configurações centralizadas do GolIAs — agente inteligente do AtuDIC.
+Configurações centralizadas do GolIAs — agente inteligente do BiizHubOps.
 
 Elimina magic numbers dos serviços do agente. Defaults hardcoded aqui,
 override via tabela agent_settings (PostgreSQL) no futuro.

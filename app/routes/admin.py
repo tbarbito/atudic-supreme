@@ -240,5 +240,5 @@ def test_webhook(webhook_id):
     if not webhook:
         return jsonify({"error": "Webhook não encontrado"}), 404
 
-    _send_webhook(dict(webhook), "WEBHOOK_TEST", {"message": "Teste de webhook AtuDIC"})
+    _send_webhook(dict(webhook), "WEBHOOK_TEST", {"message": "Teste de webhook BiizHubOps"})
     return jsonify({"success": True, "message": f"Evento de teste enviado para {webhook['url']}"})

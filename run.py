@@ -1,5 +1,5 @@
 """
-AtuDIC - Ponto de entrada da aplicação.
+BiizHubOps - Ponto de entrada da aplicação.
 """
 
 # =====================================================================
@@ -174,7 +174,7 @@ def initialize_system():
     global token_encryption, audit_logger, pipeline_scheduler, log_monitor
 
     print("=" * 60)
-    print("🚀 ATUDIC - DASHBOARD e API BACKEND")
+    print("🚀 BIIZHUBOPS - DASHBOARD e API BACKEND")
     print("=" * 60)
 
     # 0. Validar ambiente
@@ -254,7 +254,7 @@ def initialize_system():
         print(f"⚠️ Log Monitor: {e}")
 
     # 6. Licenciamento
-    print("\n🎯 AtuDIC — licenciamento desabilitado nesta versão.")
+    print("\n🎯 BiizHubOps — licenciamento desabilitado nesta versão.")
 
     # 7. Verificações finais
     print("\n⚙️  Verificando configurações...")

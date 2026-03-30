@@ -142,7 +142,7 @@ class SandboxPolicy:
         """Resolve paths permitidos a partir de variaveis do ambiente."""
         paths = []
 
-        # Diretorio base do AtuDIC (sempre permitido)
+        # Diretorio base do BiizHubOps (sempre permitido)
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         paths.append(base_dir)
 

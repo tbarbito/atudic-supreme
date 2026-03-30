@@ -1,5 +1,5 @@
 /* ================================================================
-   ATUDIC DEVOPS - TEMA VISUAL MODERNO
+   BIIZHUBOPS DEVOPS - TEMA VISUAL MODERNO
    Cores azuladas estilo TOTVS com destaque laranja
    Versão: 1.0
    ================================================================ */
@@ -55,7 +55,7 @@
     --theme-sidebar-accent: #FF9800;
     
     /* Header */
-    --theme-header-bg: linear-gradient(135deg, #1E3A5F 0%, #0066CC 50%, #274C77 100%);
+    --theme-header-bg: linear-gradient(135deg, #0D1B2A 0%, #0066CC 70%, #F57C00 100%);
     
     /* Sombras */
     --theme-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
@@ -80,7 +80,7 @@
     --theme-border: #2D4A6A;
     --theme-border-strong: #3D5A80;
     
-    --theme-header-bg: linear-gradient(135deg, #0D1B2A 0%, #1E3A5F 50%, #0066CC 100%);
+    --theme-header-bg: linear-gradient(135deg, #0D1B2A 0%, #1E3A5F 60%, #F57C00 100%);
     
     --theme-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3);
     --theme-shadow-card-hover: 0 8px 25px rgba(0, 0, 0, 0.4);
@@ -628,7 +628,7 @@ body {
 
 /* === LOGIN === */
 .login-container {
-    background: linear-gradient(135deg, #0D1B2A 0%, #1E3A5F 50%, #0066CC 100%) !important;
+    background: linear-gradient(135deg, #0D1B2A 0%, #1E3A5F 40%, #0066CC 70%, #F57C00 100%) !important;
     min-height: 100vh;
 }
 
@@ -744,7 +744,7 @@ body {
 }
 
 [data-theme="dark"] .login-container {
-    background: linear-gradient(135deg, #0D1B2A 0%, #1E3A5F 50%, #0066CC 100%) !important;
+    background: linear-gradient(135deg, #0D1B2A 0%, #0D1B2A 40%, #1E3A5F 70%, #F57C00 100%) !important;
 }
 
 [data-theme="dark"] .login-card {

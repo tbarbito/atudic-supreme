@@ -103,7 +103,7 @@ class WorkspaceExporter:
     # ========================================================================
 
     def export_atudic_json(self, tabela: Optional[str] = None) -> dict:
-        """Exporta em formato AtuDic JSON para ingestao no AtuDIC."""
+        """Exporta em formato AtuDic JSON para ingestao no BiizHubOps."""
         result = {
             "format": "atudic-ingest",
             "version": "1.0",

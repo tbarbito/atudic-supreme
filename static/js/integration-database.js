@@ -1019,7 +1019,7 @@ function _renderConnModal() {
                             <select class="form-select" id="dbConnRefEnv">
                                 <option value="">(mesmo do ambiente ativo)</option>
                             </select>
-                            <div class="form-text">Ambiente AtuDIC que esta conexão representa. Permite cadastrar conexões de outros ambientes para consulta/comparação.</div>
+                            <div class="form-text">Ambiente BiizHubOps que esta conexão representa. Permite cadastrar conexões de outros ambientes para consulta/comparação.</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label" for="dbConnRole">Papel da Conexão</label>

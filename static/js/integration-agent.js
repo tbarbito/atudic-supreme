@@ -554,7 +554,7 @@ function agChatWelcome() {
     html += '<i class="fas fa-robot text-primary" style="font-size: 1.5rem;"></i>';
     html += '<div>';
     html += '<strong>GolIAs</strong>';
-    html += '<small class="text-muted d-block">Operador inteligente do AtuDIC — execute comandos em linguagem natural</small>';
+    html += '<small class="text-muted d-block">Operador inteligente do BiizHubOps — execute comandos em linguagem natural</small>';
     html += '</div>';
     html += '</div>';
 

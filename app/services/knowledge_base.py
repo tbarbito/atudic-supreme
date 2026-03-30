@@ -1,5 +1,5 @@
 """
-Serviço de Base de Conhecimento do AtuDIC.
+Serviço de Base de Conhecimento do BiizHubOps.
 
 Gerencia artigos de erros conhecidos do Protheus, correlaciona com alertas
 detectados pelo log parser, e fornece sugestões de correção automáticas.

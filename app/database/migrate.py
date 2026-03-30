@@ -1,5 +1,5 @@
 """
-Sistema de migrations para o banco de dados AtuDIC.
+Sistema de migrations para o banco de dados BiizHubOps.
 
 Executa migrations incrementais a partir de arquivos Python em app/database/migrations/.
 Cada migration é um módulo com funções upgrade() e downgrade().

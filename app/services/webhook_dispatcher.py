@@ -54,7 +54,7 @@ def _send_webhook(webhook, event_type, payload):
     name = webhook["name"]
 
     # Montar headers
-    headers = {"Content-Type": "application/json", "User-Agent": "AtuDIC-Webhook/1.0"}
+    headers = {"Content-Type": "application/json", "User-Agent": "BiizHubOps-Webhook/1.0"}
     try:
         custom_headers = json.loads(webhook.get("headers", "{}") or "{}")
         headers.update(custom_headers)

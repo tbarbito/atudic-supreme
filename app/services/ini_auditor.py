@@ -1345,7 +1345,7 @@ def _generate_suggested_ini(parsed, findings, commented_findings, practices, unk
 
     # Montar INI sugerido — arquivo original como base
     lines = []
-    lines.append(f"; === INI SUGERIDO (gerado pelo Auditor AtuDIC) ===")
+    lines.append(f"; === INI SUGERIDO (gerado pelo Auditor BiizHubOps) ===")
     lines.append(f"; Base: arquivo enviado ({ini_type})")
     lines.append(f"; Correções de impacto + chaves desconhecidas comentadas")
     lines.append(f"; Marcadores: [CORRIGIDO], [DESCOMENTADO], [ADICIONADO-CRITICO], [SUJEIRA]")

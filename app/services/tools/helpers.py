@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 def _internal_api(method, path, json_body=None, headers=None):
-    """Faz request interno às APIs do AtuDIC usando test_client.
+    """Faz request interno às APIs do BiizHubOps usando test_client.
     Reutiliza as rotas existentes com todas as validações.
     """
     from flask import current_app, request

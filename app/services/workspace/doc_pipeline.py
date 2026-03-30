@@ -7,7 +7,7 @@ Gera documentacao completa de um modulo Protheus:
 2. Analista de Fontes → Secoes 15-17 (codigo)
 3. Documentador → Consolida 19 secoes (humano + ia)
 
-Origem: ExtraiRPO (Joni) adaptado para AtuDIC Supreme.
+Origem: ExtraiRPO (Joni) adaptado para BiizHubOps Supreme.
 """
 
 import json
@@ -266,7 +266,7 @@ Mantenha consistencia. Use tabelas markdown e diagramas Mermaid quando util."""
         prompt_path = Path(f"prompt/specialists/{specialist_name}.md")
         if prompt_path.exists():
             return prompt_path.read_text(encoding="utf-8")
-        return f"Voce e o especialista {specialist_name} do AtuDIC Supreme."
+        return f"Voce e o especialista {specialist_name} do BiizHubOps Supreme."
 
     # ========================================================================
     # SAVE

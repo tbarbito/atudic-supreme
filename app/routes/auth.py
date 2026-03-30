@@ -58,7 +58,7 @@ def login():
         return jsonify({"error": "Usuário ou senha inválidos"}), 401
 
     # ============================================================
-    # Licença desabilitada no AtuDIC (modo demo)
+    # Licença desabilitada no BiizHubOps (modo demo)
     # ============================================================
 
     # Verifica sessão única - MAS considera timeout expirado
@@ -407,7 +407,7 @@ def forgot_password():
 
         body_content = f"""
             <h3 style="color: #1565c0; margin: 0 0 16px 0; border-bottom: 2px solid #1565c0; padding-bottom: 10px;">Recuperação de Senha</h3>
-            <p>Recebemos uma solicitação de recuperação de senha no <strong>AtuDIC</strong>.</p>
+            <p>Recebemos uma solicitação de recuperação de senha no <strong>BiizHubOps</strong>.</p>
             <p>{'Encontramos as seguintes contas vinculadas ao seu e-mail. Use o código correspondente:' if len(user_tokens) > 1 else 'Use o código abaixo para redefinir sua senha:'}</p>
             {users_html_light}
             <p style="color: #666; font-size: 13px;">{'Os códigos expiram' if len(user_tokens) > 1 else 'Este código expira'} em <strong>30 minutos</strong>.</p>
@@ -418,7 +418,7 @@ def forgot_password():
 
         send_email_async(
             [users[0]["email"]],
-            "AtuDIC — Recuperação de Senha",
+            "BiizHubOps — Recuperação de Senha",
             body_html
         )
 

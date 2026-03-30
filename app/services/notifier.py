@@ -8,14 +8,14 @@ from app.database import get_db, release_db_connection
 
 def email_base_template(title_text, title_color, body_content, footer_extra=''):
     """
-    Template base HTML para todos os emails do sistema AtuDIC.
+    Template base HTML para todos os emails do sistema BiizHubOps.
     Tema claro, limpo, sem logo (logo já configurado no client de email).
     """
     return f"""
     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 640px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 10px; overflow: hidden; background-color: #ffffff;">
         <!-- Header -->
         <div style="background-color: {title_color}; padding: 18px 24px;">
-            <span style="color: #ffffff; font-size: 20px; font-weight: 700; letter-spacing: 0.5px;">AtuDIC</span>
+            <span style="color: #ffffff; font-size: 20px; font-weight: 700; letter-spacing: 0.5px;">BiizHubOps</span>
             <span style="color: rgba(255,255,255,0.85); font-size: 14px; font-weight: 400; margin-left: 8px;">{title_text}</span>
         </div>
         <!-- Body -->
@@ -25,7 +25,7 @@ def email_base_template(title_text, title_color, body_content, footer_extra=''):
         <!-- Footer -->
         <div style="background-color: #f5f5f5; padding: 14px 24px; text-align: center; border-top: 1px solid #e0e0e0;">
             {f'<p style="margin: 0 0 6px 0; color: #888; font-size: 11px;">{footer_extra}</p>' if footer_extra else ''}
-            <p style="margin: 0; color: #999; font-size: 11px;">AtuDIC DevOps &mdash; Orquestrador CI/CD &amp; Monitoramento para TOTVS Protheus</p>
+            <p style="margin: 0; color: #999; font-size: 11px;">BiizHubOps DevOps &mdash; Orquestrador CI/CD &amp; Monitoramento para TOTVS Protheus</p>
         </div>
     </div>
     """
@@ -204,7 +204,7 @@ def send_pipeline_notification(pipeline_name, status, run_details, notify_emails
         return
 
     status_str = "SUCESSO" if status == 'success' else "FALHA"
-    subject = f"[{status_str}] AtuDIC: Pipeline '{pipeline_name}'"
+    subject = f"[{status_str}] BiizHubOps: Pipeline '{pipeline_name}'"
 
     title_color = "#1b5e20" if status == 'success' else "#b71c1c"
     badge_bg = "#2e7d32" if status == 'success' else "#c62828"
@@ -230,7 +230,7 @@ def send_pipeline_notification(pipeline_name, status, run_details, notify_emails
     html_body = email_base_template('Pipeline', title_color, body_content)
     
     status_icon = "✅" if status == 'success' else "❌"
-    wa_message = f"🚀 *AtuDIC* | *Pipeline*\n*Nome:* {pipeline_name}\n*Status:* {status_icon} {status_str}"
+    wa_message = f"🚀 *BiizHubOps* | *Pipeline*\n*Nome:* {pipeline_name}\n*Status:* {status_icon} {status_str}"
     # Não quebrar JSON payload do WhatsApp enviando quebra de linhas problemáticas:
     wa_message = wa_message.replace('\n', '\\n') if getattr(get_notification_settings(), 'whatsapp_api_method', '') != 'GET' else wa_message
     context = {"message": wa_message, "pipeline_name": pipeline_name, "status": status_str}
@@ -251,7 +251,7 @@ def send_service_action_notification(action_name, status, details, notify_emails
         return
 
     status_str = status.upper()
-    subject = f"[{status_str}] AtuDIC: {action_name}"
+    subject = f"[{status_str}] BiizHubOps: {action_name}"
 
     title_color = "#1b5e20" if status.lower() == 'success' else "#b71c1c"
     badge_bg = "#2e7d32" if status.lower() == 'success' else "#c62828"
@@ -272,7 +272,7 @@ def send_service_action_notification(action_name, status, details, notify_emails
 
     html_body = email_base_template('Comandos', title_color, body_content)
     
-    wa_message = f"⚙️ *AtuDIC* | *Service Action*\n*Nome:* {action_name}\n*Status:* {status_icon} {status_str}\n\n*Detalhes:*\n{formatted_wa}"
+    wa_message = f"⚙️ *BiizHubOps* | *Service Action*\n*Nome:* {action_name}\n*Status:* {status_icon} {status_str}\n\n*Detalhes:*\n{formatted_wa}"
     wa_message = wa_message.replace('\n', '\\n') if getattr(get_notification_settings(), 'whatsapp_api_method', '') != 'GET' else wa_message
     
     context = {"message": wa_message, "action_name": action_name, "status": status_str}

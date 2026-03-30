@@ -1,4 +1,4 @@
-"""MCP Server standalone — conecta protocolo MCP ao AtuDIC via REST API.
+"""MCP Server standalone — conecta protocolo MCP ao BiizHubOps via REST API.
 
 Arquitetura:
   - Le JSON-RPC do stdin (protocolo MCP)
@@ -33,14 +33,14 @@ from app.mcp.protocol import (
 logger = logging.getLogger("atudic-mcp")
 
 
-class AtuDICMCPServer:
-    """Servidor MCP que conecta agentes externos ao AtuDIC."""
+class BiizHubOpsMCPServer:
+    """Servidor MCP que conecta agentes externos ao BiizHubOps."""
 
     def __init__(self, base_url, api_key):
         """Inicializa o servidor MCP.
 
         Args:
-            base_url: URL base do AtuDIC (ex: http://localhost:5000).
+            base_url: URL base do BiizHubOps (ex: http://localhost:5000).
             api_key: Chave de API para autenticacao (at_xxx).
         """
         self.base_url = base_url.rstrip("/")
@@ -53,7 +53,7 @@ class AtuDICMCPServer:
         self._tools_cache = None
 
     def _api_get(self, path):
-        """Faz GET no gateway MCP do AtuDIC.
+        """Faz GET no gateway MCP do BiizHubOps.
 
         Args:
             path: Caminho relativo (ex: /api/mcp/tools).
@@ -65,14 +65,14 @@ class AtuDICMCPServer:
             resp = self.session.get(f"{self.base_url}{path}", timeout=30)
             return resp.json()
         except requests.ConnectionError:
-            return {"error": f"Nao foi possivel conectar ao AtuDIC em {self.base_url}"}
+            return {"error": f"Nao foi possivel conectar ao BiizHubOps em {self.base_url}"}
         except requests.Timeout:
-            return {"error": "Timeout ao conectar ao AtuDIC"}
+            return {"error": "Timeout ao conectar ao BiizHubOps"}
         except Exception as e:
             return {"error": f"Erro na requisicao: {str(e)}"}
 
     def _api_post(self, path, data):
-        """Faz POST no gateway MCP do AtuDIC.
+        """Faz POST no gateway MCP do BiizHubOps.
 
         Args:
             path: Caminho relativo (ex: /api/mcp/execute).
@@ -89,9 +89,9 @@ class AtuDICMCPServer:
             )
             return resp.json()
         except requests.ConnectionError:
-            return {"error": f"Nao foi possivel conectar ao AtuDIC em {self.base_url}"}
+            return {"error": f"Nao foi possivel conectar ao BiizHubOps em {self.base_url}"}
         except requests.Timeout:
-            return {"error": "Timeout ao executar ferramenta no AtuDIC"}
+            return {"error": "Timeout ao executar ferramenta no BiizHubOps"}
         except Exception as e:
             return {"error": f"Erro na requisicao: {str(e)}"}
 
@@ -221,7 +221,7 @@ class AtuDICMCPServer:
         Le mensagens do stdin, processa, e escreve respostas no stdout.
         Roda ate EOF no stdin.
         """
-        logger.info("AtuDIC MCP Server iniciado — conectando a %s", self.base_url)
+        logger.info("BiizHubOps MCP Server iniciado — conectando a %s", self.base_url)
 
         while True:
             msg = read_message()

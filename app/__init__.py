@@ -1,3 +1,3 @@
 """
-AtuDIC_2 Application Package
+BiizHubOps_2 Application Package
 """

@@ -1380,7 +1380,7 @@ setInterval(() => {
 }, 5000); // Verificar a cada 5 segundos
 // Inicialização do sistema
 async function initializeApp() {
-    console.log('Inicializando AtuDIC...');
+    console.log('Inicializando BiizHubOps...');
     // Registrar Service Worker (scope '/' requer SW na raiz)
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(function () {});
@@ -1494,7 +1494,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Links externos abrem em nova aba (evita sair do AtuDIC)
+// Links externos abrem em nova aba (evita sair do BiizHubOps)
 document.addEventListener('click', function(e) {
     const link = e.target.closest('a[href]');
     if (!link) return;
@@ -2082,7 +2082,7 @@ function initNotificationSystem() {
 // (DOMContentLoaded duplicado removido - já registrado no início deste módulo)
 
 // STATUS FINAL DO SISTEMA
-console.log('\n=== SISTEMA AtuDIC - STATUS FINAL ===');
+console.log('\n=== SISTEMA BiizHubOps - STATUS FINAL ===');
 console.log('✓ Login: Toggle de senha funcionando');
 console.log('✓ Navegação: Controle de permissões ativo');
 console.log('✓ Usuários: CRUD completo com perfis');

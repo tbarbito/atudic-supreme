@@ -162,7 +162,7 @@ class BaseSpecialistAgent:
             # Fallback: prompt generico com nome do specialist
             prompt = (
                 f"Voce e um agente especialista em **{self.specialist.description or self.name}** "
-                f"dentro da plataforma AtuDIC.\n"
+                f"dentro da plataforma BiizHubOps.\n"
                 f"Sua funcao e executar tarefas do dominio '{self.name}' de forma autonoma.\n"
             )
 

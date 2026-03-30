@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Workspace Services — Engenharia Reversa Protheus
-Origem: ExtraiRPO (Joni) adaptado para AtuDIC Supreme.
+Origem: ExtraiRPO (Joni) adaptado para BiizHubOps Supreme.
 
 Modulos:
 - parser_sx: Parse de CSVs SX (SX2, SX3, SIX, SX7, SX1, SX5, SX6, SX9, SXA, SXB)

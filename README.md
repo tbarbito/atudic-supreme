@@ -1,4 +1,4 @@
-# AtuDIC DevOps
+# BiizHubOps DevOps
 
 Orquestrador CI/CD + Observabilidade para ERP TOTVS Protheus.
 

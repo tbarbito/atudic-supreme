@@ -1,5 +1,5 @@
 /**
- * Módulo de Processos da Empresa — AtuDIC
+ * Módulo de Processos da Empresa — BiizHubOps
  *
  * Gerencia processos de negócio do ERP Protheus:
  * - Lista de processos (por módulo)

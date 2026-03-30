@@ -1,5 +1,5 @@
 """
-AtuDIC - Rotas de Monitoramento
+BiizHubOps - Rotas de Monitoramento
 
 Endpoints para configuração e consulta do monitoramento de logs do Protheus.
 """

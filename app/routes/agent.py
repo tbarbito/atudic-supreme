@@ -1,5 +1,5 @@
 """
-Rotas do Agente Inteligente do AtuDIC.
+Rotas do Agente Inteligente do BiizHubOps.
 
 Endpoints para gerenciar a memória persistente do agente:
 busca BM25, ingestão de arquivos, CRUD de entradas e estatísticas.
@@ -715,7 +715,7 @@ def end_chat_session(session_id):
 @agent_bp.route("/api/agent/context/reload", methods=["POST"])
 @require_admin
 def reload_agent_context():
-    """Recarrega o system prompt do agente a partir do arquivo AtuDIC_AGENT_CONTEXT.md."""
+    """Recarrega o system prompt do agente a partir do arquivo BiizHubOps_AGENT_CONTEXT.md."""
     from app.services.agent_chat import reload_system_prompt
 
     info = reload_system_prompt()

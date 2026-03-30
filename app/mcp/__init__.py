@@ -1,5 +1,5 @@
-# MCP Server — Model Context Protocol para AtuDIC
-# Expoe ferramentas do AtuDIC para agentes IA externos (Claude Code, Cursor, etc.)
+# MCP Server — Model Context Protocol para BiizHubOps
+# Expoe ferramentas do BiizHubOps para agentes IA externos (Claude Code, Cursor, etc.)
 #
 # Arquitetura:
 #   Claude Code / Agente Externo

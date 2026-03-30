@@ -12,7 +12,7 @@ from app.services.repo_helpers import decrypt_github_token
 
 GITHUB_HEADERS_BASE = {
     'Accept': 'application/vnd.github.v3+json',
-    'User-Agent': 'AtuDIC-DevOps'
+    'User-Agent': 'BiizHubOps-DevOps'
 }
 
 

@@ -1,5 +1,5 @@
 """
-Motor do GolIAs — Agente Inteligente do AtuDIC.
+Motor do GolIAs — Agente Inteligente do BiizHubOps.
 
 Dois modos de operação:
 1. Rule-based: pattern matching + BM25 + consultas PostgreSQL (sem LLM)
@@ -1285,7 +1285,7 @@ class AgentChatEngine:
                             {
                                 "role": "user",
                                 "content": f"SANDBOX: Tool '{tool_name}' bloqueada — system tools nao habilitadas neste ambiente. "
-                                "Use as ferramentas padrao do AtuDIC ou encerre.",
+                                "Use as ferramentas padrao do BiizHubOps ou encerre.",
                             }
                         )
                         steps.append(

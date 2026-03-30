@@ -1419,7 +1419,7 @@ _ENV_SUFFIX_MAP = {
 
 def _get_rest_credentials(environment_id):
     """
-    Busca credenciais REST do Protheus nas server_variables do AtuDIC.
+    Busca credenciais REST do Protheus nas server_variables do BiizHubOps.
 
     Usa as mesmas variaveis que o runner de pipelines:
         PROTHEUS_USER_<SUFFIX>      (ex: PROTHEUS_USER_PRD)
@@ -1480,7 +1480,7 @@ def _phase4_tcrefresh(target_conn_id, phase1_stmts):
     e chama o endpoint ZATUREF no AppServer para cada uma.
     Retry automatico: ate 3 tentativas por tabela com intervalo de 2s.
 
-    Credenciais buscadas das server_variables do AtuDIC:
+    Credenciais buscadas das server_variables do BiizHubOps:
         PROTHEUS_USER_<SUFFIX> / PROTHEUS_PASSWORD_<SUFFIX>
         Fallback: PROTHEUS_USER / PROTHEUS_PASSWORD
 

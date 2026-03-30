@@ -4,10 +4,10 @@ WorkspacePopulator — Alimenta SQLite do workspace a partir de multiplas fontes
 
 Modos de operacao:
 - offline: CSVs exportados do Protheus (parser_sx)
-- live: Conexao direta ao banco Protheus (database_connections do AtuDIC)
+- live: Conexao direta ao banco Protheus (database_connections do BiizHubOps)
 - hibrido: Dicionario do DB + fontes do filesystem
 
-Este modulo e a ponte entre ExtraiRPO (CSV-based) e AtuDIC (DB-based).
+Este modulo e a ponte entre ExtraiRPO (CSV-based) e BiizHubOps (DB-based).
 """
 
 import json
@@ -425,11 +425,11 @@ class WorkspacePopulator:
                          environment_id: int = None, progress_callback=None) -> dict:
         """Popula workspace lendo SX* diretamente do banco Protheus.
 
-        Usa database_browser e dictionary_compare do AtuDIC para conectar
+        Usa database_browser e dictionary_compare do BiizHubOps para conectar
         ao banco Protheus e ler as tabelas de metadados.
 
         Args:
-            connection_id: ID da conexao em database_connections (PostgreSQL AtuDIC)
+            connection_id: ID da conexao em database_connections (PostgreSQL BiizHubOps)
             company_code: Codigo da empresa (M0_CODIGO), default "01"
             environment_id: ID do ambiente (opcional, para rastreamento)
             progress_callback: Funcao(fase, item, total) para progresso
@@ -444,7 +444,7 @@ class WorkspacePopulator:
             if progress_callback:
                 progress_callback(fase, item, total)
 
-        # Importar modulos do AtuDIC
+        # Importar modulos do BiizHubOps
         from app.services.database_browser import get_connection_config, _get_external_connection
 
         _report("connect", "Conectando ao banco Protheus...")

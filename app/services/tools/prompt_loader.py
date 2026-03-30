@@ -1,7 +1,7 @@
 """
 Carregamento e cache do system prompt do agente GolIAs.
 
-Carrega o prompt core (ATUDIC_AGENT_CONTEXT_CORE.md) com fallback
+Carrega o prompt core (BIIZHUBOPS_AGENT_CONTEXT_CORE.md) com fallback
 para o prompt legado ou fallback hardcoded.
 """
 import os
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 _SYSTEM_PROMPT_CACHE = None
 
 _SYSTEM_PROMPT_FALLBACK = (
-    "Voce e o GolIAs, Agente Orquestrador e Executor de Tarefas do AtuDIC, "
+    "Voce e o GolIAs, Agente Orquestrador e Executor de Tarefas do BiizHubOps, "
     "plataforma DevOps para TOTVS Protheus.\n"
     "Voce NAO e um chatbot. Voce e um terminal inteligente: recebe comandos "
     "em linguagem natural, aciona ferramentas e entrega resultados.\n\n"
@@ -31,8 +31,8 @@ _SYSTEM_PROMPT_FALLBACK = (
 def load_system_prompt():
     """Carrega system prompt core do arquivo, com cache.
 
-    Procura ATUDIC_AGENT_CONTEXT_CORE.md primeiro, fallback para
-    ATUDIC_AGENT_CONTEXT.md, fallback hardcoded.
+    Procura BIIZHUBOPS_AGENT_CONTEXT_CORE.md primeiro, fallback para
+    BIIZHUBOPS_AGENT_CONTEXT.md, fallback hardcoded.
     """
     global _SYSTEM_PROMPT_CACHE
     if _SYSTEM_PROMPT_CACHE is not None:
@@ -41,11 +41,11 @@ def load_system_prompt():
     # tools/ → services/ → app/ → projeto_raiz/
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
     candidates = [
-        os.path.join(base_dir, "prompt", "ATUDIC_AGENT_CONTEXT_CORE.md"),
-        os.path.join(base_dir, "prompt", "ATUDIC_AGENT_CONTEXT.md"),
-        os.path.join(base_dir, "prompt", "AtuDIC_AGENT_CONTEXT_CORE.md"),
-        os.path.join(base_dir, "prompt", "AtuDIC_AGENT_CONTEXT.md"),
-        os.path.join(base_dir, "memory", "AtuDIC_AGENT_CONTEXT.md"),
+        os.path.join(base_dir, "prompt", "BIIZHUBOPS_AGENT_CONTEXT_CORE.md"),
+        os.path.join(base_dir, "prompt", "BIIZHUBOPS_AGENT_CONTEXT.md"),
+        os.path.join(base_dir, "prompt", "BiizHubOps_AGENT_CONTEXT_CORE.md"),
+        os.path.join(base_dir, "prompt", "BiizHubOps_AGENT_CONTEXT.md"),
+        os.path.join(base_dir, "memory", "BiizHubOps_AGENT_CONTEXT.md"),
     ]
 
     for path in candidates:
@@ -64,7 +64,7 @@ def load_system_prompt():
             except Exception as e:
                 logger.warning("Erro ao carregar system prompt: %s", e)
 
-    logger.warning("Arquivo ATUDIC_AGENT_CONTEXT_CORE.md nao encontrado, usando fallback")
+    logger.warning("Arquivo BIIZHUBOPS_AGENT_CONTEXT_CORE.md nao encontrado, usando fallback")
     _SYSTEM_PROMPT_CACHE = _SYSTEM_PROMPT_FALLBACK
     return _SYSTEM_PROMPT_FALLBACK
 

@@ -40,7 +40,7 @@ TEMPLATE_DICIONARIO = Template("""# Dicionario de Dados
 
 ---
 
-*Documento gerado automaticamente pelo AtuDIC.*
+*Documento gerado automaticamente pelo BiizHubOps.*
 """)
 
 TEMPLATE_PROCESSOS = Template("""# Mapa de Processos do ERP Protheus
@@ -102,7 +102,7 @@ TEMPLATE_PROCESSOS = Template("""# Mapa de Processos do ERP Protheus
 
 ---
 
-*Documento gerado automaticamente pelo AtuDIC.*
+*Documento gerado automaticamente pelo BiizHubOps.*
 """)
 
 TEMPLATE_ERROS = Template("""# Guia de Erros do Protheus
@@ -150,7 +150,7 @@ TEMPLATE_ERROS = Template("""# Guia de Erros do Protheus
 {% endfor %}
 {% endfor %}
 
-*Documento gerado automaticamente pelo AtuDIC.*
+*Documento gerado automaticamente pelo BiizHubOps.*
 """)
 
 TEMPLATE_COMBINADO = Template("""# Documentacao Tecnica Completa

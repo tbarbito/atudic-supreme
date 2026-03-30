@@ -2,7 +2,7 @@
 """
 AgentConfig — Configuracao centralizada do agente GolIAs Supreme.
 
-Unifica configs do AtuDIC (GolIAs) + ExtraiRPO (Analista).
+Unifica configs do BiizHubOps (GolIAs) + ExtraiRPO (Analista).
 """
 
 
@@ -47,13 +47,13 @@ class AgentConfig:
     WORKSPACE_CHUNK_OVERLAP = 400  # Overlap entre chunks de fonte
 
     # === Specialists ===
-    # Total: 15 (9 AtuDIC + 6 ExtraiRPO)
+    # Total: 15 (9 BiizHubOps + 6 ExtraiRPO)
     SPECIALIST_COUNT = 15
     MAX_PARALLEL_AGENTS = 3  # Maximo de sub-agentes simultaneos
     MAX_CHAIN_STEPS = 4  # Maximo de etapas em chain orchestration
 
     # === Tools ===
-    # Total: 63+ (59 AtuDIC + 4 workspace)
+    # Total: 63+ (59 BiizHubOps + 4 workspace)
     TOOL_COUNT = 63
 
     # === RBAC ===

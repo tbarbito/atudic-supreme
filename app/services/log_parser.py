@@ -1,5 +1,5 @@
 """
-AtuDIC - Protheus Log Parser & Monitor
+BiizHubOps - Protheus Log Parser & Monitor
 
 Parser para console.log e error.log do TOTVS Protheus AppServer.
 Identifica padrões de erro, warning e métricas operacionais.
@@ -1058,7 +1058,7 @@ def scan_log(config_id, flask_app=None):
                                 )
                                 send_email_async(
                                     emails,
-                                    f"[AtuDIC] Alerta {alert['severity']}: {alert['category']}",
+                                    f"[BiizHubOps] Alerta {alert['severity']}: {alert['category']}",
                                     body,
                                 )
         except Exception:
@@ -1199,7 +1199,7 @@ class LogMonitor:
         if notif and notif.get('smtp_server'):
             from app.services.notifier import email_base_template
 
-            subject = f"[AtuDIC] {critical_count} alerta(s) crítico(s) - {env_name}"
+            subject = f"[BiizHubOps] {critical_count} alerta(s) crítico(s) - {env_name}"
 
             body_content = f"""
                 <h3 style="color: #c62828; margin: 0 0 16px 0; border-bottom: 2px solid #c62828; padding-bottom: 10px;">
@@ -1231,7 +1231,7 @@ class LogMonitor:
                         <td style="color: #333;">{scan_result.get('lines_read', 0)}</td>
                     </tr>
                 </table>
-                <p style="color: #1565c0; margin: 0;">Acesse o painel de Monitoramento do AtuDIC para detalhes e ações.</p>
+                <p style="color: #1565c0; margin: 0;">Acesse o painel de Monitoramento do BiizHubOps para detalhes e ações.</p>
             """
 
             body = email_base_template('Monitoramento', '#b71c1c', body_content)

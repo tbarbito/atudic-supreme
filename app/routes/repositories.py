@@ -357,7 +357,7 @@ def push_repository(repo_id):
             git_email = f"{git_user}@users.noreply.github.com"
         else:
             # Fallback para usuário logado
-            git_user = request.current_user.get("name", "AtuDIC")
+            git_user = request.current_user.get("name", "BiizHubOps")
             git_email = request.current_user.get("email", "devops@atudic.local")
         
         execute_git_command_safely(['git', 'config', 'user.name', git_user], cwd=repo_path)
@@ -517,7 +517,7 @@ def list_branches(repo_id):
         if not os.path.isdir(repo_dir):
             continue
 
-        # Verifica se é estrutura branch-por-pasta (AtuDIC pattern):
+        # Verifica se é estrutura branch-por-pasta (BiizHubOps pattern):
         # BASE_DIR/repo/master/.git, BASE_DIR/repo/homolog/.git, etc.
         # Cada subpasta é um clone --single-branch separado
         try:

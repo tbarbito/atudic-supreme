@@ -1,6 +1,6 @@
 """MCP Gateway — endpoints REST para o Model Context Protocol.
 
-Expoe as ferramentas do AtuDIC para agentes IA externos.
+Expoe as ferramentas do BiizHubOps para agentes IA externos.
 O servidor MCP standalone (app/mcp/server.py) consome estes endpoints.
 
 Endpoints:
@@ -69,7 +69,7 @@ def _get_api_key_user_id():
 
 
 def _tool_to_mcp_schema(tool):
-    """Converte schema interno do AtuDIC para formato MCP (JSON Schema).
+    """Converte schema interno do BiizHubOps para formato MCP (JSON Schema).
 
     O registro interno usa:
         [{"name": "x", "type": "int", "description": "..."}]
@@ -162,7 +162,7 @@ def mcp_list_tools():
 @mcp_bp.route("/api/mcp/execute", methods=["POST"])
 @require_api_key
 def mcp_execute_tool():
-    """Executa uma ferramenta do AtuDIC.
+    """Executa uma ferramenta do BiizHubOps.
 
     Body JSON:
         {

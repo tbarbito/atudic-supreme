@@ -269,7 +269,7 @@ class ResponseComposer:
             profile = user_info.get("profile", "viewer")
             env_name = user_info.get("environment_name", "Nao selecionado")
             return f"Voce e **{name}** (`{username}`), perfil **{profile}**, logado no ambiente **{env_name}**."
-        return "Voce esta logado no AtuDIC. Selecione um ambiente no seletor do topo da pagina para comecar."
+        return "Voce esta logado no BiizHubOps. Selecione um ambiente no seletor do topo da pagina para comecar."
 
     def _text_general(self, entities, sections, context):
         memory = [s for s in sections if s["type"] == "memory"]

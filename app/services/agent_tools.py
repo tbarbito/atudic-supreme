@@ -2,7 +2,7 @@
 Agent Tools — Ferramentas que o agente pode executar no sistema.
 
 REGRA: O agente é apenas um ORQUESTRADOR. Ele NUNCA implementa lógica
-própria — sempre chama os serviços e funções que já existem no AtuDIC.
+própria — sempre chama os serviços e funções que já existem no BiizHubOps.
 
 Modularizado em:
 - app/services/tools/helpers.py — _internal_api, _serialize_rows, _check_permission
@@ -1349,7 +1349,7 @@ def init_tools():
 
     # --- Leitura (viewer+) ---
     register_tool(
-        "get_environments", "Lista ambientes do AtuDIC (PRD, HML, DEV, TST).", [], "viewer", _tool_get_environments
+        "get_environments", "Lista ambientes do BiizHubOps (PRD, HML, DEV, TST).", [], "viewer", _tool_get_environments
     )
     register_tool(
         "get_pipelines",

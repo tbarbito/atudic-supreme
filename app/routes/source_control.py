@@ -2,7 +2,7 @@
 Source Control — Endpoints de Controle de Versão (Git).
 
 Gerencia status, diff, staging, commit, push e discard de arquivos
-nos repositórios clonados pelo AtuDIC.
+nos repositórios clonados pelo BiizHubOps.
 """
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timezone
