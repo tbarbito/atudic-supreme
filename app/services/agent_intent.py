@@ -80,6 +80,30 @@ INTENT_RULES = {
         ],
         "priority": 8,
     },
+    "dictionary_analysis": {
+        "patterns": [
+            r"compar(ar|e|ação|acao|ou)\s+(dicion|SX|banco|HML|PRD|tabela)",  # Comparação de dicionário
+            r"equaliz(ar|e|ação|acao)",  # Equalização
+            r"diferenç(a|as)\s+(entre|do|da|nos|nas)\s+(banco|base|hml|prd|dicion)",  # Diferenças entre bancos
+            r"divergênci(a|as)\s+(entre|do|da|nos|nas)",  # Divergências
+            r"histórico\s+de\s+(compar|equaliz|dicion)",  # Histórico de comparações
+            r"compar\w+.*(HML|PRD|hml|prd|homolog|produ)",  # compare ... HML ... PRD
+            r"(HML|PRD|hml|prd).*(vs|x|versus|contra|com).*(HML|PRD|hml|prd)",  # HML vs PRD
+        ],
+        "keywords": [
+            "comparação",
+            "comparacao",
+            "compare",
+            "equalizar",
+            "equalizacao",
+            "equalização",
+            "divergência",
+            "divergencia",
+            "historico de comparacao",
+        ],
+        "priority": 8,
+        "case_sensitive": False,
+    },
     "table_info": {
         "patterns": [
             r"\bS[A-Z][0-9A-Z]\b",  # Tabelas Protheus: SC5, SA1, SB1, etc
@@ -89,10 +113,6 @@ INTENT_RULES = {
             r"\bMV_[A-Z]+\b",  # Parâmetros Protheus: MV_ESTNEG, MV_SPEDURL
             r"\bconex(ão|ao|ões|oes)\s+(de\s+)?banco\b",  # Conexões de banco
             r"\bbanco\s+(hml|prd|dev|producao|homologacao|teste)\b",  # banco HML, banco PRD
-            r"compar(ar|e|ação|acao|ou)\s+(dicion|SX|banco|HML|PRD)",  # Comparação de dicionário
-            r"equaliz(ar|e|ação|acao)",  # Equalização
-            r"diferença|divergência|divergencia",  # Diferenças (contexto DB)
-            r"histórico\s+de\s+(compar|equaliz|dicion)",  # Histórico de comparações
             r"\b(cliente|fornecedor|produto|pedido|nota|titulo|item|cadastro)s?\s.*(banco|base|hml|prd)",  # Consultas Protheus por entidade
             r"\b(trag|busqu|consult|list|mostr)\w*\s.*(banco|base|hml|prd|sql)",  # Ações em banco
         ],
@@ -119,16 +139,6 @@ INTENT_RULES = {
             "consulta",
             "parametro",
             "parâmetro",
-            "comparação",
-            "comparacao",
-            "compare",
-            "equalizar",
-            "equalizacao",
-            "diferença",
-            "diferenca",
-            "divergência",
-            "divergencia",
-            "historico de comparacao",
         ],
         "priority": 7,
         "case_sensitive": True,  # Tabelas Protheus sao SEMPRE maiusculas — evita false positive com "sim", "sub", etc
