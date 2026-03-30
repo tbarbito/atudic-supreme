@@ -1558,52 +1558,62 @@ function renderCommandsPagination() {
 // RENDERIZACAO DE HEADER TABS E SIDEBAR CONTEXTUAL
 // =====================================================================
 
-function renderHeaderTabs() {
+// NO-OPs para manter compatibilidade com códigos antigos que possam chamá-las
+function renderHeaderTabs() {}
+function renderContextualSidebar(catKey, activePage) {}
+
+function renderUnifiedSidebar(activePage) {
     const container = document.getElementById('headerTabs');
     if (!container) return;
-    let html = '';
+    
+    const activeCatKey = PAGE_TO_CATEGORY[activePage] || '';
+    let html = '<div class="d-flex flex-column gap-2">';
+    
     for (const [catKey, cat] of Object.entries(CATEGORIES)) {
         const hasAny = cat.pages.some(p => hasPermission(p));
         if (!hasAny) continue;
-        html += `<a class="header-tab" href="#" data-category="${catKey}" data-action="navigateCategory" data-params='{"category":"${catKey}"}'>
-                    <i class="fas ${cat.icon}"></i>
-                    <span class="header-tab-label">${cat.label}</span>
-                 </a>`;
+        
+        const isCatActive = (catKey === activeCatKey);
+        
+        // Main Category Row
+        html += `
+        <a class="header-tab d-flex align-items-center gap-3 px-3 py-3 rounded-3 text-decoration-none ${isCatActive ? 'active' : ''}" 
+           href="#" 
+           data-category="${catKey}" 
+           data-action="navigateCategory" 
+           data-params='{"category":"${catKey}"}'>
+            <i class="fas ${cat.icon} text-center" style="width: 20px;"></i>
+            <span class="fw-bold header-tab-label">${cat.label}</span>
+        </a>`;
+                 
+        // Submenus (Contextual Tree) - Rendidos apenas se a categoria for a ativa
+        if (isCatActive && cat.pages.length > 1) {
+            html += `<div class="contextual-submenu d-flex flex-column ms-4 mt-1 mb-2">`;
+            cat.pages.forEach(p => {
+                if (hasPermission(p)) {
+                    const meta = PAGE_LABELS[p];
+                    const isPageActive = (p === activePage);
+                    // Submenu item
+                    html += `
+                        <a class="nav-link contextual-link d-flex align-items-center gap-3 px-3 py-2 rounded-3 text-decoration-none ${isPageActive ? 'active' : ''}" 
+                           href="#" 
+                           data-page="${p}">
+                            <i class="fas ${meta.icon} text-center" style="font-size: 0.85rem; width: 16px;"></i>
+                            <span style="font-size: 0.85rem; font-weight: 500;">${meta.label}</span>
+                        </a>`;
+                }
+            });
+            html += `</div>`;
+        }
     }
+    html += '</div>';
     container.innerHTML = html;
-}
-
-function renderContextualSidebar(catKey, activePage) {
-    const sidebar = document.querySelector('.sidebar');
-    if (!sidebar) return;
-    const navContainer = sidebar.querySelector('.nav');
-    const cat = CATEGORIES[catKey];
-
-    if (!cat || cat.pages.length <= 1) {
-        document.body.classList.add('sidebar-hidden');
-        return;
-    }
-
-    document.body.classList.remove('sidebar-hidden');
-
-    const linksHtml = cat.pages
-        .filter(p => hasPermission(p))
-        .map(p => {
-            const meta = PAGE_LABELS[p];
-            return `<a class="nav-link ${p === activePage ? 'active' : ''}" href="#" data-page="${p}">
-                        <i class="fas ${meta.icon}"></i><span>${meta.label}</span>
-                    </a>`;
-        }).join('');
-
-    navContainer.innerHTML = linksHtml;
 }
 
 function updateSidebarByProfile() {
     if (!currentUser) return;
-    renderHeaderTabs();
     const page = window.location.hash.substring(1) || 'dashboard';
-    const catKey = PAGE_TO_CATEGORY[page];
-    if (catKey) renderContextualSidebar(catKey, page);
+    renderUnifiedSidebar(page);
 }
 
 function setupNavigation() {

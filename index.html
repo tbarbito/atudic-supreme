@@ -246,62 +246,86 @@
     <!-- Toast Container para Notificações -->
     <div class="toast-container-footer"></div>
 
-    <!-- App Container -->
-    <div id="app-container" class="app-container">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-top">
-                <div class="header-left">
-                    <button class="btn btn-link text-white me-2 d-md-none" data-action="toggleSidebar" title="Menu">
-                        <i class="fas fa-bars"></i>
-                    </button>
-                    <h4 class="mb-0 header-logo">
-                        <img src="/static/favicon.ico" alt="BiizHubOps" style="height:1.2em;vertical-align:middle;margin-right:8px">
-                        <span class="header-logo-text">BiizHubOps</span>
-                    </h4>
+    <!-- App Container (Stitch Kinetic Precision Layout) -->
+    <div id="app-container" class="app-container d-flex flex-row vh-100 overflow-hidden" style="background-color: var(--theme-bg-primary);">
+
+        <!-- Left Sidebar (Aside) -->
+        <aside class="sidebar-main d-none d-md-flex flex-column shrink-0 shadow-lg" style="width: 256px; background-color: var(--theme-primary, #001b44); color: #fff; z-index: 1040;">
+            <div class="sidebar-brand p-4 d-flex align-items-center gap-3">
+                <div class="brand-icon d-flex align-items-center justify-content-center rounded-3" style="width: 32px; height: 32px; background-color: rgba(255,255,255,0.1);">
+                    <img src="/static/favicon.ico" alt="BiizHubOps" style="height: 20px;">
                 </div>
-                <nav class="header-tabs" id="headerTabs">
-                    <!-- Renderizado por renderHeaderTabs() -->
-                </nav>
-                <div class="header-right">
+                <div>
+                    <h1 class="m-0" style="font-family: 'Manrope', sans-serif; font-size: 1.15rem; font-weight: 800; letter-spacing: -0.5px;">BiizHubOps</h1>
+                    <p class="m-0 text-white-50" style="font-size: 0.65rem; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase;">Platform Admin</p>
+                </div>
+            </div>
+
+            <!-- Navigation Container (populated by JS) -->
+            <nav class="sidebar-nav-main flex-grow-1 px-3 mt-2 custom-scrollbar" id="headerTabs" style="overflow-y: auto;">
+                <!-- Renderizado dinamicamente por renderUnifiedSidebar() -->
+            </nav>
+
+            <!-- User Profile Footer -->
+            <div class="sidebar-footer p-4 d-flex align-items-center gap-3 mt-auto" style="border-top: 1px solid rgba(255,255,255,0.05);">
+                <div class="user-avatar rounded-circle d-flex justify-content-center align-items-center" style="width: 36px; height: 36px; border: 2px solid rgba(255,255,255,0.1); background-color: var(--theme-sidebar-accent, #F57C00);">
+                    <i class="fas fa-user text-white"></i>
+                </div>
+                <div class="flex-grow-1 overflow-hidden">
+                    <p class="m-0 text-white font-weight-bold text-truncate" id="current-user" style="font-size: 0.85rem;">Carregando...</p>
+                    <a href="#" data-bs-toggle="modal" data-bs-target="#aboutModal" class="text-white-50 text-decoration-none" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                        Super Admin <i class="fas fa-info-circle ms-1"></i>
+                    </a>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area Wrapper -->
+        <div class="flex-grow-1 d-flex flex-column overflow-hidden">
+            <!-- Top Navigation Bar -->
+            <header class="top-bar d-flex align-items-center justify-content-between px-4 shrink-0" style="height: 64px; background-color: var(--theme-surface-lowest, #ffffff); border-bottom: 1px solid var(--theme-border-ghost, rgba(0,0,0,0.06)); z-index: 1030;">
+                <!-- Left Side: Controls -->
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-link text-muted me-3 d-md-none" data-action="toggleSidebar" title="Menu">
+                        <i class="fas fa-bars fs-5"></i>
+                    </button>
+                    <div class="position-relative w-100 d-none d-md-block" style="max-width: 400px;">
+                        <i class="fas fa-search position-absolute text-muted" style="left: 1rem; top: 50%; transform: translateY(-50%); font-size: 0.875rem;"></i>
+                        <input type="text" class="form-control rounded-pill border-0 px-5 bg-light" placeholder="Buscar ativos..." style="height: 36px; font-size: 0.875rem; background-color: var(--theme-surface-low, #f5f3f3) !important;">
+                    </div>
+                </div>
+
+                <!-- Right Side: Actions & Settings -->
+                <div class="d-flex align-items-center gap-3">
                     <div id="environment-selector-container" class="d-flex align-items-center">
-                        <label for="environmentSelector" class="text-white me-2 small env-label">Ambiente:</label>
-                        <select id="environmentSelector" class="form-select form-select-sm" style="width:200px;"></select>
+                        <label for="environmentSelector" class="text-muted me-2 small fw-bold mb-0" style="font-size: 0.70rem; text-transform: uppercase; letter-spacing: 0.5px;">Env:</label>
+                        <select id="environmentSelector" class="form-select form-select-sm border-0 bg-transparent shadow-none fw-semibold" style="width:140px; cursor: pointer; color: var(--theme-primary, #0D1B2A);"></select>
                     </div>
-                    <button class="theme-toggle" id="themeToggleBtn" title="Alternar tema claro/escuro">
-                        <i class="fas fa-moon" id="theme-icon"></i>
-                    </button>
-                    <div class="dropdown">
-                        <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle"
-                            id="dropdownUser1" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-user me-2"></i>
-                            <strong id="current-user">Carregando...</strong>
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-dark text-small shadow dropdown-menu-end"
-                            aria-labelledby="dropdownUser1">
-                            <li><a class="dropdown-item" href="#" data-action="showChangePasswordModal">
-                                <i class="fas fa-key me-2"></i>Alterar Senha</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="#" data-action="logout" data-params='{"mode":false}'>
-                                <i class="fas fa-sign-out-alt me-2"></i>Sair</a></li>
-                        </ul>
+
+                    <div class="d-flex align-items-center gap-3 ps-3" style="border-left: 1px solid var(--theme-border-ghost, rgba(0,0,0,0.1));">
+                        <button class="btn btn-link text-muted p-0 position-relative" title="Notificações">
+                            <i class="fas fa-bell fs-5"></i>
+                            <span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle"></span>
+                        </button>
+                        <button class="btn btn-link text-muted p-0" id="themeToggleBtn" title="Alternar tema claro/escuro">
+                            <i class="fas fa-moon fs-5" id="theme-icon"></i>
+                        </button>
+                        <div class="dropdown">
+                            <a href="#" class="text-muted text-decoration-none dropdown-toggle" id="dropdownSettings" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-cog fs-5"></i>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 rounded-3 p-2" aria-labelledby="dropdownSettings">
+                                <li><a class="dropdown-item rounded-2 py-2" href="#" data-action="showChangePasswordModal"><i class="fas fa-key me-2 text-muted"></i> Alterar Senha</a></li>
+                                <li><hr class="dropdown-divider my-1 opacity-10"></li>
+                                <li><a class="dropdown-item rounded-2 py-2 text-danger fw-semibold" href="#" data-action="logout" data-params='{"mode":false}'><i class="fas fa-sign-out-alt me-2"></i> Desconectar</a></li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </header>
+            </header>
 
-        <!-- Sidebar Backdrop (mobile) -->
-        <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
-
-        <!-- Sidebar Contextual (renderizado por JS) -->
-        <nav class="sidebar" id="contextualSidebar">
-            <div class="nav nav-pills flex-column">
-                <!-- Renderizado dinamicamente por renderContextualSidebar() -->
-            </div>
-        </nav>
-
-        <!-- Main Content -->
-        <main class="main-content">
+            <!-- Scrollable Canvas -->
+            <main class="main-content flex-grow-1 overflow-auto custom-scrollbar p-4" style="background-color: var(--theme-bg-primary, #fbf9f8);">
             <div id="content-area">
                 <!-- Content will be loaded here dynamically -->
             </div>
@@ -415,6 +439,28 @@
                 </div>
             </div>
         </main>
+        </div> <!-- /flex-grow-1 column wrapper -->
+    </div> <!-- /app-container vh-100 flex-row -->
+
+    <!-- Modal Sobre BiizHubOps -->
+    <div class="modal fade" id="aboutModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow" style="border-radius: 16px; border: none; overflow: hidden;">
+                <div class="modal-header text-white" style="background-color: var(--theme-primary); border-bottom: none;">
+                    <h5 class="modal-title" style="font-family: 'Manrope', sans-serif; font-weight: 800;"><i class="fas fa-info-circle me-2"></i> BiizHubOps</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body text-center p-4 bg-white">
+                    <h4 style="font-weight: 800; font-family: 'Manrope', sans-serif; color: var(--theme-primary);">BiizHubOps</h4>
+                    <p class="text-muted mb-4" style="font-size: 0.9rem;">Plataforma DevOps Cloud Console Integrada</p>
+                    <div class="text-start p-3 rounded-3" style="border: 1px solid var(--theme-border-ghost, rgba(0,0,0,0.05)); background-color: var(--theme-surface-low, #fcfcfc);">
+                        <p class="mb-1" style="font-size: 0.85rem;"><strong style="color: var(--theme-primary);">Versão:</strong> 2.5 (Kinetic Precision)</p>
+                        <p class="mb-1" style="font-size: 0.85rem;"><strong style="color: var(--theme-primary);">Módulo:</strong> Automação e CI/CD Avançada</p>
+                        <p class="mb-0" style="font-size: 0.85rem;"><strong style="color: var(--theme-primary);">Arquitetura:</strong> ADVPL, GitHub, RPO Manager</p>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- TODOS OS MODALS NECESSÁRIOS -->
