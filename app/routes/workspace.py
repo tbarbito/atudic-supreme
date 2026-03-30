@@ -1919,7 +1919,10 @@ Baseie-se APENAS nos dados de investigacao fornecidos. Nao invente dados."""
             except json.JSONDecodeError:
                 analise_json_str = "{}"
 
-        analise_md = text[:json_match.start()].strip() if json_match else text.strip()
+        # Remover TODOS os blocos ```json...``` do markdown
+        analise_md = re.sub(r"```json\s*[\s\S]*?```", "", text).strip()
+        # Tambem remover texto residual tipo "**JSON Estruturado**" ou similar
+        analise_md = re.sub(r"\*\*JSON Estruturado\*\*.*$", "", analise_md, flags=re.DOTALL).strip()
 
         # Fase 4: Salvar
         from datetime import datetime
