@@ -633,18 +633,39 @@ async function scStageAll() {
         ...scState.untracked.map(f => f.path)
     ];
 
-    if (allFiles.length === 0) return;
+    if (allFiles.length === 0) {
+        showNotification('Nenhum arquivo para adicionar ao staging', 'info');
+        return;
+    }
 
-    try {
-        await apiStageFiles(scState.repoId, {
-            branch_name: scState.branch,
-            files: allFiles,
-            action: 'stage'
-        });
-        await scLoadStatus();
-        showNotification(`${allFiles.length} arquivo(s) adicionado(s) ao staging`, 'success');
-    } catch (e) {
-        showNotification('Erro ao adicionar ao staging: ' + (e.message || ''), 'error');
+    // Feedback visual
+    showNotification(`Adicionando ${allFiles.length} arquivo(s) ao staging...`, 'info', 5000);
+
+    // Enviar em batches de 50 para evitar timeout
+    const BATCH_SIZE = 50;
+    let stagedCount = 0;
+    let errors = [];
+
+    for (let i = 0; i < allFiles.length; i += BATCH_SIZE) {
+        const batch = allFiles.slice(i, i + BATCH_SIZE);
+        try {
+            await apiStageFiles(scState.repoId, {
+                branch_name: scState.branch,
+                files: batch,
+                action: 'stage'
+            });
+            stagedCount += batch.length;
+        } catch (e) {
+            errors.push(`Batch ${Math.floor(i/BATCH_SIZE)+1}: ${e.message || 'erro'}`);
+        }
+    }
+
+    await scLoadStatus();
+
+    if (errors.length > 0) {
+        showNotification(`${stagedCount} staged, ${errors.length} batch(es) com erro`, 'warning');
+    } else {
+        showNotification(`${stagedCount} arquivo(s) adicionado(s) ao staging`, 'success');
     }
 }
 
