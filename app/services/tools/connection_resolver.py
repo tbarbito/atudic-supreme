@@ -52,7 +52,7 @@ def _get_connections(environment_id):
     try:
         cursor.execute(
             """
-            SELECT id, name, driver, host, database_name, description
+            SELECT id, name, driver, host, database_name
             FROM database_connections
             WHERE environment_id = %s
             ORDER BY name
@@ -105,9 +105,8 @@ def _resolve_alias(alias_value, connections):
         if pattern.match(alias_str):
             for conn in connections:
                 conn_name = (conn.get("name") or "").lower()
-                conn_desc = (conn.get("description") or "").lower()
                 conn_db = (conn.get("database_name") or "").lower()
-                searchable = f"{conn_name} {conn_desc} {conn_db}"
+                searchable = f"{conn_name} {conn_db}"
                 for term in search_terms:
                     if term in searchable:
                         logger.info(
