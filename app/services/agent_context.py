@@ -633,6 +633,16 @@ class ContextBuilder:
                 elif isinstance(info, str):
                     parts.append(info[:500])
 
+        if context.get("db_connections"):
+            parts.append("### Conexoes de Banco Disponiveis")
+            parts.append("Use estes IDs ao chamar tools que exigem conn_id/connection_id. "
+                         "Se o usuario usar aliases (HML, PRD, dev, etc.), resolva para o ID correspondente.")
+            for c in context["db_connections"]:
+                driver = c.get("driver", "?")
+                host = c.get("host", "?")
+                db_name = c.get("database_name", "?")
+                parts.append(f"- **ID {c['id']}**: {c.get('name', '?')} ({driver}) — {host}/{db_name}")
+
         if context.get("environments"):
             parts.append("### Ambientes")
             for e in context["environments"]:

@@ -664,6 +664,19 @@ def create_chat_session():
     service = get_agent_memory()
     session_id = service.start_session(environment_id=env_id)
 
+    # Auto-seed working memory com conexoes do ambiente ativo
+    if env_id:
+        try:
+            from app.services.agent_working_memory import get_working_memory
+            from app.services.tools.connection_resolver import get_connections_summary, _get_connections
+
+            wm = get_working_memory()
+            connections = _get_connections(env_id)
+            for c in connections:
+                wm.add_entity(session_id, "db_connection", f"ID {c['id']}: {c.get('name', '?')}")
+        except Exception as e:
+            logger.debug("Auto-seed working memory falhou: %s", e)
+
     return jsonify({"session_id": session_id, "environment_id": env_id})
 
 

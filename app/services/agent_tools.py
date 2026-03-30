@@ -22,6 +22,7 @@ from app.services.tools.helpers import (
     _internal_api, _serialize_rows, _check_permission, PROFILE_LEVELS,
 )
 from app.services.tools.formatters import format_tool_result_for_llm
+from app.services.tools.connection_resolver import resolve_connection_params
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +104,11 @@ def execute_tool(tool_name, params, user_profile="viewer", environment_id=None, 
         params["environment_id"] = environment_id
     if user_id and "user_id" not in params:
         params["user_id"] = user_id
+
+    # Resolver aliases de conexao (HML, PRD, etc.) para IDs reais
+    params, conn_resolutions = resolve_connection_params(params, environment_id)
+    if conn_resolutions:
+        logger.info("Conexoes resolvidas: %s", "; ".join(conn_resolutions))
 
     try:
         result = tool["handler"](params)
@@ -1591,9 +1597,10 @@ def init_tools():
     # --- Admin — 9F-3 ---
     register_tool(
         "query_database",
-        "Executa SELECT em banco externo (DML/DDL bloqueados).",
+        "Executa SELECT em banco externo (DML/DDL bloqueados). "
+        "Use os IDs das conexões do contexto. Aceita nome/alias (HML, PRD) — o sistema resolve.",
         [
-            {"name": "connection_id", "type": "int", "description": "ID da conexão (obrigatório)"},
+            {"name": "connection_id", "type": "int|str", "description": "ID ou nome/alias da conexão (ex: 1, 'HML', 'Producao')"},
             {"name": "query", "type": "str", "description": "Query SQL SELECT (obrigatório)"},
             {"name": "max_rows", "type": "int", "description": "Máximo de linhas (padrão 100, máx 500)"},
         ],
@@ -1603,12 +1610,14 @@ def init_tools():
     )
     register_tool(
         "compare_dictionary",
-        "Compara dicionário Protheus entre dois bancos.",
+        "Compara dicionário Protheus entre dois bancos. "
+        "Use os IDs das conexões listadas no contexto. "
+        "Se o usuário disser HML/PRD/dev, use o nome ou alias como conn_id — o sistema resolve automaticamente.",
         [
-            {"name": "conn_id_a", "type": "int", "description": "ID da primeira conexão (obrigatório)"},
-            {"name": "conn_id_b", "type": "int", "description": "ID da segunda conexão (obrigatório)"},
+            {"name": "conn_id_a", "type": "int|str", "description": "ID ou nome/alias da primeira conexão (ex: 1, 'HML', 'Homologacao')"},
+            {"name": "conn_id_b", "type": "int|str", "description": "ID ou nome/alias da segunda conexão (ex: 2, 'PRD', 'Producao')"},
             {"name": "company_code", "type": "str", "description": "Código da empresa (padrão '01')"},
-            {"name": "tables", "type": "list", "description": "Tabelas a comparar (opcional)"},
+            {"name": "tables", "type": "list", "description": "Tabelas a comparar (opcional, ex: ['SX3'] para só SX3)"},
         ],
         "admin",
         _tool_compare_dictionary,
