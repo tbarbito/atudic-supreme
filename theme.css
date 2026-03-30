@@ -2074,3 +2074,120 @@ h1, h2, h3, h4, h5, h6 {
         max-height: 300px;
     }
 }
+
+/* ==========================================================================
+   KINETIC PRECISION FRAMEWORK - BIIZHUBOPS OVERRIDES
+   ========================================================================== */
+
+/* 1. Global Backgrounds and Surfaces */
+:root {
+    --theme-bg-primary: #fbf9f8;
+    --theme-surface-lowest: #ffffff;
+    --theme-surface-low: #f5f3f3;
+    --theme-border-ghost: rgba(0,27,68,0.06);
+    --theme-primary: #0D1B2A;
+    --theme-sidebar-accent: #F57C00;
+    --theme-shadow-ambient: 0 20px 40px rgba(13, 27, 42, 0.06);
+}
+
+[data-theme="dark"] {
+    --theme-bg-primary: #121212;
+    --theme-surface-lowest: #1e1e1e;
+    --theme-surface-low: #252525;
+    --theme-border-ghost: rgba(255,255,255,0.06);
+    --theme-primary: #0a1120;
+    --theme-sidebar-accent: #F57C00;
+    --theme-shadow-ambient: 0 20px 40px rgba(0,0,0,0.3);
+}
+
+body {
+    background-color: var(--theme-bg-primary) !important;
+    font-family: 'Inter', sans-serif;
+}
+
+h1, h2, h3, h4, h5, .card-title, .modal-title {
+    font-family: 'Manrope', sans-serif !important;
+    font-weight: 700;
+}
+
+/* 2. The No-Line Rule vs Soft Corners */
+.card, .shadow-sm, .dropdown-menu {
+    border: none !important;
+    border-radius: 16px !important;
+    box-shadow: var(--theme-shadow-ambient) !important;
+    background-color: var(--theme-surface-lowest) !important;
+}
+
+.card-header, .modal-header {
+    border-bottom: 1px solid var(--theme-border-ghost) !important;
+    background-color: transparent !important;
+}
+
+.card-footer, .modal-footer {
+    border-top: 1px solid var(--theme-border-ghost) !important;
+    background-color: transparent !important;
+}
+
+/* 3. Inputs & Forms (Pill shaped, no hard borders) */
+.form-control, .form-select {
+    border-radius: 12px;
+    border: 1px solid var(--theme-border-ghost);
+    background-color: var(--theme-surface-low);
+    transition: all 0.2s ease;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--theme-primary) !important;
+    box-shadow: 0 0 0 0.25rem rgba(13, 27, 42, 0.15) !important;
+}
+
+/* 4. Sidebar Active States & Hover Aesthetics */
+.sidebar-main {
+    transition: all 0.3s ease;
+    border-right: 1px solid var(--theme-border-ghost);
+}
+
+.header-tab {
+    color: rgba(255,255,255,0.7) !important;
+    transition: all 0.2s ease;
+}
+
+.header-tab:hover {
+    background-color: rgba(255,255,255,0.05);
+    color: #fff !important;
+}
+
+.header-tab.active {
+    background-color: rgba(255,255,255,0.1) !important;
+    color: #fff !important;
+    border-left: 3px solid var(--theme-sidebar-accent);
+}
+
+.contextual-submenu {
+    border-left: 2px solid rgba(255,255,255,0.1);
+    padding-left: 0.5rem;
+}
+
+.contextual-link {
+    color: rgba(255,255,255,0.5) !important;
+    transition: all 0.2s ease;
+}
+
+.contextual-link:hover {
+    color: rgba(255,255,255,0.9) !important;
+    background-color: rgba(255,255,255,0.03);
+}
+
+.contextual-link.active {
+    color: var(--theme-sidebar-accent) !important;
+    background-color: rgba(245, 124, 0, 0.1) !important;
+    font-weight: 600;
+}
+
+/* Adjust Table styling for no-line rule */
+.table {
+    border-collapse: separate;
+    border-spacing: 0 0.3rem;
+}
+.table th { border: none !important; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted); opacity: 0.8; }
+.table td { border-top: 1px solid var(--theme-border-ghost) !important; border-bottom: none !important; }
