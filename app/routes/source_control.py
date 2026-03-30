@@ -409,17 +409,47 @@ def git_stage(repo_id):
 
     try:
         if action == "stage":
-            cmd = ['git', 'add', '--'] + safe_files
+            # Tenta staging de todos os arquivos de uma vez
+            # Usa -A para cobrir adições, modificações E remoções
+            staged_ok = []
+            staged_err = []
+            for sf in safe_files:
+                try:
+                    execute_git_command_safely(
+                        ['git', 'add', '-A', '--', sf],
+                        cwd=repo_path, timeout=15
+                    )
+                    staged_ok.append(sf)
+                except Exception as e:
+                    staged_err.append({"file": sf, "error": str(e)})
         else:
-            cmd = ['git', 'reset', 'HEAD', '--'] + safe_files
-
-        execute_git_command_safely(cmd, cwd=repo_path, timeout=30)
+            staged_ok = []
+            staged_err = []
+            for sf in safe_files:
+                try:
+                    execute_git_command_safely(
+                        ['git', 'reset', 'HEAD', '--', sf],
+                        cwd=repo_path, timeout=15
+                    )
+                    staged_ok.append(sf)
+                except Exception as e:
+                    staged_err.append({"file": sf, "error": str(e)})
 
         verb = "adicionado(s) ao staging" if action == "stage" else "removido(s) do staging"
-        return jsonify({
+
+        if staged_err and not staged_ok:
+            # Todos falharam
+            errs = "; ".join([f"{e['file']}: {e['error']}" for e in staged_err])
+            return jsonify({"error": f"Erro ao {action}: {errs}"}), 500
+
+        response = {
             "success": True,
-            "message": f"{len(safe_files)} arquivo(s) {verb}"
-        })
+            "message": f"{len(staged_ok)} arquivo(s) {verb}"
+        }
+        if staged_err:
+            response["warnings"] = [f"{e['file']}: {e['error']}" for e in staged_err]
+
+        return jsonify(response)
     except Exception as e:
         return jsonify({"error": f"Erro ao {action}: {str(e)}"}), 500
 
