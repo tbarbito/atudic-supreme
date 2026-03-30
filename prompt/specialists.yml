@@ -51,12 +51,14 @@ database:
   description: "Banco de dados, conexoes, dicionario, equalizacao"
   intents:
     - table_info
+    - dictionary_analysis
   skills:
     - sql_protheus
     - dictionary_ops
     - dictionary_schema
     - database_ops
     - protheus_structure
+    - operations_database
   tools:
     - query_database
     - get_db_connections
@@ -98,6 +100,7 @@ devops:
     - service_ops
     - services_mgmt
     - devworkspace
+    - operations_devops
   tools:
     - get_pipelines
     - get_pipeline_status
@@ -266,6 +269,7 @@ dicionarista:
     - dictionary_ops
     - dictionary_schema
     - sql_protheus
+    - operations_database
   tools:
     - query_database
     - compare_dictionary

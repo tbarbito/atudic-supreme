@@ -1,7 +1,7 @@
 ---
 name: dictionary_ops
 description: Comparacao, validacao e equalizacao de dicionario Protheus
-intents: [table_info]
+intents: [table_info, dictionary_analysis]
 keywords: [dicionario, dictionary, comparar, compare, equalizar, equalize, SX2, SX3, SX5, SIX, SX7, SX9, SXB, campo, field, diferenca, divergencia, integridade, integrity]
 priority: 70
 max_tokens: 500
