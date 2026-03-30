@@ -17,11 +17,10 @@ planos/
 # Prompt: ignorar planos e docs internos, manter skills, contexto e config do agente
 prompt/*
 !prompt/skills/
-!prompt/ATUDIC_AGENT_CONTEXT.md
-!prompt/ATUDIC_AGENT_CONTEXT_CORE.md
+!prompt/BIIZHUBOPS_AGENT_CONTEXT.md
+!prompt/BIIZHUBOPS_AGENT_CONTEXT_CORE.md
 !prompt/specialists.yml
 !prompt/specialists/
-!prompt/ATUDIC_AGENT_CONTEXT_CORE.md
 .claude/
 
 # Arquivos de cache e compilados do Python
