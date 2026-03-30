@@ -2191,3 +2191,80 @@ h1, h2, h3, h4, h5, .card-title, .modal-title {
 }
 .table th { border: none !important; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted); opacity: 0.8; }
 .table td { border-top: 1px solid var(--theme-border-ghost) !important; border-bottom: none !important; }
+
+/* 5. Override legacy .sidebar .nav-link rules for Kinetic Precision */
+.sidebar-main .sidebar-nav-main .nav-link.contextual-link {
+    padding: 8px 12px !important;
+    margin: 2px 0 !important;
+    border-radius: 8px !important;
+    border-left: none !important;
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
+    color: rgba(255,255,255,0.55) !important;
+    background: transparent !important;
+}
+
+.sidebar-main .sidebar-nav-main .nav-link.contextual-link:hover {
+    background: rgba(255,255,255,0.06) !important;
+    color: rgba(255,255,255,0.9) !important;
+    border-left-color: transparent !important;
+}
+
+.sidebar-main .sidebar-nav-main .nav-link.contextual-link.active {
+    background: rgba(245, 124, 0, 0.12) !important;
+    color: var(--theme-sidebar-accent, #F57C00) !important;
+    border-left: none !important;
+    font-weight: 600 !important;
+}
+
+.sidebar-main .sidebar-nav-main .nav-link.contextual-link.active i {
+    color: var(--theme-sidebar-accent, #F57C00) !important;
+}
+
+.sidebar-main .sidebar-nav-main .nav-link.contextual-link i {
+    width: 16px !important;
+    margin-right: 8px !important;
+    font-size: 0.85rem !important;
+}
+
+/* 6. Main content area - reset legacy layout conflicts */
+.app-container.d-flex .main-content {
+    margin-left: 0 !important;
+    padding: 24px !important;
+}
+
+/* 7. Top-bar dark mode support */
+[data-theme="dark"] .top-bar {
+    background-color: var(--theme-surface-lowest, #1e1e1e) !important;
+    border-bottom-color: var(--theme-border-ghost) !important;
+}
+
+[data-theme="dark"] .top-bar .btn-link,
+[data-theme="dark"] .top-bar .text-muted {
+    color: rgba(255,255,255,0.6) !important;
+}
+
+[data-theme="dark"] .top-bar #environmentSelector {
+    color: rgba(255,255,255,0.8) !important;
+}
+
+/* 8. Sidebar dark mode - always dark blue */
+.sidebar-main {
+    background-color: var(--theme-primary, #001b44) !important;
+}
+
+[data-theme="dark"] .sidebar-main {
+    background-color: #080f1a !important;
+}
+
+/* 9. About modal dark mode */
+[data-theme="dark"] #aboutModal .modal-body {
+    background-color: var(--theme-surface-lowest, #1e1e1e) !important;
+    color: #e2e8f0 !important;
+}
+
+/* 10. Custom scrollbar for sidebar */
+.sidebar-nav-main.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.sidebar-nav-main.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.sidebar-nav-main.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+.sidebar-nav-main.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }

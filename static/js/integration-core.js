@@ -1128,14 +1128,8 @@ function router() {
         return;
     }
 
-    // Atualizar tab ativa no header
-    const catKey = PAGE_TO_CATEGORY[page];
-    document.querySelectorAll('.header-tab').forEach(t => {
-        t.classList.toggle('active', t.getAttribute('data-category') === catKey);
-    });
-
-    // Renderizar sidebar contextual da categoria
-    renderContextualSidebar(catKey, page);
+    // Atualizar sidebar unificada (tree com submenus)
+    renderUnifiedSidebar(page);
 
     const contentArea = document.getElementById('content-area');
     contentArea.innerHTML = `<div class="text-center p-5"><div class="spinner-border text-primary"></div></div>`;
@@ -1642,21 +1636,8 @@ function updateSidebarByProfile() {
     renderUnifiedSidebar(page);
 }
 
-function setupNavigation() {
-    document.querySelectorAll('.sidebar .nav-link').forEach(link => {
-        const newLink = link.cloneNode(true);
-        link.parentNode.replaceChild(newLink, link);
-        newLink.addEventListener('click', function (e) {
-            e.preventDefault();
-            const page = this.getAttribute('data-page');
-            if (hasPermission(page)) {
-                window.location.hash = page;
-            } else {
-                showNotification('Acesso negado!', 'error');
-            }
-        });
-    });
-}
+// setupNavigation é desnecessário: o listener global em data-page (linha ~515) já trata cliques.
+function setupNavigation() {}
 
 function setupEventListeners() {
     // Deprecated - usando setupLogin() e setupNavigation() separadamente

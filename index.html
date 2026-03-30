@@ -250,7 +250,7 @@
     <div id="app-container" class="app-container d-flex flex-row vh-100 overflow-hidden" style="background-color: var(--theme-bg-primary);">
 
         <!-- Left Sidebar (Aside) -->
-        <aside class="sidebar sidebar-main d-none d-md-flex flex-column shrink-0 shadow-lg" style="width: 256px; background-color: var(--theme-primary, #001b44); color: #fff; z-index: 1040;">
+        <aside class="sidebar sidebar-main d-none d-md-flex flex-column flex-shrink-0 shadow-lg" style="width: 256px; min-width: 256px; background-color: var(--theme-primary, #001b44); color: #fff; z-index: 1040;">
             <div class="sidebar-brand p-4 d-flex align-items-center gap-3">
                 <div class="brand-icon d-flex align-items-center justify-content-center rounded-3" style="width: 32px; height: 32px; background-color: rgba(255,255,255,0.1);">
                     <img src="/static/favicon.ico" alt="BiizHubOps" style="height: 20px;">
@@ -283,7 +283,7 @@
         <!-- Main Content Area Wrapper -->
         <div class="flex-grow-1 d-flex flex-column overflow-hidden">
             <!-- Top Navigation Bar -->
-            <header class="top-bar d-flex align-items-center justify-content-between px-4 shrink-0" style="height: 64px; background-color: var(--theme-surface-lowest, #ffffff); border-bottom: 1px solid var(--theme-border-ghost, rgba(0,0,0,0.06)); z-index: 1030;">
+            <header class="top-bar d-flex align-items-center justify-content-between px-4 flex-shrink-0" style="height: 64px; background-color: var(--theme-surface-lowest, #ffffff); border-bottom: 1px solid var(--theme-border-ghost, rgba(0,0,0,0.06)); z-index: 1030;">
                 <!-- Left Side: Controls -->
                 <div class="d-flex align-items-center">
                     <button class="btn btn-link text-muted me-3 d-md-none" data-action="toggleSidebar" title="Menu">
