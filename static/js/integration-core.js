@@ -1576,6 +1576,9 @@ function renderUnifiedSidebar(activePage) {
         const isCatActive = (catKey === activeCatKey);
         
         // Main Category Row
+        const hasSubmenus = cat.pages.length > 1;
+        const chevronIcon = hasSubmenus ? `<i class="fas fa-chevron-${isCatActive ? 'down' : 'right'} ms-auto opacity-50" style="font-size: 0.75rem;"></i>` : '';
+        
         html += `
         <a class="header-tab d-flex align-items-center gap-3 px-3 py-3 rounded-3 text-decoration-none ${isCatActive ? 'active' : ''}" 
            href="#" 
@@ -1584,6 +1587,7 @@ function renderUnifiedSidebar(activePage) {
            data-params='{"category":"${catKey}"}'>
             <i class="fas ${cat.icon} text-center" style="width: 20px;"></i>
             <span class="fw-bold header-tab-label">${cat.label}</span>
+            ${chevronIcon}
         </a>`;
                  
         // Submenus (Contextual Tree) - Rendidos apenas se a categoria for a ativa
