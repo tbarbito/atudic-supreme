@@ -578,8 +578,30 @@ const actionHandlers = {
     // ===== NAVEGAÇÃO =====
     'navigate': (params) => navigateToPage(params.page),
     'navigateCategory': (params) => {
-        const cat = CATEGORIES[params.category];
+        const catKey = params.category;
+        const cat = CATEGORIES[catKey];
         if (!cat) return;
+        
+        const currentPage = window.location.hash.substring(1) || 'dashboard';
+        const activeCatKey = PAGE_TO_CATEGORY[currentPage] || '';
+        
+        // Se clicou na categoria já ativa, engatilha o collapse (Sanfona)
+        if (activeCatKey === catKey) {
+            const tabObj = document.querySelector(`.header-tab[data-category="${catKey}"]`);
+            if (tabObj && tabObj.nextElementSibling && tabObj.nextElementSibling.classList.contains('contextual-submenu')) {
+                tabObj.nextElementSibling.classList.toggle('d-none');
+                const icon = tabObj.querySelector('.fa-chevron-down, .fa-chevron-right');
+                if (icon) {
+                    if (tabObj.nextElementSibling.classList.contains('d-none')) {
+                        icon.className = icon.className.replace('fa-chevron-down', 'fa-chevron-right');
+                    } else {
+                        icon.className = icon.className.replace('fa-chevron-right', 'fa-chevron-down');
+                    }
+                }
+            }
+            return;
+        }
+
         const first = cat.pages.find(p => hasPermission(p));
         if (first) window.location.hash = first;
     },
