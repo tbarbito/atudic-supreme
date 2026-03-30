@@ -21,6 +21,17 @@ logger = logging.getLogger(__name__)
 workspace_bp = Blueprint("workspace", __name__)
 
 
+class WorkspaceLLMError(Exception):
+    """Erro de LLM com mensagem amigavel para o frontend."""
+    pass
+
+
+@workspace_bp.errorhandler(WorkspaceLLMError)
+def _handle_workspace_llm_error(e):
+    """Tratamento global de LLM errors — retorna 503 com mensagem amigavel."""
+    return jsonify({"error": str(e)}), 503
+
+
 def _get_llm_provider():
     """Retorna LLMProvider via AgentChatEngine singleton."""
     from app.services.agent_chat import get_chat_engine
@@ -32,7 +43,15 @@ def _get_llm_provider():
 
 def _llm_chat_text(provider, messages):
     """Chama LLMProvider.chat() e retorna texto da resposta."""
-    result = provider.chat(messages)
+    try:
+        result = provider.chat(messages)
+    except Exception as e:
+        err_msg = str(e)
+        if "rate_limit" in err_msg.lower() or "rate limit" in err_msg.lower():
+            raise WorkspaceLLMError("LLM temporariamente indisponivel (rate limit). Tente novamente em alguns segundos.")
+        if "auth" in err_msg.lower() or "api_key" in err_msg.lower():
+            raise WorkspaceLLMError("Erro de autenticacao LLM. Verifique a API key em Configuracoes > LLM/IA.")
+        raise WorkspaceLLMError(f"Erro LLM: {err_msg[:200]}")
     if isinstance(result, str):
         return result
     return result.get("content", result.get("response", ""))
