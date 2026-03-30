@@ -1264,7 +1264,8 @@ function _wsFonteTabFuncoes(f) {
     f.funcoes.forEach(function(fn, idx) {
         var tipo = isUF.has(fn) ? '<span class="badge bg-info">User Function</span>' : '<span class="badge bg-secondary">Static/Local</span>';
         var doc = docsMap[fn];
-        var resumo = doc && doc.resumo ? '<span style="font-size:0.78rem">' + doc.resumo.substring(0, 80) + (doc.resumo.length > 80 ? '...' : '') + '</span>' : '<span class="text-muted" style="font-size:0.78rem">-</span>';
+        var resumoText = doc && doc.resumo ? doc.resumo.replace(/^#+\s.*\n?/gm, '').trim() : '';  // Strip markdown headers
+        var resumo = resumoText ? '<span style="font-size:0.78rem">' + resumoText.substring(0, 100) + (resumoText.length > 100 ? '...' : '') + '</span>' : '<span class="text-muted" style="font-size:0.78rem">-</span>';
         html += '<tr>' +
             '<td><i class="fas fa-chevron-right" style="cursor:pointer;font-size:0.6rem" onclick="wsToggleFuncRow(this,' + idx + ')"></i></td>' +
             '<td><code class="fw-bold">' + fn + '</code></td><td>' + tipo + '</td>' +
@@ -1282,6 +1283,7 @@ function _wsFonteTabFuncoes(f) {
         // Row expansion (hidden)
         var expandHtml = '';
         if (doc) {
+            if (doc.resumo) expandHtml += '<div class="mb-2 ws-markdown">' + _wsRenderMarkdown(doc.resumo) + '</div>';
             if (doc.assinatura) expandHtml += '<div><small class="text-muted">Assinatura:</small> <code>' + doc.assinatura + '</code></div>';
             if (doc.chama) expandHtml += '<div><small class="text-muted">Chama:</small> ' + doc.chama + '</div>';
             if (doc.chamada_por) expandHtml += '<div><small class="text-muted">Chamada por:</small> ' + doc.chamada_por + '</div>';
@@ -1289,7 +1291,7 @@ function _wsFonteTabFuncoes(f) {
             if (doc.retorno) expandHtml += '<div><small class="text-muted">Retorno:</small> ' + doc.retorno + '</div>';
         }
         html += '<tr id="ws-func-exp-' + idx + '" style="display:none"><td colspan="5" class="bg-light px-3 py-2" style="font-size:0.78rem">' +
-            (expandHtml || '<span class="text-muted">Sem detalhes. Clique em <i class="fas fa-magic"></i> para resumir.</span>') +
+            (expandHtml || '<span class="text-muted">Clique em <i class="fas fa-magic"></i> para gerar resumo IA.</span>') +
             '<div id="ws-func-code-' + idx + '"></div>' +
         '</td></tr>';
     });
