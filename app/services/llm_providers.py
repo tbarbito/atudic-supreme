@@ -743,7 +743,7 @@ class LLMProvider:
             embedding = data.get("embedding", {}).get("values")
             if embedding:
                 return embedding
-        logger.warning("Gemini embedding falhou: %d", resp.status_code)
+        logger.debug("Gemini embedding indisponivel (HTTP %d) — usando BM25 puro", resp.status_code)
         return None
 
     @property
