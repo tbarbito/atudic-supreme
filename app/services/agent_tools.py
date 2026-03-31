@@ -951,7 +951,11 @@ def _tool_preview_equalization(params):
 
 
 def _tool_execute_equalization(params):
-    """Execucao de equalizacao com parsing robusto."""
+    """Execucao de equalizacao com auto-redirect para preview.
+
+    Se chamado sem confirmation_token, executa preview automaticamente
+    em vez de dar erro — retorna o preview com instrucao de confirmar.
+    """
     items = params.get("items", [])
     if isinstance(items, str):
         try:
@@ -961,7 +965,21 @@ def _tool_execute_equalization(params):
             return {"error": f"Parametro 'items' invalido."}
 
     if not params.get("confirmation_token"):
-        return {"error": "confirmation_token e obrigatorio. Faca preview_equalization primeiro."}
+        # Auto-redirect: fazer preview automaticamente
+        logger.info("execute_equalization sem token — redirecionando para preview automatico")
+        preview_result = _tool_preview_equalization(params)
+        if isinstance(preview_result, dict) and preview_result.get("error"):
+            return preview_result
+        # Retornar preview com instrucao clara
+        return {
+            "auto_preview": True,
+            "preview": preview_result,
+            "message": (
+                "Preview gerado automaticamente. Mostre os SQLs ao usuario e "
+                "pergunte se deseja aplicar. Se confirmar, chame execute_equalization "
+                "com o confirmation_token retornado no preview."
+            ),
+        }
 
     logger.info(
         "🔧 Execute equalizacao: source=%s target=%s company=%s token=%s items=%d",
@@ -1815,13 +1833,15 @@ def init_tools():
          {"name": "company_code", "type": "str", "description": "Código da empresa (obrigatório)"},
          {"name": "items", "type": "list", "description": "Itens a equalizar (obrigatório)"}],
         "admin", _tool_preview_equalization)
-    register_tool("execute_equalization", "Executa equalização de dicionário (transação atômica).",
-        [{"name": "source_conn_id", "type": "int", "description": "ID conexão origem (obrigatório)"},
-         {"name": "target_conn_id", "type": "int", "description": "ID conexão destino (obrigatório)"},
-         {"name": "company_code", "type": "str", "description": "Código da empresa (obrigatório)"},
-         {"name": "items", "type": "list", "description": "Itens a equalizar (obrigatório)"},
-         {"name": "confirmation_token", "type": "str", "description": "Token de confirmação do preview"}],
-        "admin", _tool_execute_equalization, requires_confirmation=True)
+    register_tool("execute_equalization",
+        "Executa equalizacao. Se chamado sem confirmation_token, faz preview automatico. "
+        "A confirmacao real e via token do preview — NAO precisa de confirmacao dupla.",
+        [{"name": "source_conn_id", "type": "int|str", "description": "ID ou alias da conexao origem (ex: 'HML')"},
+         {"name": "target_conn_id", "type": "int|str", "description": "ID ou alias da conexao destino (ex: 'PRD')"},
+         {"name": "company_code", "type": "str", "description": "Codigo da empresa (usa o do contexto se omitido)"},
+         {"name": "items", "type": "list", "description": "Itens a equalizar (obrigatorio)"},
+         {"name": "confirmation_token", "type": "str", "description": "Token do preview (se omitido, faz preview automatico)"}],
+        "admin", _tool_execute_equalization, risk_level="high")
 
     # --- Ingestor de Dicionário ---
     register_tool("upload_ingest_file", "Faz upload e parse de arquivo de ingestão de dicionário (JSON ou MD).",
