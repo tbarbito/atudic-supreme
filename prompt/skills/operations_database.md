@@ -10,41 +10,38 @@ specialist: "database"
 
 ## PROCEDURES DE BANCO — Protheus
 
-### Query de parametro (SX6)
-Para buscar valor de MV_ESTNEG, MV_SPEDURL, etc:
-1. Descobrir empresa: `SELECT M0_CODIGO, M0_NOME FROM SYS_COMPANY`
-2. Montar sufixo: empresa 99 → SX6**990**, empresa 01 → SX6**010**
-3. Query: `SELECT X6_VAR, X6_CONTEUD, X6_TIPO, X6_DESCRIC FROM SX6{sufixo} WHERE X6_VAR = 'MV_ESTNEG'`
+### REGRA #1: Use TEMPLATES em vez de SQL bruto
+O sistema tem templates que montam o SQL com sufixo correto automaticamente.
+SEMPRE prefira template. O sufixo e empresa ja estao no contexto pre-computado.
 
-**Atalho:** Se ja sabe a empresa da sessao, pule o passo 1.
+### Templates disponiveis para query_database
+| Template | Uso | Exemplo de chamada |
+|----------|-----|-------------------|
+| `parametro` | Valor de MV_* | `{"template": "parametro", "param_name": "MV_ESTNEG"}` |
+| `parametros_modulo` | Listar MV_* por prefixo | `{"template": "parametros_modulo", "prefix": "MV_COM"}` |
+| `campos_tabela` | Campos de uma tabela | `{"template": "campos_tabela", "table_alias": "SA1"}` |
+| `indices_tabela` | Indices de uma tabela | `{"template": "indices_tabela", "table_alias": "SA1"}` |
+| `tabelas` | Listar todas as tabelas | `{"template": "tabelas"}` |
+| `tabela_info` | Info de 1 tabela | `{"template": "tabela_info", "table_alias": "SA1"}` |
+| `gatilhos_campo` | Triggers de um campo | `{"template": "gatilhos_campo", "field_name": "A1_COD"}` |
+| `tabelas_genericas` | Tabela generica SX5 | `{"template": "tabelas_genericas", "tab_key": "01"}` |
+| `empresas` | Listar empresas | `{"template": "empresas"}` |
+| `dados_tabela` | Dados de tabela de negocio | `{"template": "dados_tabela", "table_alias": "SA1", "limit": "5"}` |
+| `count_tabela` | Contar registros | `{"template": "count_tabela", "table_alias": "SA1"}` |
 
-### Query de campos (SX3)
-Para "quais campos tem a SA1":
-1. Sufixo pela empresa (mesma regra: SX3 + M0_CODIGO + '0')
-2. `SELECT X3_CAMPO, X3_TITULO, X3_TIPO, X3_TAMANHO, X3_DECIMAL FROM SX3{sufixo} WHERE X3_ARQUIVO = 'SA1' ORDER BY X3_ORDEM`
+### Exemplo completo de chamada com template
+```json
+{"tool": "query_database", "params": {"connection_id": "HML", "template": "parametro", "param_name": "MV_ESTNEG"}}
+```
+O sistema resolve: connection_id "HML" → ID real, sufixo da empresa → 990, monta SQL completo.
 
-### Query de indices (SIX)
-`SELECT INDICE, ORDEM, CHAVE, DESCRICAO FROM SIX{sufixo} WHERE INDICE = 'SA1' ORDER BY ORDEM`
-
-### Tabelas SEM sufixo (excecoes)
-- `SYS_COMPANY` — sempre sem sufixo
-- `TOP_FIELD` — sempre sem sufixo
-- Na duvida, tente com sufixo primeiro. Se der erro, tente sem.
-
-### Regra do sufixo
-Formula: `{TABELA}{M0_CODIGO}0`
-- Empresa 99 → SA1**990**, SX3**990**, SX6**990**
-- Empresa 01 → SA1**010**, SX3**010**, SX6**010**
-- NUNCA assuma sufixo 010 — descubra via SYS_COMPANY
-
-### Se a query falhar (tabela nao encontrada)
-1. Verificar se usou sufixo correto
-2. Se nao usou sufixo, adicionar (ex: SX6 → SX6990)
-3. Se usou sufixo errado, consultar SYS_COMPANY
-4. Informar ao usuario: "Empresa X (codigo {M0_CODIGO}), tabela {nome_com_sufixo}"
+### Quando usar SQL bruto (query) em vez de template
+Apenas quando nenhum template atende. Exemplos:
+- JOINs complexos entre tabelas
+- Agregacoes (GROUP BY, HAVING)
+- Subqueries especificas
 
 ### Comparacao de dicionario — params
-- `conn_id_a` e `conn_id_b`: IDs das conexoes (ou aliases HML/PRD — resolver pelo contexto)
-- `company_code`: codigo da empresa (default "01", perguntar se >1 empresa)
+- `conn_id_a` e `conn_id_b`: IDs ou aliases (HML/PRD) das conexoes
+- `company_code`: codigo da empresa (se 1 empresa no ambiente, o sistema ja sabe)
 - `tables`: lista opcional (ex: ["SX3"] para comparar so SX3)
-- Resultado: divergencias agrupadas por tabela de metadado

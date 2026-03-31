@@ -85,6 +85,7 @@ class ContextBuilder:
             "pipelines": [],
             "environments": [],
             "tdn_results": [],
+            "_environment_id": environment_id,
         }
 
         # Busca na memória — híbrida (BM25 + embedding) se disponível, senão BM25 puro
@@ -597,6 +598,18 @@ class ContextBuilder:
     def build_context_text(intent, entities, context):
         """Formata os dados do contexto como texto para o system prompt."""
         parts = []
+
+        # Contexto pre-computado (empresa, sufixo, conexoes, servicos, pipelines)
+        # Injetado ANTES de tudo — e a info mais critica para o LLM
+        try:
+            from app.services.tools.context_precompute import _precompute_cache, format_precomputed_context
+            env_id = context.get("_environment_id")
+            if env_id and int(env_id) in _precompute_cache:
+                precomputed_text = format_precomputed_context(_precompute_cache[int(env_id)])
+                if precomputed_text:
+                    parts.append(precomputed_text)
+        except Exception:
+            pass
 
         # Dicas do grafo de conhecimento Protheus (antes de tudo)
         if context.get("protheus_hint"):

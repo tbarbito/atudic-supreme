@@ -15,9 +15,9 @@ specialist: "all"
 |---|---|---|
 | "compara dicionario HML x PRD" | `compare_dictionary` (conn_id_a, conn_id_b) | query_database |
 | "compara SX3 entre bancos" | `compare_dictionary` (tables: ["SX3"]) | query_database |
-| "conteudo do MV_ESTNEG" | `query_database` (SQL na SX6+sufixo) | compare_dictionary |
-| "parametros de Compras" | `query_database` (SQL na SX6+sufixo) | get_db_connections |
-| "campos da SA1" | `query_database` (SQL na SX3+sufixo) | compare_dictionary |
+| "conteudo do MV_ESTNEG" | `query_database` template=parametro | SQL bruto |
+| "parametros de Compras" | `query_database` template=parametros_modulo | get_db_connections |
+| "campos da SA1" | `query_database` template=campos_tabela | SQL bruto |
 | "equaliza campo X de HML→PRD" | `preview_equalization` → confirmar → `execute_equalization` | query_database |
 | "erro ORA-12154 no log" | `get_alerts` → `get_recurring_errors` → `search_knowledge` | query_database |
 | "roda pipeline de deploy" | `get_pipelines` → `run_pipeline` | — |

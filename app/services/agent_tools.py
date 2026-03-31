@@ -647,20 +647,44 @@ def _tool_git_pull(params):
 def _tool_query_database(params):
     """Executa SELECT — chama POST /api/db-connections/<id>/query.
 
-    Inclui validacao inteligente de sufixo Protheus:
-    - Tabelas sem sufixo: auto-descobre M0_CODIGO via SYS_COMPANY
-    - 1 empresa: auto-corrige a query com o sufixo correto
-    - N empresas: retorna lista para o agente perguntar ao usuario
-    - Sufixo errado (tabela nao existe): sugere os sufixos validos
+    Suporta dois modos:
+    1. Template (recomendado): {"template": "parametro", "param_name": "MV_ESTNEG"}
+       O codigo monta o SQL com sufixo correto automaticamente.
+    2. Query raw: {"query": "SELECT ..."}
+       Inclui auto-correcao de sufixo Protheus.
     """
     conn_id = params.get("connection_id")
+    template_name = params.get("template")
     query_text = params.get("query", "").strip()
     max_rows = min(int(params.get("max_rows", 100)), 500)
 
     if not conn_id:
         return {"error": "Parâmetro 'connection_id' é obrigatório."}
+
+    # Modo template: resolver query via template Protheus
+    if template_name:
+        from app.services.tools.query_templates import resolve_template
+        from app.services.tools.context_precompute import _precompute_cache
+
+        # Buscar contexto pre-computado do ambiente
+        env_id = params.get("environment_id")
+        precomputed = _precompute_cache.get(int(env_id), {}) if env_id else {}
+
+        # Se nao tem precomputed, tentar montar um minimo com discovery
+        if not precomputed.get("companies"):
+            companies = _discover_protheus_companies(conn_id)
+            if companies:
+                precomputed["companies"] = {
+                    conn_id: [{"code": c["code"], "name": c["name"], "suffix": f"{c['code']}0"} for c in companies]
+                }
+
+        sql, error = resolve_template(template_name, params, conn_id, precomputed)
+        if error:
+            return {"error": error}
+        query_text = sql
+
     if not query_text:
-        return {"error": "Parâmetro 'query' é obrigatório."}
+        return {"error": "Parâmetro 'query' ou 'template' é obrigatório."}
 
     _re = re  # usar o re ja importado no topo do modulo
 
@@ -1598,11 +1622,18 @@ def init_tools():
     # --- Admin — 9F-3 ---
     register_tool(
         "query_database",
-        "Executa SELECT em banco externo (DML/DDL bloqueados). "
-        "Use os IDs das conexões do contexto. Aceita nome/alias (HML, PRD) — o sistema resolve.",
+        "Executa SELECT em banco Protheus. PREFIRA usar template em vez de SQL bruto — "
+        "o sistema monta o SQL com sufixo correto automaticamente. "
+        "Templates: parametro, parametros_modulo, campos_tabela, indices_tabela, tabelas, "
+        "tabela_info, gatilhos_campo, tabelas_genericas, empresas, dados_tabela, count_tabela.",
         [
-            {"name": "connection_id", "type": "int|str", "description": "ID ou nome/alias da conexão (ex: 1, 'HML', 'Producao')"},
-            {"name": "query", "type": "str", "description": "Query SQL SELECT (obrigatório)"},
+            {"name": "connection_id", "type": "int|str", "description": "ID ou alias da conexão (ex: 1, 'HML', 'PRD')"},
+            {"name": "template", "type": "str", "description": "Nome do template (ex: 'parametro'). PREFIRA template em vez de query raw."},
+            {"name": "param_name", "type": "str", "description": "Para template=parametro: nome do MV_ (ex: 'MV_ESTNEG')"},
+            {"name": "table_alias", "type": "str", "description": "Para templates de tabela: alias (ex: 'SA1', 'SC5')"},
+            {"name": "prefix", "type": "str", "description": "Para template=parametros_modulo: prefixo (ex: 'MV_COM')"},
+            {"name": "field_name", "type": "str", "description": "Para template=gatilhos_campo: nome do campo (ex: 'A1_COD')"},
+            {"name": "query", "type": "str", "description": "SQL SELECT bruto (usar apenas se nenhum template atende)"},
             {"name": "max_rows", "type": "int", "description": "Máximo de linhas (padrão 100, máx 500)"},
         ],
         "admin",
