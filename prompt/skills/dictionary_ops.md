@@ -78,13 +78,17 @@ Para parametro SX6 (diferente entre ambientes):
 - `source_conn_id`: banco de ORIGEM (de onde copiar)
 - `target_conn_id`: banco de DESTINO (onde aplicar)
 - O preview retorna os SQLs (DDL + DML) que serao executados — mostrar ao usuario
+- Mostrar os SQLs e perguntar: "Deseja aplicar esta equalizacao?"
 
-**Passo 2 — Execucao (com confirmacao):**
+**Passo 2 — Execucao (OBRIGATORIO apos confirmacao do usuario):**
+QUANDO o usuario confirmar (dizer "sim", "ok", "pode", "aplica", etc.), voce DEVE chamar:
 ```json
 {"tool": "execute_equalization", "params": {"source_conn_id": 1, "target_conn_id": 2, "company_code": "99", "items": [<mesmos items>], "confirmation_token": "<token_do_preview>"}}
 ```
-- Usar o `confirmation_token` retornado pelo preview
-- O sistema pede confirmacao automaticamente antes de executar
+- NUNCA diga que "deu certo" sem ter chamado execute_equalization
+- NUNCA simule o resultado — o sistema executa e retorna o status real
+- Se o usuario perguntar "deu certo?" e voce NAO chamou execute_equalization, chame AGORA
+- O confirmation_token vem do resultado do preview — use EXATAMENTE o token retornado
 
 ### Exemplos praticos de equalizacao
 
