@@ -1007,6 +1007,22 @@ def _tool_execute_equalization(params):
         except (json.JSONDecodeError, TypeError):
             return {"error": f"Parametro 'items' invalido."}
 
+    # Auto-construir items quando LLM passa campo avulso em vez de lista formatada
+    if not items or (isinstance(items, list) and len(items) == 0):
+        field_name = params.get("field_name", params.get("field", ""))
+        table = params.get("table", params.get("table_alias", ""))
+        if field_name:
+            field_name = str(field_name).upper().strip()
+            # Inferir table_alias do prefixo do campo: A1_X → SA1, C5_X → SC5
+            if not table and "_" in field_name:
+                prefix = field_name.split("_")[0]
+                if len(prefix) >= 2:
+                    table = "S" + prefix
+            table = str(table).upper().strip() if table else ""
+            items = [{"type": "field", "meta_table": "SX3", "table_alias": table, "field_name": field_name}]
+            params["items"] = items
+            logger.info("Items auto-construidos: field=%s table=%s", field_name, table)
+
     if not params.get("confirmation_token"):
         # Auto-redirect: fazer preview automaticamente
         logger.info("execute_equalization sem token — redirecionando para preview automatico")
