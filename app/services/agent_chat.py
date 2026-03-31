@@ -227,12 +227,13 @@ class AgentChatEngine:
                 error = data.get("error", "") if isinstance(data, dict) else tool_result.get("error", "Erro")
                 text = f"Equalizacao de **{equalize_field}** falhou: {error}"
 
-            self._history.save_messages(session_id, environment_id, message, "dictionary_analysis", 1.0, text)
-            return {
+            auto_resp = {
                 "intent": "dictionary_analysis", "confidence": 1.0, "text": text,
                 "sections": [], "links": [], "sources_consulted": ["execute_equalization"],
                 "entities": {}, "mode": "auto-execute", "tools_used": ["execute_equalization"],
             }
+            self._history.save_messages(session_id, environment_id, message, "dictionary_analysis", 1.0, auto_resp)
+            return auto_resp
 
         # Verificar se tem confirmation_token no resultado do preview
         # O token esta nos tool_results (summary)
@@ -298,13 +299,7 @@ class AgentChatEngine:
             error = data.get("error", "") if isinstance(data, dict) else tool_result.get("error", "Erro desconhecido")
             text = f"Equalizacao falhou: {error}"
 
-        # Salvar no historico
-        self._history.save_messages(
-            session_id, environment_id, message,
-            "dictionary_analysis", 1.0, text
-        )
-
-        return {
+        auto_resp2 = {
             "intent": "dictionary_analysis",
             "confidence": 1.0,
             "text": text,
@@ -315,6 +310,8 @@ class AgentChatEngine:
             "mode": "auto-execute",
             "tools_used": [execute_tool_name],
         }
+        self._history.save_messages(session_id, environment_id, message, "dictionary_analysis", 1.0, auto_resp2)
+        return auto_resp2
 
     def execute_confirmed_action(self, pending_action, session_id, environment_id=None, user_info=None):
         """Executa acao confirmada pelo usuario sem passar pelo LLM.
