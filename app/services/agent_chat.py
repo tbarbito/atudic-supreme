@@ -131,6 +131,17 @@ class AgentChatEngine:
         }
 
         execute_tool_name = _PREVIEW_TO_EXECUTE.get(last_tool)
+
+        # Se ultimo call nao foi preview, buscar preview mais recente no historico inteiro
+        if not execute_tool_name:
+            for entry in reversed(pad["tool_call_history"]):
+                if entry.get("tool") in _PREVIEW_TO_EXECUTE:
+                    last_call = entry
+                    last_tool = entry["tool"]
+                    last_params = entry.get("params", {})
+                    execute_tool_name = _PREVIEW_TO_EXECUTE[last_tool]
+                    break
+
         if not execute_tool_name:
             return None
 
