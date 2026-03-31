@@ -32,6 +32,7 @@ diagnostico:
     - get_recurring_errors
     - get_alerts_timeline
     - search_knowledge
+    - search_tdn
     - get_services
     - list_log_monitors
     - create_log_monitor
@@ -73,6 +74,7 @@ database:
     - preview_equalization
     - execute_equalization
     - search_knowledge
+    - search_tdn
     - get_server_variables
     - upload_ingest_file
     - preview_ingestion
@@ -129,6 +131,7 @@ auditor:
     - knowledge_base
   tools:
     - search_knowledge
+    - search_tdn
     - get_auditor_history
     - get_audit_detail
     - delete_audit
@@ -195,6 +198,7 @@ knowledge:
     - workspace_reverse_engineering
   tools:
     - search_knowledge
+    - search_tdn
     - analyze_impact
     - list_vinculos
     - build_dependency_graph
@@ -225,6 +229,7 @@ general:
     - get_server_variables
     - get_db_connections
     - search_knowledge
+    - search_tdn
     - query_database
     - read_file
     - write_file
@@ -249,6 +254,7 @@ proactive:
     - get_alerts
     - get_recurring_errors
     - search_knowledge
+    - search_tdn
     - get_services
   greeting: null
   autonomous: true
@@ -281,6 +287,7 @@ dicionarista:
     - analyze_impact
     - list_vinculos
     - search_knowledge
+    - search_tdn
   greeting: null
   autonomous: false
   agent_enabled: true
@@ -301,6 +308,7 @@ analista_fontes:
     - list_vinculos
     - analyze_impact
     - search_knowledge
+    - search_tdn
   greeting: null
   autonomous: false
   agent_enabled: true
@@ -315,6 +323,7 @@ documentador:
     - documentation_generation
   tools:
     - search_knowledge
+    - search_tdn
   greeting: null
   autonomous: false
   agent_enabled: true
@@ -332,6 +341,7 @@ campo_agent:
     - analyze_impact
     - list_vinculos
     - search_knowledge
+    - search_tdn
   greeting: null
   autonomous: false
   agent_enabled: true
@@ -351,6 +361,7 @@ bug_agent:
     - analyze_impact
     - list_vinculos
     - search_knowledge
+    - search_tdn
   greeting: null
   autonomous: false
   agent_enabled: true
@@ -372,6 +383,7 @@ projeto_agent:
     - list_vinculos
     - parse_source_code
     - search_knowledge
+    - search_tdn
   greeting: null
   autonomous: false
   agent_enabled: true

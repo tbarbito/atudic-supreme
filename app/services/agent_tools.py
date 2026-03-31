@@ -522,6 +522,75 @@ def _tool_search_knowledge(params):
     return {"articles": results or [], "total": len(results or [])}
 
 
+def _tool_search_tdn(params):
+    """Busca na base TDN (TOTVS Developer Network) — 182K+ chunks de documentacao oficial.
+
+    Busca em duas camadas:
+    1. PostgreSQL tsvector (full-text search portugues com ranking)
+    2. Fallback ILIKE se tsvector nao encontrar
+
+    Fontes disponiveis: advpl, tlpp, tss, framework, protheus12, totvstec
+    """
+    query = params.get("query", "")
+    if not query:
+        return {"error": "Parametro 'query' e obrigatorio."}
+
+    source = params.get("source")  # Filtrar por fonte (ex: "protheus12", "advpl")
+    limit = min(int(params.get("limit", 5)), 10)
+
+    results = []
+
+    # Busca 1: PostgreSQL tsvector (chunks pesados — framework, protheus12, totvstec)
+    try:
+        from app.services.tdn_ingestor import TDNIngestor
+        ingestor = TDNIngestor()
+        pg_results = ingestor.search(query, source=source, limit=limit)
+        if pg_results:
+            results.extend(pg_results)
+    except Exception as e:
+        logger.debug("Busca TDN PG falhou: %s", e)
+
+    # Busca 2: SQLite FTS5 BM25 (chunks leves — advpl local, tlpp local, tss local)
+    if len(results) < limit:
+        try:
+            from app.services.agent_memory import AgentMemoryService
+            memory = AgentMemoryService()
+            bm25_results = memory.search_bm25(query, chunk_type="semantic", limit=limit - len(results))
+            for r in bm25_results or []:
+                results.append(r)
+        except Exception as e:
+            logger.debug("Busca TDN BM25 falhou: %s", e)
+
+    # Formatar para o LLM
+    formatted = []
+    for r in results[:limit]:
+        if isinstance(r, dict):
+            entry = {
+                "title": r.get("page_title") or r.get("section_title") or "",
+                "section": r.get("section_title") or "",
+                "content": (r.get("content") or "")[:800],
+                "source": r.get("source") or "",
+                "url": r.get("page_url") or "",
+            }
+        else:
+            # Row do cursor PostgreSQL
+            entry = {
+                "title": r.get("page_title", "") if hasattr(r, "get") else str(r),
+                "section": r.get("section_title", "") if hasattr(r, "get") else "",
+                "content": (r.get("content", "") if hasattr(r, "get") else "")[:800],
+                "source": r.get("source", "") if hasattr(r, "get") else "",
+                "url": r.get("page_url", "") if hasattr(r, "get") else "",
+            }
+        formatted.append(entry)
+
+    return {
+        "results": formatted,
+        "total": len(formatted),
+        "query": query,
+        "source_filter": source,
+    }
+
+
 def _tool_get_users(params):
     """Lista usuários."""
     conn = get_db()
@@ -1478,6 +1547,19 @@ def init_tools():
         ],
         "viewer",
         _tool_search_knowledge,
+    )
+    register_tool(
+        "search_tdn",
+        "Busca na documentacao oficial TDN (TOTVS Developer Network) — 182K+ chunks. "
+        "Use para funcoes AdvPL/TLPP, configuracoes Protheus, procedures, APIs REST, webservices, TSS, framework. "
+        "Prefira esta tool em vez de search_knowledge quando a pergunta for sobre como fazer algo no Protheus.",
+        [
+            {"name": "query", "type": "str", "description": "Texto de busca (obrigatorio). Ex: 'como configurar broker webservice', 'MsExecAuto MATA410'"},
+            {"name": "source", "type": "str", "description": "Filtro por fonte: advpl, tlpp, tss, framework, protheus12, totvstec (opcional)"},
+            {"name": "limit", "type": "int", "description": "Quantidade (padrao 5, max 10)"},
+        ],
+        "viewer",
+        _tool_search_tdn,
     )
     register_tool("get_users", "Usuários do sistema com perfil e status.", [], "admin", _tool_get_users)
 
