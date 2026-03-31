@@ -33,10 +33,15 @@ class WorkingMemory:
                 "entities": {},
                 "decisions": [],
                 "tool_results": [],
+                "tool_call_history": [],
                 "current_plan": None,
                 "created_at": datetime.now().isoformat(),
             }
-        return self._sessions[session_id]
+        # Migrar sessoes existentes que nao tem tool_call_history
+        pad = self._sessions[session_id]
+        if "tool_call_history" not in pad:
+            pad["tool_call_history"] = []
+        return pad
 
     def add_entity(self, session_id, entity_type, value):
         """Registra entidade mencionada na sessão."""
@@ -67,6 +72,94 @@ class WorkingMemory:
                 "tool": tool_name,
                 "summary": summary[:300] if summary else "",
             })
+
+    def record_tool_call(self, session_id, tool_name, params):
+        """Registra params completos de uma tool call para inferencia futura."""
+        pad = self.get_or_create(session_id)
+        # Guardar apenas params relevantes (excluir internos e vazios)
+        _SKIP_KEYS = {"environment_id", "user_id", "confirmed"}
+        clean_params = {
+            k: v for k, v in (params or {}).items()
+            if v is not None and v != "" and k not in _SKIP_KEYS
+        }
+        if clean_params:
+            pad["tool_call_history"].append({
+                "tool": tool_name,
+                "params": clean_params,
+                "ts": datetime.now().isoformat(),
+            })
+            # Manter max 20 entradas
+            if len(pad["tool_call_history"]) > 20:
+                pad["tool_call_history"] = pad["tool_call_history"][-20:]
+
+    def infer_missing_params(self, session_id, tool_name, params):
+        """Infere params faltantes a partir do historico de tool calls da sessao.
+
+        Busca de tras pra frente no historico. Para cada param faltante,
+        encontra a ultima tool call que usou um param com o mesmo nome.
+
+        Params inferidos (cascata entre tools):
+        - conn_id_a, conn_id_b → source_conn_id, target_conn_id (e vice-versa)
+        - connection_id → conn_id (e vice-versa)
+        - company_code → persistente entre calls
+        - items → da ultima equalizacao/preview
+
+        Returns:
+            (params_completos, inferencias_feitas)
+        """
+        pad = self._sessions.get(session_id)
+        if not pad or not pad.get("tool_call_history"):
+            return params, []
+
+        result = dict(params)
+        inferred = []
+        history = pad["tool_call_history"]
+
+        # Mapa de aliases entre param names (mesma semantica, nomes diferentes)
+        _ALIASES = {
+            "source_conn_id": ["conn_id_a", "connection_id"],
+            "target_conn_id": ["conn_id_b"],
+            "conn_id_a": ["source_conn_id", "connection_id"],
+            "conn_id_b": ["target_conn_id"],
+            "connection_id": ["conn_id_a", "conn_id", "source_conn_id"],
+        }
+
+        # Params que devem ser inferidos se faltantes
+        _INFERRABLE = {
+            "source_conn_id", "target_conn_id",
+            "conn_id_a", "conn_id_b",
+            "connection_id", "conn_id",
+            "company_code", "items",
+        }
+
+        for param_name in _INFERRABLE:
+            if param_name in result and result[param_name]:
+                continue  # ja tem valor
+
+            # Buscar no historico (mais recente primeiro)
+            found = False
+            for entry in reversed(history):
+                ep = entry["params"]
+
+                # Match direto
+                if param_name in ep and ep[param_name]:
+                    result[param_name] = ep[param_name]
+                    inferred.append(f"{param_name}={ep[param_name]} (de {entry['tool']})")
+                    found = True
+                    break
+
+                # Match via aliases
+                for alias in _ALIASES.get(param_name, []):
+                    if alias in ep and ep[alias]:
+                        result[param_name] = ep[alias]
+                        inferred.append(f"{param_name}={ep[alias]} (via {alias} de {entry['tool']})")
+                        found = True
+                        break
+
+                if found:
+                    break
+
+        return result, inferred
 
     def set_plan(self, session_id, plan_display):
         """Define o plano ativo da sessão."""

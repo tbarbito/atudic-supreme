@@ -86,11 +86,11 @@ FALLBACK_MAP = {
 }
 
 
-def execute_tool(tool_name, params, user_profile="viewer", environment_id=None, user_id=None):
+def execute_tool(tool_name, params, user_profile="viewer", environment_id=None, user_id=None, session_id=None):
     """Executa uma ferramenta e retorna o resultado.
 
-    Se a tool falha e existe fallback configurado em FALLBACK_MAP,
-    tenta a alternativa automaticamente e inclui aviso no resultado.
+    Inclui inferencia global de params: se um param esta faltando mas foi
+    usado em uma tool call anterior da sessao, reutiliza automaticamente.
     """
     tool = AGENT_TOOLS.get(tool_name)
     if not tool:
@@ -106,10 +106,30 @@ def execute_tool(tool_name, params, user_profile="viewer", environment_id=None, 
     if user_id and "user_id" not in params:
         params["user_id"] = user_id
 
+    # Inferir params faltantes do historico da sessao (global, todas as tools)
+    if session_id:
+        try:
+            from app.services.agent_working_memory import get_working_memory
+            wm = get_working_memory()
+            params, inferred = wm.infer_missing_params(session_id, tool_name, params)
+            if inferred:
+                logger.info("Params inferidos da sessao: %s", "; ".join(inferred))
+        except Exception as e:
+            logger.debug("Inferencia de params falhou: %s", e)
+
     # Resolver aliases de conexao (HML, PRD, etc.) para IDs reais
     params, conn_resolutions = resolve_connection_params(params, environment_id)
     if conn_resolutions:
         logger.info("Conexoes resolvidas: %s", "; ".join(conn_resolutions))
+
+    # Registrar tool call no historico da sessao (para inferencia futura)
+    if session_id:
+        try:
+            from app.services.agent_working_memory import get_working_memory
+            wm = get_working_memory()
+            wm.record_tool_call(session_id, tool_name, params)
+        except Exception:
+            pass
 
     try:
         result = tool["handler"](params)

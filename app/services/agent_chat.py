@@ -127,6 +127,7 @@ class AgentChatEngine:
             user_profile=user_profile,
             environment_id=env_id,
             user_id=user_id,
+            session_id=session_id,
         )
 
         tools_used = [tool_name]
@@ -599,13 +600,14 @@ class AgentChatEngine:
                         intent, confidence, tool_name, tool_params, entities, context
                     )
 
-                # Executar a ferramenta (passa user_id e env_id do usuário logado)
+                # Executar a ferramenta (passa user_id, env_id e session_id para inferencia)
                 tool_result = execute_tool(
                     tool_name,
                     tool_params,
                     user_profile=user_profile,
                     environment_id=env_id,
                     user_id=user_id,
+                    session_id=session_id,
                 )
 
                 # Registrar resultado na working memory (20D)
@@ -1335,13 +1337,14 @@ class AgentChatEngine:
                         intent, confidence, tool_name, tool_params, entities, context
                     )
 
-                # 6. Executar tool
+                # 6. Executar tool (com session_id para inferencia de params)
                 tool_result = execute_tool(
                     tool_name,
                     tool_params,
                     user_profile=user_profile,
                     environment_id=env_id,
                     user_id=user_id,
+                    session_id=session_id,
                 )
 
                 tools_used.append(tool_name)
