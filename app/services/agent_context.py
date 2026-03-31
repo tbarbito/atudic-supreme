@@ -210,55 +210,34 @@ class ContextBuilder:
             except Exception:
                 pass
 
-        # Injetar conexoes se mensagem menciona banco/HML/PRD
+        # Conexoes: NAO buscar aqui — precompute ja injeta no system prompt.
+        # Fallback somente se precompute nao estiver ativo.
         if env_id and "db_connections" not in context:
-            import re
-            if re.search(r"\b(banco|hml|prd|prod|homolog|base|conex)", message, re.IGNORECASE):
-                conn = get_db()
-                cursor = conn.cursor()
-                try:
-                    cursor.execute(
-                        "SELECT id, name, driver, host, database_name "
-                        "FROM database_connections WHERE environment_id = %s ORDER BY name",
-                        (env_id,),
-                    )
-                    db_conns = [dict(row) for row in cursor.fetchall()]
-                    if db_conns:
-                        context["db_connections"] = db_conns
-                except Exception:
-                    pass
-                finally:
-                    release_db_connection(conn)
+            try:
+                from app.services.tools.context_precompute import _precompute_cache
+                if int(env_id) not in _precompute_cache:
+                    conn = get_db()
+                    cursor = conn.cursor()
+                    try:
+                        cursor.execute(
+                            "SELECT id, name, driver, host, database_name "
+                            "FROM database_connections WHERE environment_id = %s ORDER BY name",
+                            (env_id,),
+                        )
+                        db_conns = [dict(row) for row in cursor.fetchall()]
+                        if db_conns:
+                            context["db_connections"] = db_conns
+                    finally:
+                        release_db_connection(conn)
+            except Exception:
+                pass
 
     def _ctx_dictionary_analysis(self, context, message, entities, env_id):
         """Contexto para comparacao/equalizacao de dicionario.
 
-        Inclui tudo de table_info + conexoes de banco do ambiente.
+        Herda table_info (SX2, campos). Conexoes vem do precompute.
         """
-        # Herda contexto de table_info (SX2, campos, etc.)
         self._ctx_table_info(context, message, entities, env_id)
-
-        # Injetar conexoes de banco (essencial para compare_dictionary)
-        if env_id and "db_connections" not in context:
-            conn = get_db()
-            cursor = conn.cursor()
-            try:
-                cursor.execute(
-                    """
-                    SELECT id, name, driver, host, database_name
-                    FROM database_connections
-                    WHERE environment_id = %s
-                    ORDER BY name
-                    """,
-                    (env_id,),
-                )
-                db_conns = [dict(row) for row in cursor.fetchall()]
-                if db_conns:
-                    context["db_connections"] = db_conns
-            except Exception as e:
-                logger.warning("Erro ao buscar conexoes para dictionary_analysis: %s", e)
-            finally:
-                release_db_connection(conn)
 
     def _ctx_procedure_lookup(self, context, message, entities, env_id):
         """Busca procedimentos na memória procedural (TOOLS.md)."""
