@@ -1024,11 +1024,33 @@ def _tool_execute_equalization(params):
             ),
         }
 
+    # Se sql_statements nao foi passado, buscar do historico da sessao (salvo pelo preview)
+    if not params.get("sql_statements"):
+        try:
+            from app.services.agent_working_memory import get_working_memory
+            wm = get_working_memory()
+            # Buscar em todas as sessoes ativas (nao temos session_id aqui)
+            for sid, pad in wm._sessions.items():
+                for entry in reversed(pad.get("tool_call_history", [])):
+                    if entry.get("tool") == "preview_equalization" and entry["params"].get("_sql_statements"):
+                        stored_token = entry["params"].get("confirmation_token", "")
+                        if stored_token == params.get("confirmation_token") or not params.get("sql_statements"):
+                            params["sql_statements"] = entry["params"]["_sql_statements"]
+                            logger.info("sql_statements recuperado do historico: %d stmts", len(params["sql_statements"]))
+                            break
+                if params.get("sql_statements"):
+                    break
+        except Exception as e:
+            logger.debug("Erro ao buscar sql_statements do historico: %s", e)
+
+    if not params.get("sql_statements"):
+        return {"error": "sql_statements vazio. Faca preview_equalization primeiro para gerar os SQLs."}
+
     logger.info(
-        "🔧 Execute equalizacao: source=%s target=%s company=%s token=%s items=%d",
+        "🔧 Execute equalizacao: source=%s target=%s company=%s token=%s stmts=%d",
         params.get("source_conn_id"), params.get("target_conn_id"),
         params.get("company_code"), params.get("confirmation_token", "")[:10],
-        len(items) if isinstance(items, list) else 0,
+        len(params.get("sql_statements", [])),
     )
 
     return _internal_api("POST", "/api/dictionary/equalize/execute", params)
