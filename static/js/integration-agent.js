@@ -476,11 +476,11 @@ async function agRenderChat(container) {
 
     // Mostrar status no badge mesmo se rule-based
     var statusBadge = llmActive
-        ? `<span class="badge bg-success" style="font-size:0.7rem;"><i class="fas fa-brain me-1"></i>${llmProvider.toUpperCase()}</span>`
-        : `<span class="badge bg-secondary" style="font-size:0.7rem;"><i class="fas fa-cog me-1"></i>RULE-BASED</span>`;
+        ? `<span class="badge bg-success" style="font-size:0.62rem;"><i class="fas fa-brain me-1"></i>${llmProvider.toUpperCase()}</span>`
+        : `<span class="badge bg-secondary" style="font-size:0.62rem;"><i class="fas fa-cog me-1"></i>RULE-BASED</span>`;
 
     container.innerHTML = `
-        <div class="card" style="height: 70vh; display: flex; flex-direction: column;">
+        <div class="card" style="height: calc(100vh - 130px); min-height: 400px; display: flex; flex-direction: column; width: 100%;">
             <div class="card-header d-flex justify-content-between align-items-center py-2">
                 <span><i class="fas fa-comments me-1"></i>Chat com GolIAs</span>
                 <div class="d-flex align-items-center gap-2">
@@ -886,7 +886,9 @@ async function agSendMessageStream(body) {
                     streamMsg.llm_model = fullResponse.llm_model || '';
                     streamMsg.sources_consulted = fullResponse.sources_consulted || [];
                     streamMsg.tools_used = fullResponse.tools_used || [];
-                    streamMsg.react_steps = fullResponse.react_steps || [];
+                    streamMsg.react_steps = (fullResponse.react_steps && fullResponse.react_steps.length > 0)
+                        ? fullResponse.react_steps
+                        : agLiveSteps.filter(function(s) { return s.type === 'tool_call' || s.type === 'tool_executed'; });
                     streamMsg.token_usage = fullResponse.token_usage || null;
                     agRenderChatMessages();
                 }
@@ -1048,6 +1050,7 @@ function agRenderChatMessages() {
 }
 
 var agStepSource = null;
+var agLiveSteps = [];
 
 function agRenderChatLoading(show) {
     var container = document.getElementById('ag-chat-messages');
@@ -1055,11 +1058,16 @@ function agRenderChatLoading(show) {
 
     var loadingEl = document.getElementById('ag-chat-loading');
     if (show && !loadingEl) {
+        agLiveSteps = [];
         container.insertAdjacentHTML('beforeend',
-            '<div id="ag-chat-loading" class="d-flex align-items-center gap-2 mb-3">' +
-            '<div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:32px;height:32px;font-size:0.8rem;"><i class="fas fa-robot"></i></div>' +
+            '<div id="ag-chat-loading" class="mb-3">' +
+            '<div class="d-flex align-items-center gap-2">' +
+            '<div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center flex-shrink-0" style="width:32px;height:32px;font-size:0.8rem;"><i class="fas fa-robot"></i></div>' +
             '<div class="spinner-border spinner-border-sm text-primary"></div>' +
-            '<small class="text-muted" id="ag-loading-text">Pensando...</small></div>'
+            '<small class="text-muted" id="ag-loading-text">Pensando...</small>' +
+            '</div>' +
+            '<div id="ag-step-live" class="ms-5 mt-1" style="font-size:0.72rem;"></div>' +
+            '</div>'
         );
         container.scrollTop = container.scrollHeight;
         agStartStepStream();
@@ -1080,22 +1088,46 @@ function agStartStepStream() {
                 var stepData = data.data || data;
                 var desc = stepData.description || '';
                 var stepType = stepData.type || '';
-                if (desc) {
-                    var el = document.getElementById('ag-loading-text');
-                    if (el) {
-                        // Icone contextual por tipo de step
-                        var icon = '';
-                        if (stepType === 'agent_dispatch') icon = '🤖 ';
-                        else if (stepType === 'orchestration') icon = '🎯 ';
-                        else if (stepType === 'chain_step') icon = '🔗 ';
-                        else if (stepType === 'replan') icon = '🔄 ';
-                        else if (stepType === 'tool_call') icon = '🔧 ';
-                        else if (stepType === 'composing') icon = '✍️ ';
-                        el.textContent = icon + desc;
-                    }
-                    var container = document.getElementById('ag-chat-messages');
-                    if (container) container.scrollTop = container.scrollHeight;
+                var toolName = stepData.tool || '';
+
+                if (!desc) return;
+
+                var icon = '';
+                if (stepType === 'thinking')        icon = '💭';
+                else if (stepType === 'tool_call')   icon = '🔧';
+                else if (stepType === 'composing')   icon = '✍️';
+                else if (stepType === 'planning')    icon = '📋';
+                else if (stepType === 'plan_ready')  icon = '✅';
+                else if (stepType === 'agent_dispatch') icon = '🤖';
+                else if (stepType === 'orchestration')  icon = '🎯';
+                else if (stepType === 'chain_step')  icon = '🔗';
+                else if (stepType === 'replan')      icon = '🔄';
+                else icon = '•';
+
+                // Atualizar spinner text
+                var loadingEl = document.getElementById('ag-loading-text');
+                if (loadingEl) loadingEl.textContent = icon + ' ' + desc;
+
+                // Acumular step
+                agLiveSteps.push({ type: stepType, description: desc, tool: toolName, success: true });
+
+                // Renderizar lista de steps ao vivo
+                var liveEl = document.getElementById('ag-step-live');
+                if (liveEl) {
+                    var liveHtml = agLiveSteps.map(function(s) {
+                        var ic = s.type === 'tool_call' ? '🔧' :
+                                 s.type === 'composing' ? '✍️' :
+                                 s.type === 'thinking'  ? '💭' :
+                                 s.type === 'planning'  ? '📋' :
+                                 s.type === 'plan_ready'? '✅' : '•';
+                        var label = s.tool ? s.tool : s.description;
+                        return '<div class="text-muted">' + ic + ' <span>' + agEscapeHtml(label) + '</span></div>';
+                    }).join('');
+                    liveEl.innerHTML = liveHtml;
                 }
+
+                var msgContainer = document.getElementById('ag-chat-messages');
+                if (msgContainer) msgContainer.scrollTop = msgContainer.scrollHeight;
             } catch (e) { /* ignora parse error */ }
         };
         agStepSource.onerror = function() {
