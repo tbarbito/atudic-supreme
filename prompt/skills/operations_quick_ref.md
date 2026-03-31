@@ -24,7 +24,16 @@ specialist: "all"
 | "status dos servicos" | `get_services` | get_pipelines |
 | "cria release" | `get_pipeline_status` → `create_release` (confirmacao) | — |
 | "analisa impacto do campo X" | `analyze_impact` → `list_vinculos` | query_database |
+| "como configurar broker" | `search_tdn` (query: "configurar broker webservice") | search_knowledge |
+| "funcao MsExecAuto" | `search_tdn` (query: "MsExecAuto", source: "protheus12") | search_knowledge |
+| "como incluir pedido" | `search_tdn` (query: "incluir pedido venda MATA410") | query_database |
+| "erro ORA-12154" | `search_knowledge` (KB erros) + `search_tdn` (config Oracle) | — |
 | "visao geral" | `get_system_overview` | get_environments |
+
+### REGRA — search_tdn vs search_knowledge
+- `search_tdn`: documentacao oficial TDN — funcoes, configuracoes, APIs, procedures, como fazer
+- `search_knowledge`: KB interna de erros — diagnostico, solucoes de erros conhecidos
+- Na duvida, use AMBAS. Sao complementares.
 
 ### REGRA DE OURO — Conexoes
 - As conexoes de banco estao listadas no contexto com IDs. USE-OS DIRETAMENTE.
