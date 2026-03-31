@@ -142,8 +142,97 @@ class AgentChatEngine:
                     execute_tool_name = _PREVIEW_TO_EXECUTE[last_tool]
                     break
 
+        # Se nao tem preview mas tem compare + contexto de equalizacao pendente,
+        # verificar historico de mensagens para extrair o campo a equalizar
         if not execute_tool_name:
-            return None
+            # Checar se houve compare_dictionary + mensagem anterior pedindo equalizacao
+            has_compare = any(e.get("tool") == "compare_dictionary" for e in pad["tool_call_history"])
+            if not has_compare:
+                return None
+
+            # Buscar na mensagem anterior o campo e direcao
+            recent_history = self._history.get_recent_history(session_id, limit=4)
+            equalize_field = None
+            source_alias = None
+            target_alias = None
+            for hist_msg in reversed(recent_history):
+                content = hist_msg.get("content", "")
+                if hist_msg.get("role") == "user":
+                    import re as _re2
+                    # Detectar "equalize A1_ZEPCLI de HML pra PRD"
+                    match = _re2.search(
+                        r"equaliz\w*\s+.*?([A-Z][A-Z0-9]_[A-Z0-9]+).*?(hml|prd|homolog|produ)", content, _re2.IGNORECASE
+                    )
+                    if match:
+                        equalize_field = match.group(1).upper()
+                        # Inferir direcao
+                        dir_match = _re2.search(r"(hml|homolog)\w*\s+(pra|para|→|->)\s+(prd|produ)", content, _re2.IGNORECASE)
+                        if dir_match:
+                            source_alias = "HML"
+                            target_alias = "PRD"
+                        else:
+                            dir_match = _re2.search(r"(prd|produ)\w*\s+(pra|para|→|->)\s+(hml|homolog)", content, _re2.IGNORECASE)
+                            if dir_match:
+                                source_alias = "PRD"
+                                target_alias = "HML"
+                        break
+
+            if not equalize_field:
+                return None
+
+            logger.info("Auto-equalize: campo=%s source=%s target=%s (sem preview, gerando on-the-fly)", equalize_field, source_alias, target_alias)
+
+            # Inferir table_alias do campo (prefixo antes do _)
+            table_alias = equalize_field.split("_")[0]
+            # A1_ZEPCLI -> table SA1 (primeiro char + "A" + digito)
+            # Padrao Protheus: campo A1_X -> tabela SA1, C5_X -> SC5, etc.
+            if len(table_alias) >= 2:
+                table_alias = "S" + table_alias
+
+            # Montar items e chamar execute_equalization (que faz preview on-the-fly)
+            from app.services.tools.connection_resolver import resolve_connection_params
+            exec_params = {
+                "items": [{"type": "field", "meta_table": "SX3", "table_alias": table_alias, "field_name": equalize_field}],
+            }
+            # Inferir conn_ids do historico
+            exec_params, _ = wm.infer_missing_params(session_id, "execute_equalization", exec_params)
+            if source_alias:
+                exec_params["source_conn_id"] = source_alias
+            if target_alias:
+                exec_params["target_conn_id"] = target_alias
+
+            # Resolver aliases
+            exec_params, _ = resolve_connection_params(exec_params, environment_id)
+
+            user_profile = (user_info or {}).get("profile", "viewer")
+            user_id = (user_info or {}).get("user_id")
+
+            tool_result = execute_tool(
+                "execute_equalization", exec_params,
+                user_profile=user_profile, environment_id=environment_id,
+                user_id=user_id, session_id=session_id,
+            )
+
+            # Formatar resultado
+            success = tool_result.get("success", False)
+            data = tool_result.get("data", {})
+            if success and isinstance(data, dict) and data.get("success"):
+                text = (
+                    f"Equalizacao de **{equalize_field}** executada com sucesso.\n\n"
+                    f"- Statements: {data.get('executed', 0)}\n"
+                    f"- Status: {data.get('status', 'success')}\n"
+                    f"- Duracao: {data.get('duration_ms', 0)}ms"
+                )
+            else:
+                error = data.get("error", "") if isinstance(data, dict) else tool_result.get("error", "Erro")
+                text = f"Equalizacao de **{equalize_field}** falhou: {error}"
+
+            self._history.save_messages(session_id, environment_id, message, "dictionary_analysis", 1.0, text)
+            return {
+                "intent": "dictionary_analysis", "confidence": 1.0, "text": text,
+                "sections": [], "links": [], "sources_consulted": ["execute_equalization"],
+                "entities": {}, "mode": "auto-execute", "tools_used": ["execute_equalization"],
+            }
 
         # Verificar se tem confirmation_token no resultado do preview
         # O token esta nos tool_results (summary)
