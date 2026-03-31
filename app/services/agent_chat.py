@@ -152,11 +152,18 @@ class AgentChatEngine:
             logger.info("Auto-execute: preview encontrado mas sem confirmation_token no historico")
             return None
 
-        logger.info("Auto-execute: usuario confirmou '%s' → executando %s com token", message.strip(), execute_tool_name)
+        # Recuperar sql_statements do preview (necessario para execute)
+        sql_stmts = last_params.get("_sql_statements", [])
+
+        logger.info(
+            "Auto-execute: usuario confirmou '%s' → executando %s com token=%s... stmts=%d",
+            message.strip(), execute_tool_name, token[:10] if token else "?", len(sql_stmts),
+        )
 
         # Montar params do execute a partir do preview
-        execute_params = dict(last_params)
+        execute_params = {k: v for k, v in last_params.items() if not k.startswith("_")}
         execute_params["confirmation_token"] = token
+        execute_params["sql_statements"] = sql_stmts
         execute_params["confirmed"] = True
 
         user_profile = (user_info or {}).get("profile", "viewer")

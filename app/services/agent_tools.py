@@ -134,19 +134,25 @@ def execute_tool(tool_name, params, user_profile="viewer", environment_id=None, 
     try:
         result = tool["handler"](params)
 
-        # Se foi preview, salvar confirmation_token no historico para auto-execute
+        # Se foi preview, salvar token + sql_statements no historico para auto-execute
         if session_id and tool_name in ("preview_equalization", "preview_ingestion"):
             try:
-                token = None
-                if isinstance(result, dict):
-                    token = result.get("confirmation_token")
-                    # Auto-preview retorna dentro de "preview"
-                    if not token and isinstance(result.get("preview"), dict):
-                        token = result["preview"].get("confirmation_token")
+                preview_data = result if isinstance(result, dict) else {}
+                if "preview" in preview_data and isinstance(preview_data["preview"], dict):
+                    preview_data = preview_data["preview"]
+
+                token = preview_data.get("confirmation_token")
+                sql_stmts = preview_data.get("phase1_ddl", []) + preview_data.get("phase2_dml", [])
+
                 if token:
                     from app.services.agent_working_memory import get_working_memory
                     wm = get_working_memory()
-                    wm.record_tool_call(session_id, tool_name, {**params, "confirmation_token": token})
+                    wm.record_tool_call(session_id, tool_name, {
+                        **params,
+                        "confirmation_token": token,
+                        "_sql_statements": sql_stmts,
+                    })
+                    logger.info("Preview salvo: token=%s... stmts=%d", token[:10], len(sql_stmts))
             except Exception:
                 pass
 
