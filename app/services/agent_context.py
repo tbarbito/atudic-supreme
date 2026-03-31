@@ -697,15 +697,22 @@ class ContextBuilder:
                 elif isinstance(info, str):
                     parts.append(info[:500])
 
+        # Conexoes de banco — so injetar se o precompute NAO cobriu (evita duplicacao)
         if context.get("db_connections"):
-            parts.append("### Conexoes de Banco Disponiveis")
-            parts.append("Use estes IDs ao chamar tools que exigem conn_id/connection_id. "
-                         "Se o usuario usar aliases (HML, PRD, dev, etc.), resolva para o ID correspondente.")
-            for c in context["db_connections"]:
-                driver = c.get("driver", "?")
-                host = c.get("host", "?")
-                db_name = c.get("database_name", "?")
-                parts.append(f"- **ID {c['id']}**: {c.get('name', '?')} ({driver}) — {host}/{db_name}")
+            env_id_check = context.get("_environment_id")
+            precompute_active = False
+            try:
+                from app.services.tools.context_precompute import _precompute_cache
+                precompute_active = bool(env_id_check and int(env_id_check) in _precompute_cache)
+            except Exception:
+                pass
+            if not precompute_active:
+                parts.append("### Conexoes de Banco Disponiveis")
+                for c in context["db_connections"]:
+                    driver = c.get("driver", "?")
+                    host = c.get("host", "?")
+                    db_name = c.get("database_name", "?")
+                    parts.append(f"- **ID {c['id']}**: {c.get('name', '?')} ({driver}) — {host}/{db_name}")
 
         if context.get("environments"):
             parts.append("### Ambientes")

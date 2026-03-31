@@ -219,19 +219,15 @@ def format_precomputed_context(context):
 
 
 def seed_working_memory(wm, session_id, context):
-    """Popula a working memory com o contexto pre-computado.
+    """Popula a working memory com contexto minimo da sessao.
 
-    Registra entidades chave para que o LLM tenha acesso rapido
-    durante toda a sessao.
+    NAO duplicar o que ja esta no format_precomputed_context (system prompt).
+    Apenas empresas Protheus — e a info que o LLM mais precisa para sufixo.
     """
     if not context:
         return
 
-    # Conexoes
-    for c in context.get("connections", []):
-        wm.add_entity(session_id, "db_connection", f"ID {c['id']}: {c.get('name', '?')}")
-
-    # Empresas por conexao
+    # Apenas empresas por conexao (essencial para sufixo)
     for conn_id, companies in context.get("companies", {}).items():
         conn_name = next((c["name"] for c in context.get("connections", []) if c["id"] == conn_id), "?")
         for emp in companies:
@@ -239,16 +235,3 @@ def seed_working_memory(wm, session_id, context):
                 session_id, "protheus_company",
                 f"{conn_name}: empresa {emp['code']} ({emp['name']}), sufixo {emp['suffix']}",
             )
-
-    # Servicos
-    for s in context.get("services", []):
-        display = s.get("display_name") or s.get("name", "?")
-        wm.add_entity(session_id, "service", f"ID {s['id']}: {display}")
-
-    # Pipelines
-    for p in context.get("pipelines", []):
-        wm.add_entity(session_id, "pipeline", f"ID {p['id']}: {p['name']}")
-
-    # Repositorios
-    for r in context.get("repositories", []):
-        wm.add_entity(session_id, "repository", f"ID {r['id']}: {r['name']}")
