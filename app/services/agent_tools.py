@@ -10,6 +10,7 @@ Modularizado em:
 Este arquivo mantém registry, handlers e init_tools() para retrocompatibilidade.
 """
 
+import json
 import os
 import re
 import logging
