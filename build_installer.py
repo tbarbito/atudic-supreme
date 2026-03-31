@@ -271,7 +271,7 @@ def obfuscate_python():
             print_warning("Diretório prompt/specialists/ não encontrado")
 
         # Copiar prompt core e specialists.yml
-        for fname in ['ATUDIC_AGENT_CONTEXT.md', 'ATUDIC_AGENT_CONTEXT_CORE.md', 'specialists.yml', 'chains.yml']:
+        for fname in ['BIIZHUBOPS_AGENT_CONTEXT.md', 'BIIZHUBOPS_AGENT_CONTEXT_CORE.md', 'specialists.yml', 'chains.yml']:
             src_file = os.path.join(PROJECT_ROOT, 'prompt', fname)
             dest_file = os.path.join(obfuscated_dir, 'prompt', fname)
             if os.path.exists(src_file):
@@ -490,8 +490,8 @@ a = Analysis(
         ('{obfuscated_rel}/activate_license.py', '.'),
         ('{obfuscated_rel}/memory/MEMORY.md', 'memory'),
         ('{obfuscated_rel}/memory/TOOLS.md', 'memory'),
-        ('{obfuscated_rel}/prompt/ATUDIC_AGENT_CONTEXT.md', 'prompt'),
-        ('{obfuscated_rel}/prompt/ATUDIC_AGENT_CONTEXT_CORE.md', 'prompt'),
+        ('{obfuscated_rel}/prompt/BIIZHUBOPS_AGENT_CONTEXT.md', 'prompt'),
+        ('{obfuscated_rel}/prompt/BIIZHUBOPS_AGENT_CONTEXT_CORE.md', 'prompt'),
         ('{obfuscated_rel}/prompt/specialists.yml', 'prompt'),
         ('{obfuscated_rel}/prompt/chains.yml', 'prompt'),
         ('{obfuscated_rel}/prompt/specialists', 'prompt/specialists'),
