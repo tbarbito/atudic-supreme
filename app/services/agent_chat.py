@@ -100,6 +100,115 @@ class AgentChatEngine:
     # EXECUCAO DIRETA DE ACAO CONFIRMADA (sem LLM)
     # =================================================================
 
+    def _check_auto_execute_preview(self, message, session_id, environment_id, user_info):
+        """Se a ultima tool foi preview_equalization/preview_ingestion e usuario confirma, executa.
+
+        Resolve o problema do LLM inventar sucesso sem chamar execute.
+        Detecta confirmacao via palavras-chave simples.
+        """
+        import re
+        _CONFIRM_PATTERN = re.compile(
+            r"^\s*(sim|s|ok|pode|aplica|confirma|confirmo|manda|vai|yes|y|go|approve)\s*[!.?]?\s*$",
+            re.IGNORECASE,
+        )
+        if not _CONFIRM_PATTERN.match(message.strip()):
+            return None
+
+        # Verificar se ultima tool call na sessao foi um preview
+        wm = get_working_memory()
+        pad = wm._sessions.get(session_id)
+        if not pad or not pad.get("tool_call_history"):
+            return None
+
+        last_call = pad["tool_call_history"][-1]
+        last_tool = last_call.get("tool", "")
+        last_params = last_call.get("params", {})
+
+        # Mapear preview → execute
+        _PREVIEW_TO_EXECUTE = {
+            "preview_equalization": "execute_equalization",
+            "preview_ingestion": "execute_ingestion",
+        }
+
+        execute_tool_name = _PREVIEW_TO_EXECUTE.get(last_tool)
+        if not execute_tool_name:
+            return None
+
+        # Verificar se tem confirmation_token no resultado do preview
+        # O token esta nos tool_results (summary)
+        token = last_params.get("confirmation_token")
+        if not token:
+            # Buscar nos tool_results
+            for tr in reversed(pad.get("tool_results", [])):
+                if "confirmation_token" in tr.get("summary", ""):
+                    # Extrair token do summary (formato: ...token: abc123...)
+                    import re as _re
+                    match = _re.search(r'"confirmation_token"\s*:\s*"([^"]+)"', tr["summary"])
+                    if match:
+                        token = match.group(1)
+                        break
+
+        if not token:
+            logger.info("Auto-execute: preview encontrado mas sem confirmation_token no historico")
+            return None
+
+        logger.info("Auto-execute: usuario confirmou '%s' → executando %s com token", message.strip(), execute_tool_name)
+
+        # Montar params do execute a partir do preview
+        execute_params = dict(last_params)
+        execute_params["confirmation_token"] = token
+        execute_params["confirmed"] = True
+
+        user_profile = (user_info or {}).get("profile", "viewer")
+        user_id = (user_info or {}).get("user_id")
+
+        tool_result = execute_tool(
+            execute_tool_name,
+            execute_params,
+            user_profile=user_profile,
+            environment_id=environment_id,
+            user_id=user_id,
+            session_id=session_id,
+        )
+
+        # Formatar resposta
+        success = tool_result.get("success", False)
+        data = tool_result.get("data", {})
+
+        if success and isinstance(data, dict) and data.get("success"):
+            executed = data.get("executed", 0)
+            status = data.get("status", "success")
+            duration = data.get("duration_ms", 0)
+            text = (
+                f"Equalizacao executada com sucesso.\n\n"
+                f"- **Statements executados:** {executed}\n"
+                f"- **Status:** {status}\n"
+                f"- **Duracao:** {duration}ms"
+            )
+            if data.get("tcrefresh", {}).get("called"):
+                text += f"\n- **TcRefresh:** {'OK' if data['tcrefresh'].get('success') else 'Falhou (DDL/DML OK, cache pode precisar de restart)'}"
+        else:
+            error = data.get("error", "") if isinstance(data, dict) else tool_result.get("error", "Erro desconhecido")
+            text = f"Equalizacao falhou: {error}"
+
+        # Salvar no historico
+        self._history.save_messages(
+            session_id, environment_id, message,
+            "dictionary_analysis", 1.0, text
+        )
+
+        return {
+            "intent": "dictionary_analysis",
+            "confidence": 1.0,
+            "text": text,
+            "sections": [],
+            "links": [],
+            "sources_consulted": [execute_tool_name],
+            "entities": {},
+            "mode": "auto-execute",
+            "tools_used": [execute_tool_name],
+        }
+
     def execute_confirmed_action(self, pending_action, session_id, environment_id=None, user_info=None):
         """Executa acao confirmada pelo usuario sem passar pelo LLM.
 
@@ -216,6 +325,11 @@ class AgentChatEngine:
             user_info: dict com info do usuário
             attachments: lista de anexos [{type, name, content, mime_type}]
         """
+        # 0. Auto-execute: se ultima tool foi preview e usuario confirma, executar direto
+        auto_result = self._check_auto_execute_preview(message, session_id, environment_id, user_info)
+        if auto_result:
+            return auto_result
+
         # 1. Detectar intenção
         intent, confidence = self._detect_intent(message)
 

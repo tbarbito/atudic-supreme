@@ -133,6 +133,23 @@ def execute_tool(tool_name, params, user_profile="viewer", environment_id=None, 
 
     try:
         result = tool["handler"](params)
+
+        # Se foi preview, salvar confirmation_token no historico para auto-execute
+        if session_id and tool_name in ("preview_equalization", "preview_ingestion"):
+            try:
+                token = None
+                if isinstance(result, dict):
+                    token = result.get("confirmation_token")
+                    # Auto-preview retorna dentro de "preview"
+                    if not token and isinstance(result.get("preview"), dict):
+                        token = result["preview"].get("confirmation_token")
+                if token:
+                    from app.services.agent_working_memory import get_working_memory
+                    wm = get_working_memory()
+                    wm.record_tool_call(session_id, tool_name, {**params, "confirmation_token": token})
+            except Exception:
+                pass
+
         return {"success": True, "data": result}
     except Exception as e:
         logger.error("Erro ao executar tool %s: %s", tool_name, e)
