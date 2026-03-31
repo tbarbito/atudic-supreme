@@ -1043,8 +1043,21 @@ def _tool_execute_equalization(params):
         except Exception as e:
             logger.debug("Erro ao buscar sql_statements do historico: %s", e)
 
+    # Se ainda nao tem sql_statements, gerar preview on-the-fly e extrair
     if not params.get("sql_statements"):
-        return {"error": "sql_statements vazio. Faca preview_equalization primeiro para gerar os SQLs."}
+        if items:
+            logger.info("sql_statements vazio — gerando preview on-the-fly para extrair SQLs")
+            preview_result = _tool_preview_equalization(params)
+            if isinstance(preview_result, dict) and not preview_result.get("error"):
+                stmts = preview_result.get("phase1_ddl", []) + preview_result.get("phase2_dml", [])
+                token = preview_result.get("confirmation_token")
+                if stmts and token:
+                    params["sql_statements"] = stmts
+                    params["confirmation_token"] = token
+                    logger.info("Preview on-the-fly: %d stmts, token=%s...", len(stmts), token[:10])
+
+    if not params.get("sql_statements"):
+        return {"error": "sql_statements vazio e nao foi possivel gerar preview. Verifique os items."}
 
     logger.info(
         "🔧 Execute equalizacao: source=%s target=%s company=%s token=%s stmts=%d",
