@@ -2172,3 +2172,476 @@ Texto: {descricao}"""
     if result.get("success"):
         return jsonify(result["data"])
     return jsonify({"error": result.get("error", "Erro desconhecido")}), 500
+
+
+# ========================================================================
+# ANALISTA — Perguntas sobre o workspace com contexto IA
+# ========================================================================
+
+@workspace_bp.route("/workspaces/<slug>/analista/ask", methods=["POST"])
+def analista_ask(slug):
+    """Envia pergunta ao analista do workspace."""
+    data = request.get_json()
+    question = (data or {}).get("question", "").strip()
+    if not question:
+        return jsonify({"error": "Pergunta vazia"}), 400
+
+    db = _get_db(slug)
+    ks = KnowledgeService(db)
+
+    # Construir contexto do workspace
+    try:
+        summary = ks.get_custom_summary()
+    except Exception:
+        summary = {}
+
+    # Buscar modulos disponiveis
+    modulos_list = []
+    try:
+        rows = db.execute(
+            "SELECT DISTINCT modulo FROM fontes WHERE modulo IS NOT NULL AND modulo != '' ORDER BY modulo"
+        ).fetchall()
+        modulos_list = [r[0] for r in rows]
+    except Exception:
+        pass
+
+    # Buscar tabelas mencionadas na pergunta para contexto extra
+    sources = []
+    q_upper = question.upper()
+    try:
+        tab_rows = db.execute(
+            "SELECT codigo, nome FROM tabelas WHERE upper(codigo) LIKE ? OR upper(nome) LIKE ? LIMIT 5",
+            (f"%{q_upper[:20]}%", f"%{q_upper[:30]}%")
+        ).fetchall()
+        for r in tab_rows:
+            info = ks.get_table_info(r[0])
+            if info:
+                sources.append({"tipo": "tabela", "codigo": r[0], "nome": r[1]})
+    except Exception:
+        pass
+
+    # Montar prompt com contexto
+    context_parts = [f"Resumo do workspace: {json.dumps(summary, ensure_ascii=False)}"]
+    if modulos_list:
+        context_parts.append(f"Modulos disponiveis: {', '.join(modulos_list)}")
+    if sources:
+        context_parts.append(f"Tabelas relacionadas: {json.dumps(sources, ensure_ascii=False)}")
+
+    context_text = "\n".join(context_parts)
+
+    system_prompt = (
+        "Voce e um analista tecnico senior de ambientes TOTVS Protheus.\n"
+        "Use APENAS os dados do CONTEXTO abaixo. Nao invente dados.\n"
+        "Responda de forma tecnica e concisa em portugues.\n\n"
+        f"CONTEXTO DO WORKSPACE:\n{context_text}\n"
+    )
+
+    try:
+        llm = _get_llm_provider()
+    except Exception as e:
+        return jsonify({"error": f"LLM nao disponivel: {str(e)[:200]}"}), 500
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": question},
+    ]
+
+    answer = _llm_chat_text(llm, messages)
+
+    # Salvar no historico (chat_history do workspace SQLite)
+    try:
+        db.execute(
+            "INSERT INTO chat_history (role, content, sources) VALUES ('user', ?, NULL)",
+            (question,)
+        )
+        db.execute(
+            "INSERT INTO chat_history (role, content, sources) VALUES ('assistant', ?, ?)",
+            (answer, json.dumps(sources, ensure_ascii=False))
+        )
+        db.commit()
+    except Exception as e:
+        logger.warning("Erro ao salvar historico do analista: %s", e)
+
+    return jsonify({
+        "answer": answer,
+        "sources": sources,
+        "modulos": modulos_list,
+    })
+
+
+@workspace_bp.route("/workspaces/<slug>/analista/history", methods=["GET"])
+def analista_history(slug):
+    """Historico de perguntas do analista."""
+    db = _get_db(slug)
+    limit = request.args.get("limit", 50, type=int)
+
+    try:
+        rows = db.execute(
+            "SELECT id, role, content, sources, created_at "
+            "FROM chat_history ORDER BY id DESC LIMIT ?",
+            (limit,)
+        ).fetchall()
+        items = [
+            {
+                "id": r[0],
+                "role": r[1],
+                "content": r[2],
+                "sources": json.loads(r[3]) if r[3] else [],
+                "created_at": r[4],
+            }
+            for r in reversed(rows)
+        ]
+        return jsonify(items)
+    except Exception:
+        return jsonify([])
+
+
+# ========================================================================
+# BASE PADRAO — Modulos, PEs e TDN da base padrao
+# ========================================================================
+
+# Diretorio da base padrao (relativo a raiz da aplicacao)
+_PADRAO_DIR = Path("processoPadrao")
+
+
+@workspace_bp.route("/workspaces/<slug>/padrao/modulos", methods=["GET"])
+def padrao_modulos(slug):
+    """Lista modulos da base padrao."""
+    # Validar que o workspace existe
+    ws_path = _get_workspace_path(slug)
+    if not (ws_path / "workspace.db").exists():
+        return jsonify({"error": "Workspace nao encontrado"}), 404
+
+    if not _PADRAO_DIR.exists():
+        return jsonify([])
+
+    modulos = []
+    for f in sorted(_PADRAO_DIR.iterdir()):
+        if f.is_file() and f.suffix.lower() == ".md":
+            modulo_name = f.stem
+            modulos.append({
+                "modulo": modulo_name,
+                "nome": modulo_name.replace("_", " ").capitalize(),
+                "arquivo": f.name,
+            })
+    return jsonify(modulos)
+
+
+@workspace_bp.route("/workspaces/<slug>/padrao/modulos/<modulo>", methods=["GET"])
+def padrao_modulo_detail(slug, modulo):
+    """Conteudo de um modulo padrao."""
+    ws_path = _get_workspace_path(slug)
+    if not (ws_path / "workspace.db").exists():
+        return jsonify({"error": "Workspace nao encontrado"}), 404
+
+    # Buscar arquivo .md do modulo
+    md_file = _PADRAO_DIR / f"{modulo}.md"
+    if not md_file.exists():
+        # Tentar case-insensitive
+        found = None
+        if _PADRAO_DIR.exists():
+            for f in _PADRAO_DIR.iterdir():
+                if f.stem.lower() == modulo.lower() and f.suffix.lower() == ".md":
+                    found = f
+                    break
+        if not found:
+            return jsonify({"error": f"Modulo padrao '{modulo}' nao encontrado"}), 404
+        md_file = found
+
+    try:
+        conteudo = md_file.read_text(encoding="utf-8")
+    except Exception as e:
+        return jsonify({"error": f"Erro ao ler arquivo: {str(e)[:200]}"}), 500
+
+    return jsonify({"modulo": modulo, "conteudo": conteudo})
+
+
+@workspace_bp.route("/workspaces/<slug>/padrao/pes", methods=["GET"])
+def padrao_pes(slug):
+    """Lista pontos de entrada da base padrao."""
+    db = _get_db(slug)
+
+    # Tentar tabela padrao_pes (pode nao existir em todos os workspaces)
+    try:
+        rows = db.execute(
+            "SELECT nome, rotina, modulo, objetivo FROM padrao_pes ORDER BY nome"
+        ).fetchall()
+        return jsonify([
+            {"nome": r[0], "rotina": r[1], "modulo": r[2], "objetivo": r[3] or ""}
+            for r in rows
+        ])
+    except Exception:
+        # Tabela nao existe — retornar lista vazia
+        return jsonify([])
+
+
+@workspace_bp.route("/workspaces/<slug>/padrao/tdn", methods=["GET"])
+def padrao_tdn(slug):
+    """Referencia TDN."""
+    ws_path = _get_workspace_path(slug)
+    if not (ws_path / "workspace.db").exists():
+        return jsonify({"error": "Workspace nao encontrado"}), 404
+
+    tdn_dir = _PADRAO_DIR / "TDN"
+    if not tdn_dir.exists():
+        return jsonify({"tree": [], "message": "Diretorio TDN nao encontrado"})
+
+    # Montar arvore de arquivos JSON/MD no diretorio TDN
+    tree = []
+    try:
+        for f in sorted(tdn_dir.iterdir()):
+            if f.is_file() and f.suffix.lower() in (".json", ".md", ".yml", ".yaml"):
+                node = {"nome": f.stem, "arquivo": f.name, "tipo": f.suffix.lstrip(".")}
+                # Se JSON, tentar carregar estrutura
+                if f.suffix.lower() == ".json":
+                    try:
+                        data = json.loads(f.read_text(encoding="utf-8"))
+                        if isinstance(data, dict):
+                            node["keys"] = list(data.keys())[:20]
+                        elif isinstance(data, list):
+                            node["total_items"] = len(data)
+                    except Exception:
+                        pass
+                tree.append(node)
+            elif f.is_dir():
+                children = []
+                for child in sorted(f.iterdir()):
+                    if child.is_file():
+                        children.append({"nome": child.stem, "arquivo": child.name, "tipo": child.suffix.lstrip(".")})
+                tree.append({"nome": f.name, "tipo": "dir", "children": children[:50]})
+    except Exception as e:
+        logger.warning("Erro ao listar TDN: %s", e)
+
+    return jsonify({"tree": tree})
+
+
+# ========================================================================
+# GERAR DOCS — Busca, resumo e geracao de documentacao IA
+# ========================================================================
+
+@workspace_bp.route("/workspaces/<slug>/docs/search", methods=["GET"])
+def docs_search(slug):
+    """Busca tabelas e fontes para geracao de docs."""
+    db = _get_db(slug)
+    q = request.args.get("q", "").strip()
+    if len(q) < 2:
+        return jsonify({"tabelas": [], "fontes": []})
+
+    q_like = f"%{q.upper()}%"
+
+    # Buscar tabelas
+    tabelas = []
+    try:
+        rows = db.execute(
+            "SELECT codigo, nome, custom FROM tabelas "
+            "WHERE upper(codigo) LIKE ? OR upper(nome) LIKE ? LIMIT 20",
+            (q_like, q_like)
+        ).fetchall()
+        tabelas = [{"codigo": r[0], "nome": r[1] or "", "custom": bool(r[2])} for r in rows]
+    except Exception:
+        pass
+
+    # Buscar fontes
+    fontes = []
+    try:
+        rows = db.execute(
+            "SELECT arquivo, modulo, lines_of_code FROM fontes "
+            "WHERE upper(arquivo) LIKE ? LIMIT 20",
+            (q_like,)
+        ).fetchall()
+        fontes = [{"arquivo": r[0], "modulo": r[1] or "", "loc": r[2] or 0} for r in rows]
+    except Exception:
+        pass
+
+    return jsonify({"tabelas": tabelas, "fontes": fontes})
+
+
+@workspace_bp.route("/workspaces/<slug>/docs/summary", methods=["GET"])
+def docs_summary(slug):
+    """Resumo de dados do workspace para geracao de docs."""
+    db = _get_db(slug)
+
+    def _c(q):
+        try:
+            return db.execute(q).fetchone()[0]
+        except Exception:
+            return 0
+
+    return jsonify({
+        "tabelas": _c("SELECT COUNT(*) FROM tabelas"),
+        "campos_custom": _c("SELECT COUNT(*) FROM campos WHERE custom = 1"),
+        "gatilhos": _c("SELECT COUNT(*) FROM gatilhos"),
+        "fontes": _c("SELECT COUNT(*) FROM fontes"),
+    })
+
+
+@workspace_bp.route("/workspaces/<slug>/docs/generate", methods=["POST"])
+def docs_generate_v2(slug):
+    """Gera documentacao IA para um modulo."""
+    data = request.get_json()
+    modulo = (data or {}).get("modulo", "").strip()
+    if not modulo:
+        return jsonify({"error": "Parametro 'modulo' obrigatorio"}), 400
+
+    db = _get_db(slug)
+
+    # Tentar usar DocPipelineV3 (com LLM) se disponivel, senao fallback para DocPipeline
+    try:
+        llm = _get_llm_provider()
+    except Exception as e:
+        return jsonify({"error": f"LLM nao disponivel: {str(e)[:200]}"}), 500
+
+    try:
+        from app.services.workspace.doc_pipeline_v3 import DocPipelineV3
+        pipeline = DocPipelineV3(db, llm)
+        # DocPipelineV3.generate_module_doc e async — executar em loop
+        import asyncio
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(pipeline.generate_module_doc(modulo))
+        finally:
+            loop.close()
+        return jsonify({
+            "success": True,
+            "modulo": modulo,
+            "conteudo_humano": result.get("markdown", ""),
+            "conteudo_ia": result.get("sections", {}),
+            "slug": slug,
+        })
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning("DocPipelineV3 falhou, tentando DocPipeline: %s", e)
+
+    # Fallback: DocPipeline (sem LLM completo)
+    try:
+        from app.services.workspace.doc_pipeline import DocPipeline
+        pipeline = DocPipeline(db, llm_provider=llm)
+        result = pipeline.generate_for_module(modulo)
+        return jsonify({
+            "success": True,
+            "modulo": modulo,
+            "conteudo_humano": result.get("context", ""),
+            "conteudo_ia": result,
+            "slug": slug,
+        })
+    except Exception as e:
+        logger.exception("Erro ao gerar docs para modulo %s: %s", modulo, e)
+        return jsonify({"error": str(e)[:300]}), 500
+
+
+# ========================================================================
+# CHAT — Chat focado no workspace
+# ========================================================================
+
+@workspace_bp.route("/workspaces/<slug>/chat", methods=["POST"])
+def workspace_chat(slug):
+    """Chat focado no workspace."""
+    data = request.get_json()
+    message = (data or {}).get("message", "").strip()
+    if not message:
+        return jsonify({"error": "Mensagem vazia"}), 400
+
+    db = _get_db(slug)
+    ks = KnowledgeService(db)
+
+    # Construir contexto do workspace
+    try:
+        summary = ks.get_custom_summary()
+    except Exception:
+        summary = {}
+
+    # Buscar tabelas e fontes mencionadas
+    sources = []
+    q_upper = message.upper()
+    try:
+        # Detectar referencias a tabelas (codigos tipo SA1, ZA0, etc.)
+        import re as _re
+        tab_refs = _re.findall(r'\b([A-Z][A-Z0-9]{2})\b', q_upper)
+        for tab_code in set(tab_refs[:5]):
+            info = ks.get_table_info(tab_code)
+            if info:
+                sources.append({"tipo": "tabela", "codigo": tab_code, "resumo": info.get("nome", "")})
+    except Exception:
+        pass
+
+    # Carregar historico recente do chat
+    history = []
+    try:
+        hist_rows = db.execute(
+            "SELECT role, content FROM chat_history ORDER BY id DESC LIMIT 10"
+        ).fetchall()
+        history = [{"role": r[0], "content": r[1]} for r in reversed(hist_rows)]
+    except Exception:
+        pass
+
+    context_text = f"Resumo do workspace: {json.dumps(summary, ensure_ascii=False)}"
+    if sources:
+        context_text += f"\nTabelas detectadas na pergunta: {json.dumps(sources, ensure_ascii=False)}"
+
+    system_prompt = (
+        "Voce e um consultor tecnico senior de ambientes TOTVS Protheus.\n"
+        "Use APENAS os dados do CONTEXTO abaixo e o historico de conversa. Nao invente dados.\n"
+        "Responda de forma tecnica e concisa em portugues.\n\n"
+        f"CONTEXTO DO WORKSPACE:\n{context_text}\n"
+    )
+
+    messages = [{"role": "system", "content": system_prompt}]
+    # Adicionar historico
+    for h in history[-8:]:
+        messages.append({"role": h["role"], "content": h["content"]})
+    messages.append({"role": "user", "content": message})
+
+    try:
+        llm = _get_llm_provider()
+    except Exception as e:
+        return jsonify({"error": f"LLM nao disponivel: {str(e)[:200]}"}), 500
+
+    answer = _llm_chat_text(llm, messages)
+
+    # Salvar no historico
+    try:
+        db.execute(
+            "INSERT INTO chat_history (role, content, sources) VALUES ('user', ?, NULL)",
+            (message,)
+        )
+        db.execute(
+            "INSERT INTO chat_history (role, content, sources) VALUES ('assistant', ?, ?)",
+            (answer, json.dumps(sources, ensure_ascii=False))
+        )
+        db.commit()
+    except Exception as e:
+        logger.warning("Erro ao salvar historico do chat: %s", e)
+
+    return jsonify({
+        "role": "assistant",
+        "content": answer,
+        "sources": sources,
+    })
+
+
+@workspace_bp.route("/workspaces/<slug>/chat/history", methods=["GET"])
+def workspace_chat_history(slug):
+    """Historico do chat do workspace."""
+    db = _get_db(slug)
+    limit = request.args.get("limit", 50, type=int)
+
+    try:
+        rows = db.execute(
+            "SELECT id, role, content, sources, created_at "
+            "FROM chat_history ORDER BY id DESC LIMIT ?",
+            (limit,)
+        ).fetchall()
+        items = [
+            {
+                "id": r[0],
+                "role": r[1],
+                "content": r[2],
+                "sources": json.loads(r[3]) if r[3] else [],
+                "created_at": r[4],
+            }
+            for r in reversed(rows)
+        ]
+        return jsonify(items)
+    except Exception:
+        return jsonify([])

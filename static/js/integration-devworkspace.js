@@ -68,6 +68,26 @@ async function showDevWorkspace() {
                     '<i class="fas fa-project-diagram me-1"></i>Processos' +
                 '</button>' +
             '</li>' +
+            '<li class="nav-item">' +
+                '<button class="nav-link" data-action="wsSwitchTab" data-params=\'{"tab":"analista"}\'>' +
+                    '<i class="fas fa-user-tie me-1"></i>Analista' +
+                '</button>' +
+            '</li>' +
+            '<li class="nav-item">' +
+                '<button class="nav-link" data-action="wsSwitchTab" data-params=\'{"tab":"padrao"}\'>' +
+                    '<i class="fas fa-book me-1"></i>Base Padrao' +
+                '</button>' +
+            '</li>' +
+            '<li class="nav-item">' +
+                '<button class="nav-link" data-action="wsSwitchTab" data-params=\'{"tab":"gerar_docs"}\'>' +
+                    '<i class="fas fa-file-alt me-1"></i>Gerar Docs' +
+                '</button>' +
+            '</li>' +
+            '<li class="nav-item">' +
+                '<button class="nav-link" data-action="wsSwitchTab" data-params=\'{"tab":"chat"}\'>' +
+                    '<i class="fas fa-comments me-1"></i>Chat' +
+                '</button>' +
+            '</li>' +
         '</ul>' +
         '<div id="ws-tab-content"></div>';
 
@@ -97,6 +117,10 @@ async function wsSwitchTab(params) {
     else if (tab === 'dashboard') await wsRenderDashboard(container);
     else if (tab === 'explorer') await wsRenderExplorer(container);
     else if (tab === 'processos') await wsRenderProcessos(container);
+    else if (tab === 'analista') await wsRenderAnalista(container);
+    else if (tab === 'padrao') await wsRenderPadrao(container);
+    else if (tab === 'gerar_docs') await wsRenderGerarDocs(container);
+    else if (tab === 'chat') await wsRenderChat(container);
 }
 
 // =====================================================================
@@ -1896,6 +1920,730 @@ async function wsSendProcChat(params) {
     } catch (e) {
         var streamEl2 = document.getElementById('ws-proc-streaming');
         if (streamEl2) streamEl2.innerHTML = '<span class="d-inline-block p-2 rounded bg-danger text-white" style="font-size:0.85rem">Erro: ' + e.message + '</span>';
+    }
+}
+
+// =====================================================================
+// WORKSPACE — ABA ANALISTA (Peca ao Analista)
+// =====================================================================
+
+async function wsRenderAnalista(container) {
+    var slug = window._wsState.activeSlug;
+    if (!slug) {
+        container.innerHTML = '<div class="alert alert-info">Configure um workspace em Admin > Configuracoes > Workspace.</div>';
+        return;
+    }
+
+    if (!window._wsState._analistaHistory) window._wsState._analistaHistory = [];
+    if (!window._wsState._analistaAnswer) window._wsState._analistaAnswer = null;
+
+    var historyHtml = '<p class="text-muted" style="font-size:0.82rem">Nenhuma pergunta ainda.</p>';
+    if (window._wsState._analistaHistory.length) {
+        historyHtml = window._wsState._analistaHistory.map(function(item, idx) {
+            return '<div class="list-group-item list-group-item-action py-2 px-2" style="cursor:pointer;font-size:0.8rem" ' +
+                'onclick="wsAnalistaLoadHistoryItem(' + idx + ')">' +
+                '<i class="fas fa-question-circle text-primary me-1" style="font-size:0.7rem"></i>' +
+                dwEscapeHtml(item.question.substring(0, 60)) + (item.question.length > 60 ? '...' : '') +
+            '</div>';
+        }).join('');
+    }
+
+    var answerHtml = '<div class="text-muted text-center py-5">' +
+        '<i class="fas fa-user-tie fa-3x mb-3 text-muted"></i>' +
+        '<p>Faca uma pergunta ao Analista sobre este workspace.</p>' +
+    '</div>';
+
+    if (window._wsState._analistaAnswer) {
+        answerHtml = _wsRenderAnalistaAnswer(window._wsState._analistaAnswer);
+    }
+
+    container.innerHTML =
+        '<div class="row g-3">' +
+            '<div class="col-md-3">' +
+                '<div class="card" style="max-height:75vh;overflow-y:auto">' +
+                    '<div class="card-header py-2">' +
+                        '<small class="fw-bold"><i class="fas fa-history me-1"></i>Historico</small>' +
+                    '</div>' +
+                    '<div class="list-group list-group-flush" id="ws-analista-history">' +
+                        historyHtml +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+            '<div class="col-md-9">' +
+                '<div class="card mb-3">' +
+                    '<div class="card-body py-2 px-3">' +
+                        '<div class="input-group">' +
+                            '<input type="text" class="form-control" id="ws-analista-input" ' +
+                                'placeholder="Pergunte ao Analista sobre este workspace..." ' +
+                                'onkeydown="if(event.key===\'Enter\')wsAnalistaEnviar()">' +
+                            '<button class="btn btn-primary" onclick="wsAnalistaEnviar()" id="ws-analista-btn">' +
+                                '<i class="fas fa-paper-plane me-1"></i>Enviar' +
+                            '</button>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
+                '<div id="ws-analista-result">' +
+                    answerHtml +
+                '</div>' +
+            '</div>' +
+        '</div>';
+
+    // Recarregar historico do servidor se vazio
+    if (!window._wsState._analistaHistory.length) {
+        try {
+            var hist = await apiRequest('/workspace/workspaces/' + slug + '/analista/history');
+            if (hist && hist.length) {
+                window._wsState._analistaHistory = hist;
+                var histEl = document.getElementById('ws-analista-history');
+                if (histEl) {
+                    histEl.innerHTML = hist.map(function(item, idx) {
+                        return '<div class="list-group-item list-group-item-action py-2 px-2" style="cursor:pointer;font-size:0.8rem" ' +
+                            'onclick="wsAnalistaLoadHistoryItem(' + idx + ')">' +
+                            '<i class="fas fa-question-circle text-primary me-1" style="font-size:0.7rem"></i>' +
+                            dwEscapeHtml(item.question.substring(0, 60)) + (item.question.length > 60 ? '...' : '') +
+                        '</div>';
+                    }).join('');
+                }
+            }
+        } catch (e) { /* historico opcional */ }
+    }
+}
+
+function _wsRenderAnalistaAnswer(data) {
+    var html = '<div class="card">' +
+        '<div class="card-body">';
+
+    html += '<div class="mb-3 p-2 bg-light rounded">' +
+        '<small class="text-muted"><i class="fas fa-question me-1"></i>Pergunta:</small>' +
+        '<p class="mb-0 fw-semibold">' + dwEscapeHtml(data.question || '') + '</p>' +
+    '</div>';
+
+    html += '<div class="ws-markdown mb-3">' + _wsRenderMarkdown(data.answer || '') + '</div>';
+
+    if (data.modulos && data.modulos.length) {
+        html += '<div class="mb-2"><small class="text-muted fw-bold">Modulos relacionados:</small> ' +
+            data.modulos.map(function(m) {
+                return '<span class="badge bg-secondary me-1">' + dwEscapeHtml(m) + '</span>';
+            }).join('') +
+        '</div>';
+    }
+
+    if (data.sources && data.sources.length) {
+        html += '<div><small class="text-muted fw-bold">Fontes consultadas:</small> ' +
+            data.sources.map(function(s) {
+                var label = typeof s === 'object' ? (s.label || s.arquivo || s.tabela || JSON.stringify(s)) : s;
+                var action = typeof s === 'object' && s.arquivo
+                    ? ' style="cursor:pointer" data-action="wsOpenFonte" data-params=\'' + JSON.stringify({arquivo: s.arquivo}) + '\''
+                    : (typeof s === 'object' && s.tabela
+                        ? ' style="cursor:pointer" data-action="wsSelectTable" data-params=\'' + JSON.stringify({codigo: s.tabela}) + '\''
+                        : '');
+                return '<span class="badge bg-info text-dark me-1"' + action + '>' + dwEscapeHtml(label) + '</span>';
+            }).join('') +
+        '</div>';
+    }
+
+    html += '</div></div>';
+    return html;
+}
+
+async function wsAnalistaEnviar() {
+    var slug = window._wsState.activeSlug;
+    var input = document.getElementById('ws-analista-input');
+    var question = input ? input.value.trim() : '';
+    if (!question) return;
+
+    var resultEl = document.getElementById('ws-analista-result');
+    var btn = document.getElementById('ws-analista-btn');
+    if (btn) btn.disabled = true;
+    if (input) input.disabled = true;
+
+    resultEl.innerHTML = '<div class="text-center p-4"><div class="spinner-border spinner-border-sm"></div> O Analista esta processando sua pergunta...</div>';
+
+    try {
+        var data = await apiRequest('/workspace/workspaces/' + slug + '/analista/ask', 'POST', { question: question });
+        data.question = question;
+        window._wsState._analistaAnswer = data;
+
+        // Adicionar ao historico local
+        if (!window._wsState._analistaHistory) window._wsState._analistaHistory = [];
+        window._wsState._analistaHistory.unshift(data);
+
+        resultEl.innerHTML = _wsRenderAnalistaAnswer(data);
+
+        // Atualizar sidebar de historico
+        var histEl = document.getElementById('ws-analista-history');
+        if (histEl) {
+            histEl.innerHTML = window._wsState._analistaHistory.map(function(item, idx) {
+                return '<div class="list-group-item list-group-item-action py-2 px-2" style="cursor:pointer;font-size:0.8rem" ' +
+                    'onclick="wsAnalistaLoadHistoryItem(' + idx + ')">' +
+                    '<i class="fas fa-question-circle text-primary me-1" style="font-size:0.7rem"></i>' +
+                    dwEscapeHtml(item.question.substring(0, 60)) + (item.question.length > 60 ? '...' : '') +
+                '</div>';
+            }).join('');
+        }
+
+        if (input) input.value = '';
+    } catch (e) {
+        resultEl.innerHTML = '<div class="alert alert-danger">Erro: ' + e.message + '</div>';
+    } finally {
+        if (btn) btn.disabled = false;
+        if (input) input.disabled = false;
+    }
+}
+
+function wsAnalistaLoadHistoryItem(idx) {
+    var item = window._wsState._analistaHistory[idx];
+    if (!item) return;
+    window._wsState._analistaAnswer = item;
+    var resultEl = document.getElementById('ws-analista-result');
+    if (resultEl) resultEl.innerHTML = _wsRenderAnalistaAnswer(item);
+}
+
+// =====================================================================
+// WORKSPACE — ABA BASE PADRAO
+// =====================================================================
+
+async function wsRenderPadrao(container) {
+    var slug = window._wsState.activeSlug;
+    if (!slug) {
+        container.innerHTML = '<div class="alert alert-info">Configure um workspace em Admin > Configuracoes > Workspace.</div>';
+        return;
+    }
+
+    if (!window._wsState._padraoSubTab) window._wsState._padraoSubTab = 'modulos';
+
+    container.innerHTML =
+        '<ul class="nav nav-pills mb-3" id="ws-padrao-subtabs">' +
+            '<li class="nav-item">' +
+                '<button class="nav-link' + (window._wsState._padraoSubTab === 'modulos' ? ' active' : '') + '" ' +
+                    'onclick="wsPadraoSubTab(\'modulos\')">' +
+                    '<i class="fas fa-cubes me-1"></i>Modulos' +
+                '</button>' +
+            '</li>' +
+            '<li class="nav-item">' +
+                '<button class="nav-link' + (window._wsState._padraoSubTab === 'pes' ? ' active' : '') + '" ' +
+                    'onclick="wsPadraoSubTab(\'pes\')">' +
+                    '<i class="fas fa-sign-in-alt me-1"></i>Pontos de Entrada' +
+                '</button>' +
+            '</li>' +
+            '<li class="nav-item">' +
+                '<button class="nav-link' + (window._wsState._padraoSubTab === 'tdn' ? ' active' : '') + '" ' +
+                    'onclick="wsPadraoSubTab(\'tdn\')">' +
+                    '<i class="fas fa-globe me-1"></i>TDN' +
+                '</button>' +
+            '</li>' +
+        '</ul>' +
+        '<div id="ws-padrao-content"><div class="text-center p-4"><div class="spinner-border spinner-border-sm"></div> Carregando...</div></div>';
+
+    await _wsRenderPadraoSubTab(window._wsState._padraoSubTab);
+}
+
+async function wsPadraoSubTab(subtab) {
+    window._wsState._padraoSubTab = subtab;
+    document.querySelectorAll('#ws-padrao-subtabs .nav-link').forEach(function(b) { b.classList.remove('active'); });
+    var buttons = document.querySelectorAll('#ws-padrao-subtabs .nav-link');
+    buttons.forEach(function(b) {
+        if (b.getAttribute('onclick') && b.getAttribute('onclick').indexOf(subtab) >= 0) b.classList.add('active');
+    });
+    await _wsRenderPadraoSubTab(subtab);
+}
+
+async function _wsRenderPadraoSubTab(subtab) {
+    var slug = window._wsState.activeSlug;
+    var content = document.getElementById('ws-padrao-content');
+    if (!content) return;
+
+    content.innerHTML = '<div class="text-center p-4"><div class="spinner-border spinner-border-sm"></div> Carregando...</div>';
+
+    if (subtab === 'modulos') {
+        await _wsRenderPadraoModulos(content, slug);
+    } else if (subtab === 'pes') {
+        await _wsRenderPadraoPes(content, slug);
+    } else if (subtab === 'tdn') {
+        await _wsRenderPadraoTdn(content, slug);
+    }
+}
+
+async function _wsRenderPadraoModulos(content, slug) {
+    try {
+        var modulos = await apiRequest('/workspace/workspaces/' + slug + '/padrao/modulos');
+
+        if (!modulos || !modulos.length) {
+            content.innerHTML = '<div class="alert alert-secondary">Nenhum modulo disponivel na base padrao.</div>';
+            return;
+        }
+
+        var firstMod = modulos[0];
+        content.innerHTML =
+            '<div class="row">' +
+                '<div class="col-md-3">' +
+                    '<div class="list-group" id="ws-padrao-mod-list" style="max-height:70vh;overflow-y:auto">' +
+                        modulos.map(function(m) {
+                            var nome = typeof m === 'object' ? (m.nome || m.modulo || m) : m;
+                            var id = typeof m === 'object' ? (m.id || m.modulo || m) : m;
+                            return '<button class="list-group-item list-group-item-action' + (m === firstMod ? ' active' : '') + '" ' +
+                                'style="font-size:0.85rem" ' +
+                                'onclick="wsPadraoSelecionarModulo(\'' + dwEscapeHtml(String(id)) + '\', this)">' +
+                                dwEscapeHtml(String(nome)) +
+                            '</button>';
+                        }).join('') +
+                    '</div>' +
+                '</div>' +
+                '<div class="col-md-9">' +
+                    '<div class="card"><div class="card-body" id="ws-padrao-mod-content">' +
+                        '<div class="text-center p-4"><div class="spinner-border spinner-border-sm"></div> Carregando...</div>' +
+                    '</div></div>' +
+                '</div>' +
+            '</div>';
+
+        // Carregar o primeiro modulo automaticamente
+        var primeiroId = typeof firstMod === 'object' ? (firstMod.id || firstMod.modulo || firstMod) : firstMod;
+        await _wsCarregarConteudoModulo(slug, String(primeiroId));
+    } catch (e) {
+        content.innerHTML = '<div class="alert alert-danger">Erro: ' + e.message + '</div>';
+    }
+}
+
+async function wsPadraoSelecionarModulo(id, el) {
+    document.querySelectorAll('#ws-padrao-mod-list .list-group-item').forEach(function(b) { b.classList.remove('active'); });
+    if (el) el.classList.add('active');
+    await _wsCarregarConteudoModulo(window._wsState.activeSlug, id);
+}
+
+async function _wsCarregarConteudoModulo(slug, id) {
+    var modContent = document.getElementById('ws-padrao-mod-content');
+    if (!modContent) return;
+    modContent.innerHTML = '<div class="text-center p-4"><div class="spinner-border spinner-border-sm"></div> Carregando modulo...</div>';
+    try {
+        var data = await apiRequest('/workspace/workspaces/' + slug + '/padrao/modulos/' + encodeURIComponent(id));
+        var md = typeof data === 'string' ? data : (data.conteudo || data.markdown || JSON.stringify(data, null, 2));
+        modContent.innerHTML = '<div class="ws-markdown" style="font-size:0.88rem;line-height:1.6">' + _wsRenderMarkdown(md) + '</div>';
+    } catch (e) {
+        modContent.innerHTML = '<div class="alert alert-danger">Erro: ' + e.message + '</div>';
+    }
+}
+
+async function _wsRenderPadraoPes(content, slug) {
+    try {
+        var pes = await apiRequest('/workspace/workspaces/' + slug + '/padrao/pes');
+
+        if (!pes || !pes.length) {
+            content.innerHTML = '<div class="alert alert-secondary">Nenhum ponto de entrada disponivel na base padrao.</div>';
+            return;
+        }
+
+        window._wsState._padraoPes = pes;
+
+        content.innerHTML =
+            '<div class="mb-3">' +
+                '<input type="text" class="form-control" id="ws-padrao-pes-busca" ' +
+                    'placeholder="Buscar por nome, rotina ou modulo..." ' +
+                    'oninput="wsFiltrarPadraoPes(this.value)">' +
+            '</div>' +
+            '<div class="table-responsive">' +
+                '<table class="table table-sm table-hover mb-0" style="font-size:0.85rem">' +
+                    '<thead class="table-light"><tr>' +
+                        '<th>Nome</th><th>Rotina</th><th>Modulo</th><th>Objetivo</th>' +
+                    '</tr></thead>' +
+                    '<tbody id="ws-padrao-pes-tbody">' +
+                        _wsRenderPadraoPesRows(pes) +
+                    '</tbody>' +
+                '</table>' +
+            '</div>';
+    } catch (e) {
+        content.innerHTML = '<div class="alert alert-danger">Erro: ' + e.message + '</div>';
+    }
+}
+
+function _wsRenderPadraoPesRows(pes) {
+    if (!pes || !pes.length) return '<tr><td colspan="4" class="text-muted text-center">Nenhum resultado.</td></tr>';
+    return pes.map(function(p) {
+        return '<tr>' +
+            '<td><code class="fw-bold text-primary">' + dwEscapeHtml(p.nome || '') + '</code></td>' +
+            '<td>' + dwEscapeHtml(p.rotina || '') + '</td>' +
+            '<td><span class="badge bg-secondary">' + dwEscapeHtml(p.modulo || '') + '</span></td>' +
+            '<td style="max-width:300px" class="text-truncate">' + dwEscapeHtml(p.objetivo || '') + '</td>' +
+        '</tr>';
+    }).join('');
+}
+
+function wsFiltrarPadraoPes(q) {
+    var all = window._wsState._padraoPes || [];
+    var qLow = q.toLowerCase();
+    var filtered = qLow ? all.filter(function(p) {
+        return (p.nome || '').toLowerCase().indexOf(qLow) >= 0 ||
+               (p.rotina || '').toLowerCase().indexOf(qLow) >= 0 ||
+               (p.modulo || '').toLowerCase().indexOf(qLow) >= 0 ||
+               (p.objetivo || '').toLowerCase().indexOf(qLow) >= 0;
+    }) : all;
+    var tbody = document.getElementById('ws-padrao-pes-tbody');
+    if (tbody) tbody.innerHTML = _wsRenderPadraoPesRows(filtered);
+}
+
+async function _wsRenderPadraoTdn(content, slug) {
+    content.innerHTML = '<div class="text-center p-4"><div class="spinner-border spinner-border-sm"></div> Carregando TDN...</div>';
+    try {
+        var data = await apiRequest('/workspace/workspaces/' + slug + '/padrao/tdn');
+
+        var categorias = Array.isArray(data) ? data : (data.categorias || data.tree || []);
+
+        if (!categorias.length) {
+            content.innerHTML = '<div class="alert alert-secondary">Nenhum conteudo TDN disponivel.</div>';
+            return;
+        }
+
+        var html = '<div class="row g-3">';
+        categorias.forEach(function(cat) {
+            var nome = typeof cat === 'object' ? (cat.nome || cat.titulo || cat.categoria || cat) : cat;
+            var descricao = typeof cat === 'object' ? (cat.descricao || '') : '';
+            var count = typeof cat === 'object' ? (cat.count || cat.total || '') : '';
+            html += '<div class="col-md-4 col-lg-3">' +
+                '<div class="card h-100">' +
+                    '<div class="card-body py-3">' +
+                        '<h6 class="card-title"><i class="fas fa-book-open text-primary me-1"></i>' + dwEscapeHtml(String(nome)) + '</h6>' +
+                        (descricao ? '<p class="card-text text-muted" style="font-size:0.82rem">' + dwEscapeHtml(descricao) + '</p>' : '') +
+                        (count ? '<span class="badge bg-info">' + count + ' artigos</span>' : '') +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        });
+        html += '</div>';
+        content.innerHTML = html;
+    } catch (e) {
+        content.innerHTML = '<div class="alert alert-danger">Erro: ' + e.message + '</div>';
+    }
+}
+
+// =====================================================================
+// WORKSPACE — ABA GERAR DOCS
+// =====================================================================
+
+var _wsDocsSearchTimer = null;
+
+async function wsRenderGerarDocs(container) {
+    var slug = window._wsState.activeSlug;
+    if (!slug) {
+        container.innerHTML = '<div class="alert alert-info">Configure um workspace em Admin > Configuracoes > Workspace.</div>';
+        return;
+    }
+
+    container.innerHTML = '<div class="text-center p-4"><div class="spinner-border spinner-border-sm"></div> Carregando...</div>';
+
+    try {
+        var stats = await apiRequest('/workspace/workspaces/' + slug + '/dashboard');
+        var r = stats.resumo || {};
+
+        var html =
+            '<div class="row g-3 mb-4">' +
+                wsStatCard(r.tabelas_total, 'Tabelas', 'fa-table', 'primary') +
+                wsStatCard(r.campos_custom || 0, 'Campos Custom', 'fa-columns', 'warning') +
+                wsStatCard(r.gatilhos_total, 'Gatilhos', 'fa-bolt', 'danger') +
+                wsStatCard(r.fontes_total, 'Fontes', 'fa-file-code', 'info') +
+            '</div>';
+
+        html += '<div class="row g-3">' +
+            '<div class="col-md-5">' +
+                '<div class="card">' +
+                    '<div class="card-header py-2"><strong><i class="fas fa-search me-1"></i>Buscar Tabela ou Fonte</strong></div>' +
+                    '<div class="card-body">' +
+                        '<div class="mb-3">' +
+                            '<input type="text" class="form-control" id="ws-docs-search" ' +
+                                'placeholder="Digite o nome da tabela ou fonte..." ' +
+                                'oninput="wsDocsSearchDebounce(this.value)">' +
+                        '</div>' +
+                        '<div id="ws-docs-search-results" style="max-height:200px;overflow-y:auto"></div>' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+            '<div class="col-md-7">' +
+                '<div class="card">' +
+                    '<div class="card-header py-2"><strong><i class="fas fa-magic me-1"></i>Gerar Documentacao</strong></div>' +
+                    '<div class="card-body">' +
+                        '<div class="mb-3">' +
+                            '<label class="form-label fw-semibold">Alvo (tabela ou fonte)</label>' +
+                            '<input type="text" class="form-control" id="ws-docs-slug-input" ' +
+                                'placeholder="Ex: SA1, ZD_PEDIDOS, MeuFonte.prw">' +
+                        '</div>' +
+                        '<div class="mb-3">' +
+                            '<label class="form-label fw-semibold">Modulo</label>' +
+                            '<select class="form-select" id="ws-docs-modulo">' +
+                                '<option value="">-- Selecionar modulo --</option>' +
+                                '<option value="SIGAFAT">SIGAFAT - Faturamento</option>' +
+                                '<option value="SIGACOM">SIGACOM - Compras</option>' +
+                                '<option value="SIGAFIN">SIGAFIN - Financeiro</option>' +
+                                '<option value="SIGAMNT">SIGAMNT - Manutencao</option>' +
+                                '<option value="SIGAFIS">SIGAFIS - Fiscal</option>' +
+                                '<option value="SIGAEST">SIGAEST - Estoque</option>' +
+                                '<option value="SIGAPCP">SIGAPCP - PCP</option>' +
+                                '<option value="OUTRO">Outro</option>' +
+                            '</select>' +
+                        '</div>' +
+                        '<button class="btn btn-primary" onclick="wsGerarDocumentacao()" id="ws-docs-gen-btn">' +
+                            '<i class="fas fa-magic me-1"></i>Gerar' +
+                        '</button>' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+
+        html += '<div id="ws-docs-result" class="mt-4"></div>';
+
+        container.innerHTML = html;
+    } catch (e) {
+        container.innerHTML = '<div class="alert alert-danger">Erro: ' + e.message + '</div>';
+    }
+}
+
+function wsDocsSearchDebounce(q) {
+    if (_wsDocsSearchTimer) clearTimeout(_wsDocsSearchTimer);
+    _wsDocsSearchTimer = setTimeout(function() { wsDocsSearch(q); }, 300);
+}
+
+async function wsDocsSearch(q) {
+    var slug = window._wsState.activeSlug;
+    var resultsEl = document.getElementById('ws-docs-search-results');
+    if (!resultsEl) return;
+    if (!q || q.length < 2) { resultsEl.innerHTML = ''; return; }
+
+    resultsEl.innerHTML = '<div class="text-center py-2"><div class="spinner-border spinner-border-sm"></div></div>';
+
+    try {
+        var data = await apiRequest('/workspace/workspaces/' + slug + '/docs/search?q=' + encodeURIComponent(q));
+        var results = data.results || data || [];
+        if (!results.length) {
+            resultsEl.innerHTML = '<p class="text-muted text-center py-2" style="font-size:0.82rem">Nenhum resultado.</p>';
+            return;
+        }
+        resultsEl.innerHTML = '<div class="list-group list-group-flush">' +
+            results.map(function(r) {
+                var label = typeof r === 'object' ? (r.label || r.nome || r.arquivo || r.tabela || r) : r;
+                var type = typeof r === 'object' ? (r.type || '') : '';
+                var icon = type === 'fonte' ? 'fa-file-code text-warning' : 'fa-table text-primary';
+                return '<div class="list-group-item list-group-item-action py-1 px-2" ' +
+                    'style="cursor:pointer;font-size:0.82rem" ' +
+                    'onclick="wsDocsSelecionarItem(\'' + dwEscapeHtml(String(label)) + '\')">' +
+                    '<i class="fas ' + icon + ' me-1" style="font-size:0.7rem"></i>' +
+                    dwEscapeHtml(String(label)) +
+                '</div>';
+            }).join('') +
+        '</div>';
+    } catch (e) {
+        resultsEl.innerHTML = '<p class="text-danger" style="font-size:0.82rem">Erro: ' + e.message + '</p>';
+    }
+}
+
+function wsDocsSelecionarItem(label) {
+    var input = document.getElementById('ws-docs-slug-input');
+    if (input) input.value = label;
+    var resultsEl = document.getElementById('ws-docs-search-results');
+    if (resultsEl) resultsEl.innerHTML = '';
+    var searchInput = document.getElementById('ws-docs-search');
+    if (searchInput) searchInput.value = label;
+}
+
+async function wsGerarDocumentacao() {
+    var slug = window._wsState.activeSlug;
+    var alvo = document.getElementById('ws-docs-slug-input');
+    var moduloEl = document.getElementById('ws-docs-modulo');
+    var btn = document.getElementById('ws-docs-gen-btn');
+    var resultEl = document.getElementById('ws-docs-result');
+
+    if (!alvo || !alvo.value.trim()) {
+        showNotification('Informe o alvo (tabela ou fonte)', 'warning');
+        return;
+    }
+
+    var payload = { slug: alvo.value.trim() };
+    if (moduloEl && moduloEl.value) payload.modulo = moduloEl.value;
+
+    if (btn) btn.disabled = true;
+    resultEl.innerHTML = '<div class="text-center p-4"><div class="spinner-border spinner-border-sm"></div> Gerando documentacao...</div>';
+
+    try {
+        var data = await apiRequest('/workspace/workspaces/' + slug + '/docs/generate', 'POST', payload);
+        var md = typeof data === 'string' ? data : (data.documento || data.markdown || data.conteudo || JSON.stringify(data, null, 2));
+
+        resultEl.innerHTML =
+            '<div class="card border-success">' +
+                '<div class="card-header py-2 d-flex justify-content-between align-items-center">' +
+                    '<strong><i class="fas fa-file-alt text-success me-1"></i>Documentacao gerada — ' + dwEscapeHtml(payload.slug) + '</strong>' +
+                    '<button class="btn btn-outline-secondary btn-sm" onclick="wsDocsDownload()">' +
+                        '<i class="fas fa-download me-1"></i>Baixar .md' +
+                    '</button>' +
+                '</div>' +
+                '<div class="card-body">' +
+                    '<div class="ws-markdown" style="font-size:0.88rem;line-height:1.6" id="ws-docs-output">' +
+                        _wsRenderMarkdown(md) +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+
+        window._wsState._docsLastOutput = { slug: payload.slug, content: md };
+    } catch (e) {
+        resultEl.innerHTML = '<div class="alert alert-danger">Erro: ' + e.message + '</div>';
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+function wsDocsDownload() {
+    var last = window._wsState._docsLastOutput;
+    if (!last) return;
+    var blob = new Blob([last.content], { type: 'text/markdown' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = last.slug + '_doc.md';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// =====================================================================
+// WORKSPACE — ABA CHAT
+// =====================================================================
+
+async function wsRenderChat(container) {
+    var slug = window._wsState.activeSlug;
+    if (!slug) {
+        container.innerHTML = '<div class="alert alert-info">Configure um workspace em Admin > Configuracoes > Workspace.</div>';
+        return;
+    }
+
+    if (!window._wsState._chatMessages) window._wsState._chatMessages = [];
+
+    container.innerHTML =
+        '<div class="card" style="height:75vh;display:flex;flex-direction:column">' +
+            '<div class="card-header py-2 d-flex justify-content-between align-items-center">' +
+                '<span><i class="fas fa-comments text-primary me-1"></i>Chat — <strong>' + dwEscapeHtml(slug) + '</strong></span>' +
+                '<button class="btn btn-outline-secondary btn-sm" onclick="wsLimparChat()">' +
+                    '<i class="fas fa-trash me-1"></i>Limpar' +
+                '</button>' +
+            '</div>' +
+            '<div class="card-body p-3" id="ws-chat-msgs" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px">' +
+                '<div class="text-muted text-center py-3" id="ws-chat-empty">' +
+                    '<i class="fas fa-comments fa-2x mb-2"></i>' +
+                    '<p style="font-size:0.88rem">Faca uma pergunta sobre o workspace <strong>' + dwEscapeHtml(slug) + '</strong>.</p>' +
+                '</div>' +
+            '</div>' +
+            '<div class="card-footer p-2">' +
+                '<div class="input-group">' +
+                    '<input type="text" class="form-control" id="ws-chat-input" ' +
+                        'placeholder="Pergunte sobre tabelas, campos, fontes, processos..." ' +
+                        'onkeydown="if(event.key===\'Enter\' && !event.shiftKey){event.preventDefault();wsChatEnviar();}">' +
+                    '<button class="btn btn-primary" onclick="wsChatEnviar()" id="ws-chat-btn">' +
+                        '<i class="fas fa-paper-plane"></i>' +
+                    '</button>' +
+                '</div>' +
+                '<small class="text-muted mt-1 d-block">Enter para enviar</small>' +
+            '</div>' +
+        '</div>';
+
+    // Carregar historico do servidor
+    try {
+        var hist = await apiRequest('/workspace/workspaces/' + slug + '/chat/history');
+        var msgs = hist.mensagens || hist.messages || hist || [];
+        if (Array.isArray(msgs) && msgs.length) {
+            window._wsState._chatMessages = msgs;
+            var msgsEl = document.getElementById('ws-chat-msgs');
+            if (msgsEl) {
+                var emptyEl = document.getElementById('ws-chat-empty');
+                if (emptyEl) emptyEl.remove();
+                msgs.forEach(function(m) {
+                    msgsEl.appendChild(_wsChatBuildBubble(m.role || m.tipo, m.content || m.mensagem || ''));
+                });
+                msgsEl.scrollTop = msgsEl.scrollHeight;
+            }
+        }
+    } catch (e) { /* historico opcional */ }
+}
+
+function _wsChatBuildBubble(role, content) {
+    var isUser = role === 'user' || role === 'usuario';
+    var wrapper = document.createElement('div');
+    wrapper.style.cssText = 'display:flex;justify-content:' + (isUser ? 'flex-end' : 'flex-start');
+    var bubble = document.createElement('div');
+    bubble.style.cssText = 'max-width:80%;padding:10px 14px;border-radius:12px;font-size:0.88rem;' +
+        (isUser
+            ? 'background:#0d6efd;color:#fff;border-bottom-right-radius:3px'
+            : 'background:#f8f9fa;border:1px solid #dee2e6;border-bottom-left-radius:3px');
+    if (isUser) {
+        bubble.textContent = content;
+    } else {
+        bubble.className = 'ws-markdown';
+        bubble.innerHTML = _wsRenderMarkdown(content);
+    }
+    wrapper.appendChild(bubble);
+    return wrapper;
+}
+
+async function wsChatEnviar() {
+    var slug = window._wsState.activeSlug;
+    var input = document.getElementById('ws-chat-input');
+    var btn = document.getElementById('ws-chat-btn');
+    var msg = input ? input.value.trim() : '';
+    if (!msg) return;
+
+    var msgsEl = document.getElementById('ws-chat-msgs');
+    var emptyEl = document.getElementById('ws-chat-empty');
+    if (emptyEl) emptyEl.remove();
+
+    input.value = '';
+    if (btn) btn.disabled = true;
+    if (input) input.disabled = true;
+
+    // Bubble do usuario
+    msgsEl.appendChild(_wsChatBuildBubble('user', msg));
+
+    // Bubble de espera do assistente
+    var waitWrapper = document.createElement('div');
+    waitWrapper.style.cssText = 'display:flex;justify-content:flex-start';
+    waitWrapper.id = 'ws-chat-wait';
+    var waitBubble = document.createElement('div');
+    waitBubble.style.cssText = 'max-width:80%;padding:10px 14px;border-radius:12px;font-size:0.88rem;background:#f8f9fa;border:1px solid #dee2e6;border-bottom-left-radius:3px';
+    waitBubble.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div>Processando...';
+    waitWrapper.appendChild(waitBubble);
+    msgsEl.appendChild(waitWrapper);
+    msgsEl.scrollTop = msgsEl.scrollHeight;
+
+    try {
+        var data = await apiRequest('/workspace/workspaces/' + slug + '/chat', 'POST', { message: msg });
+        var answer = data.answer || data.response || data.content || data.mensagem || '';
+
+        // Substituir bubble de espera pela resposta real
+        var waitEl = document.getElementById('ws-chat-wait');
+        if (waitEl) waitEl.remove();
+        msgsEl.appendChild(_wsChatBuildBubble('assistant', answer));
+
+        if (!window._wsState._chatMessages) window._wsState._chatMessages = [];
+        window._wsState._chatMessages.push({ role: 'user', content: msg });
+        window._wsState._chatMessages.push({ role: 'assistant', content: answer });
+    } catch (e) {
+        var waitEl2 = document.getElementById('ws-chat-wait');
+        if (waitEl2) waitEl2.remove();
+        var errWrapper = document.createElement('div');
+        errWrapper.style.cssText = 'display:flex;justify-content:flex-start';
+        var errBubble = document.createElement('div');
+        errBubble.style.cssText = 'max-width:80%;padding:10px 14px;border-radius:12px;font-size:0.88rem;background:#f8d7da;border:1px solid #f5c2c7;color:#842029';
+        errBubble.textContent = 'Erro: ' + e.message;
+        errWrapper.appendChild(errBubble);
+        msgsEl.appendChild(errWrapper);
+    } finally {
+        if (btn) btn.disabled = false;
+        if (input) input.disabled = false;
+        if (input) input.focus();
+        msgsEl.scrollTop = msgsEl.scrollHeight;
+    }
+}
+
+function wsLimparChat() {
+    window._wsState._chatMessages = [];
+    var msgsEl = document.getElementById('ws-chat-msgs');
+    if (msgsEl) {
+        msgsEl.innerHTML =
+            '<div class="text-muted text-center py-3" id="ws-chat-empty">' +
+                '<i class="fas fa-comments fa-2x mb-2"></i>' +
+                '<p style="font-size:0.88rem">Conversa limpa. Faca uma nova pergunta.</p>' +
+            '</div>';
     }
 }
 
