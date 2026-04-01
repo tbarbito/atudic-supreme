@@ -274,6 +274,20 @@ def _transform_sxb(item: dict) -> dict | None:
 # Mapeamento SX → funcao de transformacao
 # ---------------------------------------------------------------------------
 
+def _transform_sxg(item: dict) -> dict | None:
+    """REST item -> formato grupos_campo (SXG)."""
+    grupo = _s(item, "xg_grupo")
+    if not grupo:
+        return None
+    return {
+        "grupo": grupo,
+        "descricao": _s(item, "xg_descri"),
+        "tamanho_max": _safe_int(item.get("xg_sizemax", 0)),
+        "tamanho_min": _safe_int(item.get("xg_sizemin", 0)),
+        "tamanho": _safe_int(item.get("xg_size", 0)),
+    }
+
+
 _SX_TRANSFORMS = {
     "SX2": _transform_sx2,
     "SX3": _transform_sx3,
@@ -285,6 +299,7 @@ _SX_TRANSFORMS = {
     "SX9": _transform_sx9,
     "SXA": _transform_sxa,
     "SXB": _transform_sxb,
+    "SXG": _transform_sxg,
 }
 
 
@@ -433,5 +448,20 @@ class RESTIngestor:
                 "INSERT OR REPLACE INTO consultas (alias, tipo, sequencia, coluna, "
                 "descricao, conteudo) VALUES (:alias, :tipo, :sequencia, :coluna, "
                 ":descricao, :conteudo)", rows)
+        elif sx_name == "SXG":
+            # Contar campos por grupo apos SX3 ja ter sido ingerido
+            conn = self.db.get_raw_conn()
+            for row in rows:
+                try:
+                    total = conn.execute(
+                        "SELECT COUNT(*) FROM campos WHERE grpsxg=?", (row["grupo"],)
+                    ).fetchone()[0]
+                    row["total_campos"] = total
+                except Exception:
+                    row["total_campos"] = 0
+            self.db.executemany(
+                "INSERT OR REPLACE INTO grupos_campo (grupo, descricao, tamanho_max, "
+                "tamanho_min, tamanho, total_campos) VALUES (:grupo, :descricao, "
+                ":tamanho_max, :tamanho_min, :tamanho, :total_campos)", rows)
 
         self.db.commit()
