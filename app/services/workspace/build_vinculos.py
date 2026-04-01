@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Origem: ExtraiRPO (Joni) — Construcao do grafo de vinculos (11 tipos de relacionamento)."""
+"""Origem: ExtraiRPO (Joni) — Construcao do grafo de vinculos (16 tipos de relacionamento)."""
 
 """Build vinculos table from existing database data.
 
@@ -133,25 +133,65 @@ def build_vinculos(db_path: Path, mapa_path: Path = None):
             vinculos.append(('gatilho_executa_funcao', 'gatilho', f'{co}->{cd}', 'funcao', func, '', '', 4))
     print(f"   {len(vinculos) - c}")
 
-    # 6. pe_afeta_rotina
-    print("6. pe_afeta_rotina...")
+    # 6. funcao_chama_funcao (from funcao_docs.chama)
+    print("6. funcao_chama_funcao...")
     c = len(vinculos)
+    try:
+        for arquivo, funcao, chama_json in db.execute(
+                "SELECT arquivo, funcao, chama FROM funcao_docs WHERE chama IS NOT NULL AND chama != '' AND chama != '[]'").fetchall():
+            try:
+                chama_list = json.loads(chama_json) if chama_json else []
+            except (json.JSONDecodeError, TypeError):
+                continue
+            for called in chama_list:
+                if isinstance(called, str) and called:
+                    vinculos.append(('funcao_chama_funcao', 'funcao', funcao, 'funcao', called, '', arquivo, 2))
+    except Exception:
+        pass  # funcao_docs may not exist
+    print(f"   {len(vinculos) - c}")
+
+    # 7. pe_afeta_rotina (cross with padrao_pes first, then fallback to name inference)
+    print("7. pe_afeta_rotina...")
+    c = len(vinculos)
+    # Build lookup from padrao_pes if available
+    pe_catalog = {}
+    try:
+        for nome, rotina, objetivo, modulo_pe in db.execute(
+                "SELECT nome, rotina, objetivo, modulo FROM padrao_pes WHERE rotina != ''").fetchall():
+            pe_catalog[nome.upper()] = (rotina, modulo_pe or '', objetivo or '')
+    except Exception:
+        pass  # padrao_pes may not exist
+
     for arquivo, pes_json, modulo in db.execute(
             "SELECT arquivo, pontos_entrada, modulo FROM fontes WHERE pontos_entrada != '[]'").fetchall():
         for pe in json.loads(pes_json):
             pe_upper = pe.upper()
+            # Stage 1: Check padrao_pes catalog
+            if pe_upper in pe_catalog:
+                rotina, mod, obj = pe_catalog[pe_upper]
+                vinculos.append(('pe_afeta_rotina', 'pe', pe, 'rotina', rotina, mod or modulo or '', f'{arquivo}|{obj[:80]}', 5))
+                continue
+            # Stage 2: Infer from PE naming convention
             matched = False
             for prefix, (rotina, mod) in sorted(PE_ROTINA_MAP.items(), key=lambda x: -len(x[0])):
                 if pe_upper.startswith(prefix) or pe_upper.startswith("MT" + prefix[1:]) or pe_upper.startswith("MTA" + prefix[1:]):
-                    vinculos.append(('pe_afeta_rotina', 'pe', pe, 'rotina', rotina, mod, arquivo, 5))
+                    vinculos.append(('pe_afeta_rotina', 'pe', pe, 'rotina', rotina, mod, arquivo, 4))
                     matched = True
                     break
+            # Stage 3: Try to infer from PE name pattern (e.g., A100DEL -> MATA100)
+            if not matched:
+                m = re.match(r'^([A-Z])(\d{2,3})', pe_upper)
+                if m:
+                    prefix_char, num = m.groups()
+                    rotina_guess = f"MAT{prefix_char}{num}"
+                    vinculos.append(('pe_afeta_rotina', 'pe', pe, 'rotina', rotina_guess, modulo or '', f'{arquivo}|inferred', 3))
+                    matched = True
             if not matched and modulo:
                 vinculos.append(('pe_afeta_rotina', 'pe', pe, 'rotina', 'desconhecida', modulo or '', arquivo, 2))
     print(f"   {len(vinculos) - c}")
 
-    # 7. campo_consulta_tabela (F3)
-    print("7. campo_consulta_tabela (F3)...")
+    # 8. campo_consulta_tabela (F3)
+    print("8. campo_consulta_tabela (F3)...")
     c = len(vinculos)
     for tabela, campo, f3 in db.execute(
             "SELECT tabela, campo, f3 FROM campos WHERE f3 != '' AND custom = 1").fetchall():
@@ -161,8 +201,8 @@ def build_vinculos(db_path: Path, mapa_path: Path = None):
                 vinculos.append(('campo_consulta_tabela', 'campo', f'{tabela}.{campo}', 'tabela', t, '', f'F3={f3[:30]}', 2))
     print(f"   {len(vinculos) - c}")
 
-    # 8. tabela_pertence_modulo
-    print("8. tabela_pertence_modulo...")
+    # 9. tabela_pertence_modulo
+    print("9. tabela_pertence_modulo...")
     c = len(vinculos)
     # Prioridade: 1) mapa_path externo, 2) tabela mapa_modulos no SQLite
     mapa = {}
@@ -179,15 +219,15 @@ def build_vinculos(db_path: Path, mapa_path: Path = None):
             vinculos.append(('tabela_pertence_modulo', 'tabela', tab.upper(), 'modulo', modulo, modulo, '', 1))
     print(f"   {len(vinculos) - c}")
 
-    # 9. modulo_integra_modulo
-    print("9. modulo_integra_modulo...")
+    # 10. modulo_integra_modulo
+    print("10. modulo_integra_modulo...")
     c = len(vinculos)
     for origem, destino, contexto in MODULE_INTEGRATIONS:
         vinculos.append(('modulo_integra_modulo', 'modulo', origem, 'modulo', destino, '', contexto, 3))
     print(f"   {len(vinculos) - c}")
 
-    # 10. job_executa_funcao
-    print("10. job_executa_funcao...")
+    # 11. job_executa_funcao
+    print("11. job_executa_funcao...")
     c = len(vinculos)
     try:
         for arquivo_ini, sessao, rotina in db.execute(
@@ -200,8 +240,8 @@ def build_vinculos(db_path: Path, mapa_path: Path = None):
         pass  # Table may not exist
     print(f"   {len(vinculos) - c}")
 
-    # 11. schedule_executa_funcao
-    print("11. schedule_executa_funcao...")
+    # 12. schedule_executa_funcao
+    print("12. schedule_executa_funcao...")
     c = len(vinculos)
     try:
         for codigo, rotina, empresa, status in db.execute(
@@ -211,6 +251,61 @@ def build_vinculos(db_path: Path, mapa_path: Path = None):
             vinculos.append(('schedule_executa_funcao', 'schedule', codigo, 'funcao', clean_name, '', f'filial={empresa}|{status}', 3))
     except Exception:
         pass  # Table may not exist
+    print(f"   {len(vinculos) - c}")
+
+    # 13. fonte_usa_parametro (extract GetMV/SuperGetMV/GetNewPar from source chunks)
+    print("13. fonte_usa_parametro...")
+    c = len(vinculos)
+    try:
+        param_pat = re.compile(r'(?:GetMV|SuperGetMV|GetNewPar)\s*\(\s*["\']((?:MV_|MGF_)\w+)', re.IGNORECASE)
+        seen_param_pairs = set()
+        for arquivo, content in db.execute("SELECT arquivo, content FROM fonte_chunks").fetchall():
+            matches = param_pat.findall(content)
+            for param in matches:
+                pair = (arquivo, param.upper())
+                if pair not in seen_param_pairs:
+                    seen_param_pairs.add(pair)
+                    vinculos.append(('fonte_usa_parametro', 'fonte', arquivo, 'parametro', param.upper(), '', '', 2))
+    except Exception:
+        pass
+    print(f"   {len(vinculos) - c}")
+
+    # 14. funcao_referencia_tabela (from funcao_docs.tabelas_ref — function-level granularity)
+    print("14. funcao_referencia_tabela...")
+    c = len(vinculos)
+    try:
+        for arquivo, funcao, tabs_json in db.execute(
+                "SELECT arquivo, funcao, tabelas_ref FROM funcao_docs "
+                "WHERE tabelas_ref IS NOT NULL AND tabelas_ref != '' AND tabelas_ref != '[]'").fetchall():
+            for tab in json.loads(tabs_json):
+                vinculos.append(('funcao_referencia_tabela', 'funcao', funcao, 'tabela', tab, '', arquivo, 1))
+    except Exception:
+        pass
+    print(f"   {len(vinculos) - c}")
+
+    # 15. funcao_referencia_campo (from funcao_docs.campos_ref — field-level granularity)
+    print("15. funcao_referencia_campo...")
+    c = len(vinculos)
+    try:
+        for arquivo, funcao, campos_json in db.execute(
+                "SELECT arquivo, funcao, campos_ref FROM funcao_docs "
+                "WHERE campos_ref IS NOT NULL AND campos_ref != '' AND campos_ref != '[]'").fetchall():
+            for campo in json.loads(campos_json):
+                vinculos.append(('funcao_referencia_campo', 'funcao', funcao, 'campo', campo, '', arquivo, 1))
+    except Exception:
+        pass
+    print(f"   {len(vinculos) - c}")
+
+    # 16. operacao_escrita_tabela (from operacoes_escrita — write operation detail)
+    print("16. operacao_escrita_tabela...")
+    c = len(vinculos)
+    try:
+        for arquivo, funcao, tipo_op, tabela, condicao in db.execute(
+                "SELECT arquivo, funcao, tipo, tabela, condicao FROM operacoes_escrita").fetchall():
+            ctx = f"{tipo_op}|{(condicao or '')[:60]}"
+            vinculos.append(('operacao_escrita_tabela', 'funcao', funcao, 'tabela', tabela, '', ctx, 3))
+    except Exception:
+        pass
     print(f"   {len(vinculos) - c}")
 
     # INSERT ALL

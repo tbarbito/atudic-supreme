@@ -1,0 +1,10 @@
+{
+  "compras":       { "tabelas": ["SC7","SC8","SA2","SCR","SCJ"], "rotinas": ["MATA120","MATA121","MATA103"] },
+  "faturamento":   { "tabelas": ["SC5","SC6","SF2","SD2","SA1"], "rotinas": ["MATA410","MATA411","MATA460","MATA461"] },
+  "financeiro":    { "tabelas": ["SE1","SE2","SE5","SA6","SEA"], "rotinas": ["FINA040","FINA050","FINA080"] },
+  "estoque":       { "tabelas": ["SB1","SB2","SB5","SD1","SD3"], "rotinas": ["MATA240","MATA241","MATA250","MATA260"] },
+  "fiscal":        { "tabelas": ["SF3","SF4","SFT","CDA","CDH"], "rotinas": ["MATA950","MATA953"] },
+  "pcp":           { "tabelas": ["SC2","SG1","SG2","SD4","SHB"], "rotinas": ["MATA630","MATA650","MATA680"] },
+  "rh":            { "tabelas": ["SRA","SRB","SRC","SRD","SRE"], "rotinas": ["GPEA010","GPEA020","GPEM020"] },
+  "contabilidade": { "tabelas": ["CT1","CT2","CT5","CTS","CVD"], "rotinas": ["CTBA010","CTBA020","CTBA102"] }
+}

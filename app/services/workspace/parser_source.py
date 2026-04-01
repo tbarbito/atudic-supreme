@@ -334,6 +334,12 @@ def _extract_params(content: str) -> dict:
     for m in re.finditer(r'(?:Pergunte|FWGetSX1)\s*\(\s*["\'](\w+)["\']', content, re.IGNORECASE):
         sx1.add(m.group(1).upper())
 
+    # Pergunte(cPerg) pattern — variable-based (very common in Protheus)
+    # Detect: cPerg := "GRUPO" ... Pergunte(cPerg)
+    if re.search(r'(?:Pergunte|FWGetSX1)\s*\(\s*cPerg', content, re.IGNORECASE):
+        for m in re.finditer(r'\bcPerg\s*:=\s*["\'](\w+)["\']', content, re.IGNORECASE):
+            sx1.add(m.group(1).upper())
+
     result = {
         "sx6": [{"var": k, "default": v} for k, v in sorted(sx6.items())],
         "sx1": sorted(sx1),

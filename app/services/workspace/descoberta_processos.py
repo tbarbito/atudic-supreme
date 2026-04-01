@@ -227,9 +227,55 @@ def passo3_fontes_satelite(db) -> dict:
     # Top clusters (tabelas com mais fontes de escrita)
     clusters_list = sorted(clusters.values(), key=lambda x: -x["total_fontes"])
 
+    # Discover READ tables — config/reference tables that writing fontes consult
+    # These are often the "grade", "regras", "aprovadores" tables that define business rules
+    sys_tables = {"SM0", "SX1", "SX2", "SX3", "SX5", "SX6", "SX7", "SX9", "SIX", "SAK"}
+    ref_tables: dict[str, dict] = {}  # table -> {nome, fontes_que_leem, tabelas_escrita_associadas}
+
+    for cluster in clusters_list[:30]:
+        tab = cluster["tabela"]
+        for arquivo in cluster["fontes"][:15]:
+            ref_row = db.execute(
+                "SELECT tabelas_ref FROM fontes WHERE arquivo=?", (arquivo,)
+            ).fetchone()
+            if not ref_row or not ref_row[0]:
+                continue
+            for rt in _safe_json(ref_row[0]):
+                rt_upper = rt.upper()
+                if rt_upper in sys_tables or rt_upper in clusters:
+                    continue
+                if rt_upper not in ref_tables:
+                    nome_row = db.execute(
+                        "SELECT nome, custom FROM tabelas WHERE upper(codigo)=?", (rt_upper,)
+                    ).fetchone()
+                    if not nome_row:
+                        continue
+                    ref_tables[rt_upper] = {
+                        "tabela": rt_upper,
+                        "nome": nome_row[0],
+                        "custom": nome_row[1],
+                        "fontes_que_leem": set(),
+                        "tabelas_escrita_associadas": set(),
+                    }
+                ref_tables[rt_upper]["fontes_que_leem"].add(arquivo)
+                ref_tables[rt_upper]["tabelas_escrita_associadas"].add(tab)
+
+    # Filter: keep ref tables consulted by 2+ writing fontes (strong signal)
+    ref_tables_list = []
+    for rt, info in sorted(ref_tables.items(), key=lambda x: -len(x[1]["fontes_que_leem"])):
+        if len(info["fontes_que_leem"]) >= 2 or info["custom"]:
+            ref_tables_list.append({
+                "tabela": info["tabela"],
+                "nome": info["nome"],
+                "custom": info["custom"],
+                "total_fontes_leem": len(info["fontes_que_leem"]),
+                "tabelas_escrita": sorted(info["tabelas_escrita_associadas"])[:5],
+            })
+
     return {
         "clusters_tabela": clusters_list[:30],
         "satelites": satelites[:20],
+        "ref_tables": ref_tables_list[:30],
     }
 
 
@@ -304,6 +350,9 @@ INSTRUÇÕES:
 - Cada prefixo de sistema externo (TAU, TMS, SFA etc.) é um processo de integração
 - Cada máquina de estados (cbox com 3+ valores) é um workflow
 - Cada cluster de keywords (STATUS, APROV, INTEGR etc.) é um processo
+- IMPORTANTE: tabelas_referencia são tabelas de configuração (grade, regras, aprovadores, alçadas) que DEVEM ser incluídas nos processos que as utilizam
+  - Ex: Se ZAB (Grade) é referenciada por fontes que gravam SC7, inclua ZAB nas tabelas do processo de compras
+  - Ex: Se SZT (Regras) é referenciada por fontes que gravam SZV (Bloqueios), inclua SZT no processo de bloqueio
 - Não agrupe processos diferentes num só — prefira granularidade maior
 - Tipos válidos: workflow, integracao, pricing, fiscal, logistica, regulatorio, auditoria, qualidade, automacao, outro
 - Score de 0 a 1 indicando confiança na detecção
@@ -329,6 +378,12 @@ def _passo5_llm(dados: dict, llm) -> list[dict]:
         {"tabela": t["tabela"], "nome": t["nome"], "campos": t["total_campos"]}
         for t in dados["passo1"]["nivel1_tabelas_custom"][:80]
     ]
+    # Include reference tables (grade, regras, aprovadores) — critical for process discovery
+    ref_tables_compact = [
+        {"tabela": rt["tabela"], "nome": rt["nome"], "custom": rt["custom"],
+         "associada_a": rt["tabelas_escrita"][:3]}
+        for rt in dados["passo3"].get("ref_tables", [])[:20]
+    ]
     dados_compacto = {
         "tabelas_custom": tabs_compact,
         "maquinas_estado": dados["passo1"]["nivel2_cbox_estados"][:30],
@@ -338,6 +393,7 @@ def _passo5_llm(dados: dict, llm) -> list[dict]:
         "super_triggers": list(dados["passo2"]["super_triggers"].keys())[:15],
         "funcoes_u": dados["passo2"]["funcoes_chamadas"][:20],
         "satelites": [s["tabela"] for s in dados["passo3"]["satelites"][:15]],
+        "tabelas_referencia": ref_tables_compact,
         "jobs_criticos": [
             {"rotina": j["rotina"], "criticidade": j["criticidade"]}
             for j in dados["passo4"]["jobs_criticos"][:15]

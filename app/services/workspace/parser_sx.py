@@ -66,7 +66,42 @@ def _sanitize_text(text: str) -> str:
     return text.encode("utf-8", errors="replace").decode("utf-8", errors="replace")
 
 
+def _convert_xlsx_to_csv(file_path: Path) -> Path:
+    """Auto-convert XLSX files disguised as .csv to real CSV format."""
+    try:
+        import openpyxl
+        xlsx_path = file_path.with_suffix(".xlsx.bak")
+        file_path.rename(xlsx_path)
+        wb = openpyxl.load_workbook(str(xlsx_path), read_only=True)
+        ws = wb.active
+        rows = list(ws.iter_rows(values_only=True))
+        wb.close()
+        with open(str(file_path), "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f, delimiter=",", quotechar='"', quoting=csv.QUOTE_ALL)
+            for row in rows:
+                writer.writerow(["" if c is None else str(c) for c in row])
+        return file_path
+    except Exception:
+        # If conversion fails, restore original
+        if xlsx_path.exists() and not file_path.exists():
+            xlsx_path.rename(file_path)
+        return file_path
+
+
+def _is_xlsx_disguised(file_path: Path) -> bool:
+    """Detect if a .csv file is actually an XLSX (ZIP) file."""
+    try:
+        with open(file_path, "rb") as f:
+            magic = f.read(4)
+        return magic == b"PK\x03\x04"  # ZIP magic number (XLSX is a ZIP)
+    except Exception:
+        return False
+
+
 def _read_csv(file_path: Path) -> list[dict]:
+    # Auto-convert XLSX disguised as CSV
+    if _is_xlsx_disguised(file_path):
+        file_path = _convert_xlsx_to_csv(file_path)
     encoding = _detect_encoding(file_path)
     delimiter = _detect_delimiter(file_path, encoding)
     with open(file_path, "r", encoding=encoding, errors="replace") as f:
@@ -145,6 +180,7 @@ def parse_sx3(file_path: Path) -> List[dict]:
             "visual": row.get("X3_VISUAL", "").strip(),
             "context": row.get("X3_CONTEXT", "").strip(),
             "folder": row.get("X3_FOLDER", "").strip(),
+            "grpsxg": row.get("X3_GRPSXG", "").strip(),
         })
     return result
 
@@ -769,6 +805,7 @@ def parse_padrao_sx3(file_path: Path) -> List[dict]:
             "visual": row.get("X3_VISUAL", "").strip(),
             "context": row.get("X3_CONTEXT", "").strip(),
             "folder": row.get("X3_FOLDER", "").strip(),
+            "grpsxg": row.get("X3_GRPSXG", "").strip(),
         })
     return result
 

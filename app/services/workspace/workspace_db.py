@@ -34,7 +34,17 @@ CREATE TABLE IF NOT EXISTS campos (
     visual      TEXT DEFAULT '',
     context     TEXT DEFAULT '',
     folder      TEXT DEFAULT '',
+    grpsxg      TEXT DEFAULT '',
     PRIMARY KEY (tabela, campo)
+);
+
+CREATE TABLE IF NOT EXISTS grupos_campo (
+    grupo       TEXT PRIMARY KEY,
+    descricao   TEXT DEFAULT '',
+    tamanho_max INTEGER DEFAULT 0,
+    tamanho_min INTEGER DEFAULT 0,
+    tamanho     INTEGER DEFAULT 0,
+    total_campos INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS indices (
@@ -130,6 +140,32 @@ CREATE TABLE IF NOT EXISTS consultas (
     descricao   TEXT,
     conteudo    TEXT,
     PRIMARY KEY (alias, sequencia, coluna)
+);
+
+CREATE TABLE IF NOT EXISTS propositos (
+    chave           TEXT PRIMARY KEY,
+    proposito       TEXT DEFAULT '',
+    proposito_auto  TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS conceitos_aprendidos (
+    conceito    TEXT PRIMARY KEY,
+    rotinas     TEXT DEFAULT '[]',
+    tabelas     TEXT DEFAULT '[]',
+    modulos     TEXT DEFAULT '[]',
+    fonte       TEXT DEFAULT 'auto',
+    hits        INTEGER DEFAULT 1,
+    created_at  TEXT DEFAULT (datetime('now')),
+    updated_at  TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS fonte_analise_tecnica (
+    arquivo     TEXT PRIMARY KEY,
+    analise_markdown TEXT DEFAULT NULL,
+    analise_json TEXT DEFAULT NULL,
+    processos_vinculados TEXT DEFAULT '[]',
+    created_at  TEXT DEFAULT (datetime('now')),
+    updated_at  TEXT DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS fontes (
@@ -248,6 +284,7 @@ CREATE TABLE IF NOT EXISTS padrao_campos (
     visual      TEXT DEFAULT '',
     context     TEXT DEFAULT '',
     folder      TEXT DEFAULT '',
+    grpsxg      TEXT DEFAULT '',
     PRIMARY KEY (tabela, campo)
 );
 
@@ -467,6 +504,8 @@ class Database:
             "ALTER TABLE processos_detectados ADD COLUMN analise_updated_at TEXT DEFAULT NULL",
             "ALTER TABLE fontes ADD COLUMN reclock_tables TEXT DEFAULT '[]'",
             "ALTER TABLE fontes ADD COLUMN encoding TEXT DEFAULT 'cp1252'",
+            "ALTER TABLE campos ADD COLUMN grpsxg TEXT DEFAULT ''",
+            "ALTER TABLE funcao_docs ADD COLUMN resumo_auto TEXT DEFAULT ''",
         ]:
             try:
                 self._conn.execute(col_ddl)
