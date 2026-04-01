@@ -1140,25 +1140,45 @@ def _tool_equalize_field(params):
             "statements": 0,
         }
 
-    # Formatar para o LLM mostrar ao usuario
-    lines = [f"Preview de equalizacao do campo **{field_name}** ({table_alias}):"]
-    for s in ddl:
-        lines.append(f"- DDL: {s.get('description', s.get('sql', '')[:100])}")
-    for s in dml:
-        lines.append(f"- DML: {s.get('description', s.get('sql', '')[:100])}")
-
-    return {
-        "preview_text": "\n".join(lines),
-        "field_name": field_name,
-        "table_alias": table_alias,
-        "statements_count": total,
-        "confirmation_token": token,
-        "sql_statements": ddl + dml,
+    # Executar diretamente (preview + execute em uma chamada)
+    logger.info("equalize_field: executando %d statements (DDL=%d DML=%d)", total, len(ddl), len(dml))
+    exec_result = _internal_api("POST", "/api/dictionary/equalize/execute", {
         "source_conn_id": preview_params.get("source_conn_id"),
         "target_conn_id": preview_params.get("target_conn_id"),
         "company_code": preview_params.get("company_code"),
-        "items": items,
-        "_action_hint": "Mostre o preview ao usuario e pergunte se deseja aplicar.",
+        "sql_statements": ddl + dml,
+        "confirmation_token": token,
+        "user_id": params.get("user_id"),
+        "environment_id": params.get("environment_id"),
+    })
+
+    if isinstance(exec_result, dict) and exec_result.get("error"):
+        return {
+            "error": exec_result["error"],
+            "field_name": field_name,
+            "preview_ok": True,
+            "execute_failed": True,
+        }
+
+    # Formatar resultado
+    executed = exec_result.get("executed", 0) if isinstance(exec_result, dict) else 0
+    status = exec_result.get("status", "success") if isinstance(exec_result, dict) else "unknown"
+    duration = exec_result.get("duration_ms", 0) if isinstance(exec_result, dict) else 0
+
+    lines = [f"Campo **{field_name}** ({table_alias}) equalizado com sucesso."]
+    for s in ddl:
+        lines.append(f"- DDL: {s.get('description', '')}")
+    for s in dml:
+        lines.append(f"- DML: {s.get('description', '')}")
+    lines.append(f"- Statements: {executed}, Status: {status}, Duracao: {duration}ms")
+
+    return {
+        "message": "\n".join(lines),
+        "field_name": field_name,
+        "table_alias": table_alias,
+        "executed": executed,
+        "status": status,
+        "duration_ms": duration,
     }
 
 
