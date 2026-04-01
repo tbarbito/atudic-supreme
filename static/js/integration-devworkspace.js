@@ -257,7 +257,7 @@ async function wsRenderSetup(container) {
                             '<div class="mb-3">' +
                                 '<label class="form-label fw-semibold">Diretorio dos fontes .prw/.tlpp <small class="text-muted">(opcional)</small></label>' +
                                 '<div class="input-group">' +
-                                    '<input type="text" class="form-control" id="ws-fontes-dir" placeholder="C:\\caminho\\para\\fontes">' +
+                                    '<input type="text" class="form-control" id="ws-fontes-dir" placeholder="Ex: C:\\totvs\\protheus\\apo_custom ou /opt/protheus/fontes">' +
                                     '<button class="btn btn-outline-secondary" type="button" onclick="document.getElementById(\'ws-fontes-dir-picker\').click()">' +
                                         '<i class="fas fa-folder-open"></i>' +
                                     '</button>' +
@@ -338,16 +338,17 @@ function wsUpdateModeUI(mode) {
     btnHybrid.style.display = 'none';
     btnRest.style.display = 'none';
 
+    // Fontes custom visivel em TODOS os modos
+    fontesFields.style.display = 'block';
+
     if (mode === 'csv') {
         csvFields.style.display = 'block';
-        fontesFields.style.display = 'block';
         btnCsv.style.display = 'inline-block';
     } else if (mode === 'live') {
         liveFields.style.display = 'block';
         btnLive.style.display = 'inline-block';
     } else if (mode === 'hybrid') {
         liveFields.style.display = 'block';
-        fontesFields.style.display = 'block';
         btnHybrid.style.display = 'inline-block';
     } else if (mode === 'rest') {
         restFields.style.display = 'block';
