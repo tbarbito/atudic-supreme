@@ -398,7 +398,8 @@ class RESTIngestor:
         """Deriva tabela grupos_campo a partir do grpsxg dos campos ja ingeridos.
 
         SXG nao e acessivel via REST genericQuery (tabela de sistema).
-        Alternativa: extrair grupos unicos de campos.grpsxg e contar.
+        Estrategia: extrair grupos do SX3 e enriquecer com banco_padrao.db
+        (descricao, tamanho_max, tamanho_min, tamanho).
         """
         conn = self.db.get_raw_conn()
         conn.execute("DELETE FROM grupos_campo")
@@ -410,13 +411,48 @@ class RESTIngestor:
         if not rows:
             self.db.commit()
             return 0
-        batch = [(r[0], "", 0, 0, 0, r[1]) for r in rows]
+
+        # Enriquecer com dados do banco_padrao.db (descricao e tamanhos)
+        padrao_grupos = {}
+        try:
+            from app.services.workspace.workspace_populator import _get_padrao_db_path
+            padrao_path = _get_padrao_db_path()
+            if padrao_path.exists():
+                import sqlite3
+                pconn = sqlite3.connect(str(padrao_path))
+                for row in pconn.execute(
+                    "SELECT grupo, descricao, tamanho_max, tamanho_min, tamanho "
+                    "FROM grupos_campo"
+                ).fetchall():
+                    padrao_grupos[row[0]] = {
+                        "descricao": row[1] or "",
+                        "tamanho_max": row[2] or 0,
+                        "tamanho_min": row[3] or 0,
+                        "tamanho": row[4] or 0,
+                    }
+                pconn.close()
+                logger.info("SXG enriquecido com %d grupos do banco_padrao.db", len(padrao_grupos))
+        except Exception as e:
+            logger.warning("Nao foi possivel enriquecer SXG do banco_padrao.db: %s", e)
+
+        batch = []
+        for grupo, total in rows:
+            p = padrao_grupos.get(grupo, {})
+            batch.append((
+                grupo,
+                p.get("descricao", ""),
+                p.get("tamanho_max", 0),
+                p.get("tamanho_min", 0),
+                p.get("tamanho", 0),
+                total,
+            ))
         conn.executemany(
             "INSERT OR REPLACE INTO grupos_campo "
             "(grupo, descricao, tamanho_max, tamanho_min, tamanho, total_campos) "
             "VALUES (?,?,?,?,?,?)", batch)
         self.db.commit()
-        logger.info("grupos_campo derivado do SX3: %d grupos", len(batch))
+        logger.info("grupos_campo: %d grupos (%d com descricao do padrao)",
+                     len(batch), len(padrao_grupos))
         return len(batch)
 
     def _store_sx(self, sx_name: str, rows: list[dict]):
