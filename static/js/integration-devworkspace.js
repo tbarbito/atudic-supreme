@@ -160,6 +160,33 @@ async function wsRenderSetup(container) {
                                 '<label class="btn btn-outline-success" for="ws-mode-live"><i class="fas fa-database me-1"></i>Live (DB)</label>' +
                                 '<input type="radio" class="btn-check" name="ws-mode" id="ws-mode-hybrid" value="hybrid">' +
                                 '<label class="btn btn-outline-warning" for="ws-mode-hybrid"><i class="fas fa-random me-1"></i>Hibrido</label>' +
+                                '<input type="radio" class="btn-check" name="ws-mode" id="ws-mode-rest" value="rest">' +
+                                '<label class="btn btn-outline-info" for="ws-mode-rest"><i class="fas fa-globe me-1"></i>REST API</label>' +
+                            '</div>' +
+                        '</div>' +
+
+                        // Campos REST API
+                        '<div id="ws-rest-fields" style="display:none">' +
+                            '<div class="mb-3">' +
+                                '<label class="form-label fw-semibold">URL da API REST do Protheus</label>' +
+                                '<input type="text" class="form-control" id="ws-rest-url" placeholder="http://servidor:porta/rest">' +
+                                '<small class="text-muted"><i class="fas fa-info-circle me-1"></i>Porta REST configurada no AppServer do Protheus.</small>' +
+                            '</div>' +
+                            '<div class="row">' +
+                                '<div class="col-md-6 mb-3">' +
+                                    '<label class="form-label fw-semibold">Usuario</label>' +
+                                    '<input type="text" class="form-control" id="ws-rest-user" placeholder="admin">' +
+                                '</div>' +
+                                '<div class="col-md-6 mb-3">' +
+                                    '<label class="form-label fw-semibold">Senha</label>' +
+                                    '<input type="password" class="form-control" id="ws-rest-password" placeholder="senha">' +
+                                '</div>' +
+                            '</div>' +
+                            '<div class="mb-3">' +
+                                '<button class="btn btn-outline-info btn-sm" data-action="wsTestREST">' +
+                                    '<i class="fas fa-plug me-1"></i>Testar Conexao' +
+                                '</button>' +
+                                '<span id="ws-rest-test-result" class="ms-2"></span>' +
                             '</div>' +
                         '</div>' +
 
@@ -231,6 +258,9 @@ async function wsRenderSetup(container) {
                             '<button class="btn btn-warning" data-action="wsIngestHybrid" id="ws-btn-hybrid" style="display:none">' +
                                 '<i class="fas fa-random me-1"></i>Importar Hibrido' +
                             '</button>' +
+                            '<button class="btn btn-info" data-action="wsIngestREST" id="ws-btn-rest" style="display:none">' +
+                                '<i class="fas fa-globe me-1"></i>Importar via REST' +
+                            '</button>' +
                             '<button class="btn btn-outline-primary" data-action="wsIngestFontes">' +
                                 '<i class="fas fa-file-code me-1"></i>Parsear Fontes' +
                             '</button>' +
@@ -271,18 +301,22 @@ async function wsRenderSetup(container) {
 function wsUpdateModeUI(mode) {
     var csvFields = document.getElementById('ws-csv-fields');
     var liveFields = document.getElementById('ws-live-fields');
+    var restFields = document.getElementById('ws-rest-fields');
     var fontesFields = document.getElementById('ws-fontes-fields');
     var btnCsv = document.getElementById('ws-btn-csv');
     var btnLive = document.getElementById('ws-btn-live');
     var btnHybrid = document.getElementById('ws-btn-hybrid');
+    var btnRest = document.getElementById('ws-btn-rest');
 
     // Reset
     csvFields.style.display = 'none';
     liveFields.style.display = 'none';
+    restFields.style.display = 'none';
     fontesFields.style.display = 'none';
     btnCsv.style.display = 'none';
     btnLive.style.display = 'none';
     btnHybrid.style.display = 'none';
+    btnRest.style.display = 'none';
 
     if (mode === 'csv') {
         csvFields.style.display = 'block';
@@ -295,6 +329,9 @@ function wsUpdateModeUI(mode) {
         liveFields.style.display = 'block';
         fontesFields.style.display = 'block';
         btnHybrid.style.display = 'inline-block';
+    } else if (mode === 'rest') {
+        restFields.style.display = 'block';
+        btnRest.style.display = 'inline-block';
     }
 }
 
@@ -377,6 +414,85 @@ async function wsIngestHybrid() {
         document.getElementById('ws-progress-bar').style.width = '100%';
         document.getElementById('ws-progress-text').textContent = 'Concluido! ' + statsText;
         showNotification('Ingestao hibrida concluida!', 'success');
+        window._wsState.activeSlug = slug;
+        await wsLoadWorkspaces();
+    } catch (e) {
+        document.getElementById('ws-progress-text').textContent = 'Erro: ' + e.message;
+        showNotification('Erro: ' + e.message, 'error');
+    }
+}
+
+async function wsTestREST() {
+    var url = document.getElementById('ws-rest-url').value.trim();
+    var user = document.getElementById('ws-rest-user').value.trim();
+    var password = document.getElementById('ws-rest-password').value;
+    var resultEl = document.getElementById('ws-rest-test-result');
+
+    if (!url || !user) {
+        resultEl.innerHTML = '<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Preencha URL e usuario</span>';
+        return;
+    }
+
+    resultEl.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin me-1"></i>Testando...</span>';
+    var slug = document.getElementById('ws-slug').value.trim() || '_test';
+
+    try {
+        var result = await apiRequest('/workspace/workspaces/' + slug + '/ingest/rest/test', 'POST', {
+            rest_url: url, rest_user: user, rest_password: password
+        });
+        if (result.ok) {
+            resultEl.innerHTML = '<span class="text-success"><i class="fas fa-check-circle me-1"></i>Conectado! ' +
+                (result.tables_count ? result.tables_count + ' tabelas encontradas' : '') + '</span>';
+        } else {
+            resultEl.innerHTML = '<span class="text-danger"><i class="fas fa-times-circle me-1"></i>' + (result.message || 'Falha na conexao') + '</span>';
+        }
+    } catch (e) {
+        resultEl.innerHTML = '<span class="text-danger"><i class="fas fa-times-circle me-1"></i>' + e.message + '</span>';
+    }
+}
+
+async function wsIngestREST() {
+    var slug = document.getElementById('ws-slug').value.trim();
+    var restUrl = document.getElementById('ws-rest-url').value.trim();
+    var restUser = document.getElementById('ws-rest-user').value.trim();
+    var restPassword = document.getElementById('ws-rest-password').value;
+    var padraoDir = document.getElementById('ws-padrao-dir').value.trim();
+
+    if (!slug) return showNotification('Informe o nome do workspace', 'warning');
+    if (!restUrl) return showNotification('Informe a URL da API REST', 'warning');
+    if (!restUser) return showNotification('Informe o usuario', 'warning');
+
+    document.getElementById('ws-progress').style.display = 'block';
+    document.getElementById('ws-progress-bar').style.width = '10%';
+    document.getElementById('ws-progress-text').textContent = 'Conectando a API REST do Protheus...';
+
+    try {
+        var data = {
+            rest_url: restUrl,
+            rest_user: restUser,
+            rest_password: restPassword
+        };
+        if (padraoDir) data.padrao_csv_dir = padraoDir;
+
+        document.getElementById('ws-progress-bar').style.width = '30%';
+        document.getElementById('ws-progress-text').textContent = 'Importando dicionario via REST (SX2, SX3, SIX, SX7, SX1, SX5, SX6, SX9, SXA, SXB)...';
+
+        var result = await apiRequest('/workspace/workspaces/' + slug + '/ingest/rest', 'POST', data);
+
+        var stats = result.stats || {};
+        var tabelas = stats.tabelas || {};
+        var parts = [];
+        for (var key in tabelas) {
+            parts.push(key + ': ' + tabelas[key]);
+        }
+        var statsText = parts.join(', ');
+        if (stats.errors && stats.errors.length) {
+            statsText += ' | Erros: ' + stats.errors.join('; ');
+        }
+
+        document.getElementById('ws-progress-bar').style.width = '100%';
+        document.getElementById('ws-progress-text').textContent = 'Concluido! ' + statsText;
+        showNotification('Ingestao REST concluida! Total: ' + (stats.total_items || 0) + ' registros', 'success');
         window._wsState.activeSlug = slug;
         await wsLoadWorkspaces();
     } catch (e) {

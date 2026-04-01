@@ -349,6 +349,98 @@ def ingest_hybrid(slug):
         pop.close()
 
 
+@workspace_bp.route("/workspaces/<slug>/ingest/rest", methods=["POST"])
+def ingest_rest(slug):
+    """Popula workspace via API REST do Protheus.
+
+    Body JSON: {
+        "rest_url": "http://host:port/rest",
+        "rest_user": "admin",
+        "rest_password": "protheus",
+        "padrao_csv_dir": "..." (opcional)
+    }
+    """
+    import asyncio
+    data = request.get_json()
+    rest_url = data.get("rest_url", "").strip()
+    rest_user = data.get("rest_user", "").strip()
+    rest_password = data.get("rest_password", "")
+
+    if not rest_url or not rest_user:
+        return jsonify({"error": "rest_url e rest_user sao obrigatorios"}), 400
+
+    from app.services.workspace.rest_client import ProtheusRESTClient
+    from app.services.workspace.rest_ingestor import RESTIngestor
+
+    # Testar conexao primeiro
+    client = ProtheusRESTClient(rest_url, rest_user, rest_password)
+    test = client.test_connection()
+    if not test.get("ok"):
+        return jsonify({"error": f"Falha na conexao REST: {test.get('message', 'erro desconhecido')}"}), 400
+
+    ws_path = _get_workspace_path(slug)
+    db = Database(ws_path / "workspace.db")
+    db.initialize()
+
+    try:
+        ingestor = RESTIngestor(db, client)
+
+        # Executar ingestao sincrona (run_fase1 e async mas executamos no loop)
+        loop = asyncio.new_event_loop()
+        stats = {"tabelas": {}, "total_items": 0, "errors": []}
+
+        async def _run():
+            async for progress in ingestor.run_fase1():
+                item = progress.get("item", "")
+                status = progress.get("status", "")
+                if status == "done":
+                    count = progress.get("count", 0)
+                    stats["tabelas"][item] = count
+                    stats["total_items"] += count
+                    logger.info(f"REST ingest {slug}: {item} = {count} registros")
+                elif status == "error":
+                    stats["errors"].append(f"{item}: {progress.get('msg', '')}")
+                    logger.error(f"REST ingest {slug}: {item} erro = {progress.get('msg', '')}")
+
+        loop.run_until_complete(_run())
+        loop.close()
+
+        # Ingerir CSV padrao e calcular diff se fornecido
+        padrao_dir = data.get("padrao_csv_dir")
+        if padrao_dir:
+            padrao_stats = _ingest_padrao_if_provided(data, db)
+            if padrao_stats:
+                stats["padrao"] = padrao_stats["padrao"]
+                stats["diff"] = padrao_stats["diff"]
+
+        return jsonify({"success": True, "mode": "rest", "stats": stats})
+    except Exception as e:
+        logger.exception(f"Erro na ingestao REST: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db.close()
+
+
+@workspace_bp.route("/workspaces/<slug>/ingest/rest/test", methods=["POST"])
+def ingest_rest_test(slug):
+    """Testa conexao REST antes de iniciar ingestao.
+
+    Body JSON: {"rest_url": "...", "rest_user": "...", "rest_password": "..."}
+    """
+    data = request.get_json()
+    rest_url = data.get("rest_url", "").strip()
+    rest_user = data.get("rest_user", "").strip()
+    rest_password = data.get("rest_password", "")
+
+    if not rest_url or not rest_user:
+        return jsonify({"error": "rest_url e rest_user sao obrigatorios"}), 400
+
+    from app.services.workspace.rest_client import ProtheusRESTClient
+    client = ProtheusRESTClient(rest_url, rest_user, rest_password)
+    result = client.test_connection()
+    return jsonify(result)
+
+
 @workspace_bp.route("/connections", methods=["GET"])
 def list_connections():
     """Lista conexoes de banco disponiveis para modo live."""
