@@ -447,6 +447,13 @@ CREATE TABLE IF NOT EXISTS processo_mensagens (
 );
 CREATE INDEX IF NOT EXISTS idx_proc_msg_processo ON processo_mensagens(processo_id);
 
+-- Configuracoes persistentes do workspace (REST credentials, etc.)
+CREATE TABLE IF NOT EXISTS workspace_config (
+    chave       TEXT PRIMARY KEY,
+    valor       TEXT NOT NULL DEFAULT '',
+    updated_at  TEXT DEFAULT (datetime('now'))
+);
+
 -- Mapa de modulos Protheus (autocontido — dados padrao do ERP)
 CREATE TABLE IF NOT EXISTS mapa_modulos (
     modulo      TEXT PRIMARY KEY,

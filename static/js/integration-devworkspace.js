@@ -165,12 +165,12 @@ async function wsRenderSetup(container) {
                             '</div>' +
                         '</div>' +
 
-                        // Campos REST API (usa conexao cadastrada — credenciais protegidas)
+                        // Campos REST API
                         '<div id="ws-rest-fields" style="display:none">' +
                             '<div class="mb-3">' +
                                 '<label class="form-label fw-semibold">Conexao com REST API</label>' +
-                                '<select class="form-select" id="ws-rest-conn-id">' +
-                                    '<option value="">-- Selecione uma conexao com REST --</option>' +
+                                '<select class="form-select" id="ws-rest-conn-id" onchange="wsRestModeChange(this.value)">' +
+                                    '<option value="">-- Selecione --</option>' +
                                     (function() {
                                         var opts = '';
                                         connections.forEach(function(c) {
@@ -180,10 +180,27 @@ async function wsRenderSetup(container) {
                                         });
                                         return opts;
                                     })() +
+                                    '<option value="manual">Outros (manual)</option>' +
                                 '</select>' +
-                                (connections.filter(function(c){ return c.has_rest; }).length === 0
-                                    ? '<small class="text-warning mt-1 d-block"><i class="fas fa-exclamation-triangle me-1"></i>Nenhuma conexao com URL REST configurada. Cadastre em <strong>Banco de Dados > Conexoes</strong> e preencha o campo REST URL.</small>'
-                                    : '<small class="text-muted"><i class="fas fa-lock me-1"></i>Credenciais protegidas por criptografia. Cadastre/edite em Banco de Dados > Conexoes.</small>') +
+                                '<small class="text-muted"><i class="fas fa-lock me-1"></i>Credenciais protegidas por criptografia.</small>' +
+                            '</div>' +
+                            // Campos manuais (ocultos por padrao)
+                            '<div id="ws-rest-manual-fields" style="display:none">' +
+                                '<div class="mb-3">' +
+                                    '<label class="form-label fw-semibold">URL da API REST</label>' +
+                                    '<input type="text" class="form-control" id="ws-rest-url" placeholder="http://servidor:porta/rest">' +
+                                '</div>' +
+                                '<div class="row">' +
+                                    '<div class="col-md-6 mb-3">' +
+                                        '<label class="form-label fw-semibold">Usuario</label>' +
+                                        '<input type="text" class="form-control" id="ws-rest-user" placeholder="admin">' +
+                                    '</div>' +
+                                    '<div class="col-md-6 mb-3">' +
+                                        '<label class="form-label fw-semibold">Senha</label>' +
+                                        '<input type="password" class="form-control" id="ws-rest-password">' +
+                                    '</div>' +
+                                '</div>' +
+                                '<small class="text-muted"><i class="fas fa-shield-alt me-1"></i>Senha sera criptografada e salva no workspace. Nao sera necessario informar novamente.</small>' +
                             '</div>' +
                             '<div class="mb-3">' +
                                 '<button class="btn btn-outline-info btn-sm" data-action="wsTestREST">' +
@@ -425,12 +442,52 @@ async function wsIngestHybrid() {
     }
 }
 
-async function wsTestREST() {
-    var connId = document.getElementById('ws-rest-conn-id').value;
-    var resultEl = document.getElementById('ws-rest-test-result');
+function wsRestModeChange(val) {
+    var manualFields = document.getElementById('ws-rest-manual-fields');
+    if (val === 'manual') {
+        manualFields.style.display = 'block';
+        // Carregar config salva do workspace se existir
+        var slug = document.getElementById('ws-slug').value.trim();
+        if (slug) {
+            apiRequest('/workspace/workspaces/' + slug + '/rest-config').then(function(cfg) {
+                if (cfg && cfg.saved) {
+                    document.getElementById('ws-rest-url').value = cfg.rest_url || '';
+                    document.getElementById('ws-rest-user').value = cfg.rest_user || '';
+                    // Senha nao e retornada — placeholder indica que esta salva
+                    var pwdEl = document.getElementById('ws-rest-password');
+                    pwdEl.value = '';
+                    pwdEl.placeholder = 'Salva (deixe vazio para manter)';
+                }
+            }).catch(function() {});
+        }
+    } else {
+        manualFields.style.display = 'none';
+    }
+    document.getElementById('ws-rest-test-result').innerHTML = '';
+}
 
-    if (!connId) {
-        resultEl.innerHTML = '<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Selecione uma conexao</span>';
+function _wsGetRestPayload() {
+    var connId = document.getElementById('ws-rest-conn-id').value;
+    if (connId === 'manual') {
+        var url = document.getElementById('ws-rest-url').value.trim();
+        var user = document.getElementById('ws-rest-user').value.trim();
+        var pwd = document.getElementById('ws-rest-password').value;
+        if (!url || !user) return null;
+        var payload = { rest_url: url, rest_user: user };
+        if (pwd) payload.rest_password = pwd;
+        return payload;
+    } else if (connId) {
+        return { connection_id: parseInt(connId) };
+    }
+    return null;
+}
+
+async function wsTestREST() {
+    var resultEl = document.getElementById('ws-rest-test-result');
+    var payload = _wsGetRestPayload();
+
+    if (!payload) {
+        resultEl.innerHTML = '<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Selecione uma conexao ou preencha os campos manuais</span>';
         return;
     }
 
@@ -438,9 +495,7 @@ async function wsTestREST() {
     var slug = document.getElementById('ws-slug').value.trim() || '_test';
 
     try {
-        var result = await apiRequest('/workspace/workspaces/' + slug + '/ingest/rest/test', 'POST', {
-            connection_id: parseInt(connId)
-        });
+        var result = await apiRequest('/workspace/workspaces/' + slug + '/ingest/rest/test', 'POST', payload);
         if (result.ok) {
             resultEl.innerHTML = '<span class="text-success"><i class="fas fa-check-circle me-1"></i>Conectado! ' +
                 (result.tables_count ? result.tables_count + ' tabelas encontradas' : '') + '</span>';
@@ -454,18 +509,18 @@ async function wsTestREST() {
 
 async function wsIngestREST() {
     var slug = document.getElementById('ws-slug').value.trim();
-    var connId = document.getElementById('ws-rest-conn-id').value;
     var padraoDir = document.getElementById('ws-padrao-dir').value.trim();
+    var payload = _wsGetRestPayload();
 
     if (!slug) return showNotification('Informe o nome do workspace', 'warning');
-    if (!connId) return showNotification('Selecione uma conexao com REST', 'warning');
+    if (!payload) return showNotification('Selecione uma conexao ou preencha URL e usuario', 'warning');
 
     document.getElementById('ws-progress').style.display = 'block';
     document.getElementById('ws-progress-bar').style.width = '10%';
     document.getElementById('ws-progress-text').textContent = 'Conectando a API REST do Protheus...';
 
     try {
-        var data = { connection_id: parseInt(connId) };
+        var data = payload;
         if (padraoDir) data.padrao_csv_dir = padraoDir;
 
         document.getElementById('ws-progress-bar').style.width = '30%';

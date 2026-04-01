@@ -137,6 +137,62 @@ def _get_db(slug: str) -> Database:
     return db
 
 
+def _save_rest_config_to_workspace(slug: str, rest_url: str, user: str, password: str):
+    """Salva credenciais REST criptografadas no SQLite do workspace."""
+    from app.utils import crypto
+    db = _get_db(slug)
+    try:
+        encrypted_pwd = ""
+        if password and crypto.token_encryption:
+            encrypted_pwd = crypto.token_encryption.encrypt_token(password)
+
+        for chave, valor in [
+            ("rest_url", rest_url),
+            ("rest_user", user),
+            ("rest_password_encrypted", encrypted_pwd),
+        ]:
+            db.execute(
+                "INSERT OR REPLACE INTO workspace_config (chave, valor, updated_at) "
+                "VALUES (?, ?, datetime('now'))", (chave, valor))
+        db.commit()
+        logger.info(f"REST config salva (criptografada) no workspace {slug}")
+    except Exception as e:
+        logger.warning(f"Falha ao salvar REST config no workspace {slug}: {e}")
+    finally:
+        db.close()
+
+
+def _load_rest_config_from_workspace(slug: str) -> dict | None:
+    """Carrega credenciais REST do workspace SQLite (descriptografa senha)."""
+    from app.utils import crypto
+    db = _get_db(slug)
+    try:
+        rows = db.execute(
+            "SELECT chave, valor FROM workspace_config WHERE chave IN "
+            "('rest_url', 'rest_user', 'rest_password_encrypted')"
+        ).fetchall()
+        if not rows:
+            return None
+        cfg = {r[0]: r[1] for r in rows}
+        rest_url = cfg.get("rest_url", "").strip()
+        if not rest_url:
+            return None
+
+        password = ""
+        encrypted = cfg.get("rest_password_encrypted", "")
+        if encrypted and crypto.token_encryption:
+            try:
+                password = crypto.token_encryption.decrypt_token(encrypted)
+            except Exception:
+                logger.warning(f"Falha ao descriptografar senha REST do workspace {slug}")
+
+        return {"rest_url": rest_url, "user": cfg.get("rest_user", ""), "password": password}
+    except Exception:
+        return None
+    finally:
+        db.close()
+
+
 def _get_rest_credentials(connection_id: int) -> dict:
     """Resolve credenciais REST a partir de uma database_connection.
 
@@ -391,20 +447,42 @@ def ingest_hybrid(slug):
 def ingest_rest(slug):
     """Popula workspace via API REST do Protheus.
 
-    Body JSON: {"connection_id": 1, "padrao_csv_dir": "..." (opcional)}
-    Credenciais resolvidas da database_connections (criptografadas).
+    Body JSON (modo conexao): {"connection_id": 1}
+    Body JSON (modo manual):  {"rest_url": "...", "rest_user": "...", "rest_password": "..."}
+    Ambos aceitam "padrao_csv_dir" opcional.
     """
     import asyncio
     data = request.get_json()
     connection_id = data.get("connection_id")
 
-    if not connection_id:
-        return jsonify({"error": "connection_id e obrigatorio"}), 400
+    if connection_id:
+        # Modo conexao cadastrada
+        try:
+            creds = _get_rest_credentials(int(connection_id))
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+    else:
+        # Modo manual — credenciais no body ou salvas no workspace
+        rest_url = data.get("rest_url", "").strip()
+        rest_user = data.get("rest_user", "").strip()
+        rest_password = data.get("rest_password", "")
 
-    try:
-        creds = _get_rest_credentials(int(connection_id))
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
+        if not rest_url or not rest_user:
+            return jsonify({"error": "Informe connection_id ou rest_url + rest_user"}), 400
+
+        # Se senha nao veio, tentar carregar a salva no workspace
+        if not rest_password:
+            saved = _load_rest_config_from_workspace(slug)
+            if saved and saved["rest_url"] == rest_url and saved["user"] == rest_user:
+                rest_password = saved["password"]
+
+        if not rest_password:
+            return jsonify({"error": "Senha e obrigatoria na primeira configuracao manual"}), 400
+
+        creds = {"rest_url": rest_url, "user": rest_user, "password": rest_password}
+
+        # Salvar credenciais criptografadas no workspace para reutilizacao
+        _save_rest_config_to_workspace(slug, rest_url, rest_user, rest_password)
 
     from app.services.workspace.rest_client import ProtheusRESTClient
     from app.services.workspace.rest_ingestor import RESTIngestor
@@ -460,25 +538,47 @@ def ingest_rest(slug):
 
 @workspace_bp.route("/workspaces/<slug>/ingest/rest/test", methods=["POST"])
 def ingest_rest_test(slug):
-    """Testa conexao REST a partir de uma connection_id.
+    """Testa conexao REST.
 
-    Body JSON: {"connection_id": 1}
+    Body JSON (conexao): {"connection_id": 1}
+    Body JSON (manual):  {"rest_url": "...", "rest_user": "...", "rest_password": "..."}
     """
     data = request.get_json()
     connection_id = data.get("connection_id")
 
-    if not connection_id:
-        return jsonify({"ok": False, "message": "connection_id e obrigatorio"}), 400
-
-    try:
-        creds = _get_rest_credentials(int(connection_id))
-    except ValueError as e:
-        return jsonify({"ok": False, "message": str(e)})
+    if connection_id:
+        try:
+            creds = _get_rest_credentials(int(connection_id))
+        except ValueError as e:
+            return jsonify({"ok": False, "message": str(e)})
+    else:
+        rest_url = data.get("rest_url", "").strip()
+        rest_user = data.get("rest_user", "").strip()
+        rest_password = data.get("rest_password", "")
+        if not rest_url or not rest_user:
+            return jsonify({"ok": False, "message": "Informe connection_id ou rest_url + rest_user"})
+        # Se senha nao veio, tentar carregar a salva
+        if not rest_password:
+            saved = _load_rest_config_from_workspace(slug)
+            if saved and saved["rest_url"] == rest_url and saved["user"] == rest_user:
+                rest_password = saved["password"]
+        if not rest_password:
+            return jsonify({"ok": False, "message": "Senha e obrigatoria na primeira configuracao manual"})
+        creds = {"rest_url": rest_url, "user": rest_user, "password": rest_password}
 
     from app.services.workspace.rest_client import ProtheusRESTClient
     client = ProtheusRESTClient(creds["rest_url"], creds["user"], creds["password"])
     result = client.test_connection()
     return jsonify(result)
+
+
+@workspace_bp.route("/workspaces/<slug>/rest-config", methods=["GET"])
+def get_rest_config(slug):
+    """Retorna config REST salva no workspace (sem expor senha)."""
+    saved = _load_rest_config_from_workspace(slug)
+    if saved:
+        return jsonify({"saved": True, "rest_url": saved["rest_url"], "rest_user": saved["user"]})
+    return jsonify({"saved": False})
 
 
 @workspace_bp.route("/connections", methods=["GET"])
