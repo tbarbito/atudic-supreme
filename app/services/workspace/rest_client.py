@@ -224,21 +224,25 @@ class ProtheusRESTClient:
         )
         return all_items
 
-    def count_records(self, table: str, where: Optional[str] = None) -> int:
+    def count_records(self, table: str, where: Optional[str] = None, field: Optional[str] = None) -> int:
         """Conta registros de uma tabela usando genericQuery com pageSize=1.
 
         Args:
             table: Alias da tabela (SA1, SB1, etc.)
             where: Filtro WHERE opcional
+            field: Campo a usar na query (obrigatorio para tabelas de dados)
 
         Returns:
             Total de registros
         """
-        # Pega o primeiro campo do SX_FIELD_MAP se disponivel, senao usa R_E_C_N_O_
         sx_upper = table.upper()
-        if sx_upper in SX_FIELD_MAP:
+        if field:
+            first_field = field
+        elif sx_upper in SX_FIELD_MAP:
             first_field = SX_FIELD_MAP[sx_upper].split(",")[0]
         else:
+            # Tabelas de dados precisam de um campo valido — usar R_E_C_N_O_ como ultimo recurso
+            # Para resultados confiaveis, passe o parametro field com o primeiro campo do SX3
             first_field = "R_E_C_N_O_"
 
         params = {
