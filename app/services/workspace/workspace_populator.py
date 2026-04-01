@@ -887,8 +887,10 @@ def calculate_diff(db: Database) -> dict:
     using_attach = False
     if padrao_db_path.exists():
         try:
-            conn.execute("ATTACH DATABASE ? AS padrao_ext", (str(padrao_db_path),))
+            conn.execute("ATTACH DATABASE ? AS bp", (str(padrao_db_path),))
             # Copiar dados do banco externo para as tabelas padrao_* locais
+            # No banco_padrao.db as tabelas sao: tabelas, campos, indices, gatilhos, parametros
+            # No workspace do cliente as tabelas padrao sao: padrao_tabelas, padrao_campos, etc.
             for tbl_src, tbl_dst in [
                 ("tabelas", "padrao_tabelas"),
                 ("campos", "padrao_campos"),
@@ -898,17 +900,16 @@ def calculate_diff(db: Database) -> dict:
             ]:
                 try:
                     conn.execute(f"DELETE FROM {tbl_dst}")
-                    # Copiar apenas colunas que existem no destino
                     dst_cols = [row[1] for row in conn.execute(f"PRAGMA table_info({tbl_dst})").fetchall()]
-                    src_cols = [row[1] for row in conn.execute(f"PRAGMA padrao_ext.table_info({tbl_src})").fetchall()]
+                    src_cols = [row[1] for row in conn.execute(f"PRAGMA bp.table_info({tbl_src})").fetchall()]
                     common = [c for c in dst_cols if c in src_cols]
                     if common:
                         cols_str = ", ".join(common)
-                        conn.execute(f"INSERT OR REPLACE INTO {tbl_dst} ({cols_str}) SELECT {cols_str} FROM padrao_ext.{tbl_src}")
+                        conn.execute(f"INSERT OR REPLACE INTO {tbl_dst} ({cols_str}) SELECT {cols_str} FROM bp.{tbl_src}")
                 except Exception:
                     pass  # tabela pode nao existir no banco externo
             conn.commit()
-            conn.execute("DETACH DATABASE padrao_ext")
+            conn.execute("DETACH DATABASE bp")
             using_attach = True
             import logging
             logging.getLogger(__name__).info("Diff usando banco_padrao.db externo (%s)", padrao_db_path)
@@ -916,7 +917,7 @@ def calculate_diff(db: Database) -> dict:
             import logging
             logging.getLogger(__name__).warning("Falha ao ATTACH banco_padrao.db: %s — usando tabelas locais", e)
             try:
-                conn.execute("DETACH DATABASE padrao_ext")
+                conn.execute("DETACH DATABASE bp")
             except Exception:
                 pass
 

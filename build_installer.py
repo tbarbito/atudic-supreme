@@ -239,6 +239,8 @@ def obfuscate_python():
             (os.path.join(PROJECT_ROOT, 'processoPadrao'), os.path.join(obfuscated_dir, 'processoPadrao')),
             (os.path.join(PROJECT_ROOT, 'templates', 'processos'), os.path.join(obfuscated_dir, 'templates', 'processos')),
             (os.path.join(PROJECT_ROOT, 'ADVPL'), os.path.join(obfuscated_dir, 'ADVPL')),
+            # Workspace — bancos padrao Protheus (fontes + dicionario)
+            (os.path.join(PROJECT_ROOT, 'db'), os.path.join(obfuscated_dir, 'db')),
         ]
 
         for src, dest in dirs_to_copy:
@@ -507,6 +509,7 @@ a = Analysis(
         ('{obfuscated_rel}/processoPadrao', 'processoPadrao'),
         ('{obfuscated_rel}/templates/processos', 'templates/processos'),
         ('{obfuscated_rel}/ADVPL', 'ADVPL'),
+        ('{obfuscated_rel}/db', 'db'),
     ],
     hiddenimports=[
         {hidden_imports_str}
