@@ -41,7 +41,8 @@ SX_FIELD_MAP = {
     "SX9": "X9_DOM,X9_IDENT,X9_EXPDOM,X9_EXPCOD,X9_PROPRI,X9_CDSQL",
     "SXA": "XA_ALIAS,XA_ORDEM,XA_DESCRI,XA_PROPRI,XA_AGRUPA",
     "SXB": "XB_ALIAS,XB_TIPO,XB_SEQ,XB_COLUNA,XB_DESCRI,XB_CONTEM",
-    "SXG": "XG_GRUPO,XG_DESCRI,XG_SIZEMAX,XG_SIZEMIN,XG_SIZE",
+    # SXG nao disponivel via genericQuery (tabela de sistema)
+    # grupos_campo derivado do grpsxg dos campos (SX3) no rest_ingestor
 }
 
 

@@ -299,8 +299,9 @@ _SX_TRANSFORMS = {
     "SX9": _transform_sx9,
     "SXA": _transform_sxa,
     "SXB": _transform_sxb,
-    "SXG": _transform_sxg,
 }
+# Nota: SXG nao e buscado via REST (tabela de sistema nao exposta pelo genericQuery).
+# grupos_campo e derivado do grpsxg dos campos (SX3) apos ingestao — ver _build_grupos_from_campos().
 
 
 # ---------------------------------------------------------------------------
@@ -385,6 +386,39 @@ class RESTIngestor:
                     "msg": str(e),
                 }
 
+        # SXG: derivar grupos_campo do grpsxg dos campos (SX3 ja ingerido)
+        try:
+            count = self._build_grupos_from_campos()
+            yield {"fase": 1, "item": "SXG", "status": "done", "count": count}
+        except Exception as e:
+            logger.warning("Falha ao derivar grupos_campo: %s", e)
+            yield {"fase": 1, "item": "SXG", "status": "error", "msg": str(e)}
+
+    def _build_grupos_from_campos(self) -> int:
+        """Deriva tabela grupos_campo a partir do grpsxg dos campos ja ingeridos.
+
+        SXG nao e acessivel via REST genericQuery (tabela de sistema).
+        Alternativa: extrair grupos unicos de campos.grpsxg e contar.
+        """
+        conn = self.db.get_raw_conn()
+        conn.execute("DELETE FROM grupos_campo")
+        rows = conn.execute(
+            "SELECT grpsxg, COUNT(*) as total FROM campos "
+            "WHERE grpsxg != '' AND grpsxg IS NOT NULL "
+            "GROUP BY grpsxg ORDER BY grpsxg"
+        ).fetchall()
+        if not rows:
+            self.db.commit()
+            return 0
+        batch = [(r[0], "", 0, 0, 0, r[1]) for r in rows]
+        conn.executemany(
+            "INSERT OR REPLACE INTO grupos_campo "
+            "(grupo, descricao, tamanho_max, tamanho_min, tamanho, total_campos) "
+            "VALUES (?,?,?,?,?,?)", batch)
+        self.db.commit()
+        logger.info("grupos_campo derivado do SX3: %d grupos", len(batch))
+        return len(batch)
+
     def _store_sx(self, sx_name: str, rows: list[dict]):
         """Grava registros no workspace SQLite.
 
@@ -448,20 +482,4 @@ class RESTIngestor:
                 "INSERT OR REPLACE INTO consultas (alias, tipo, sequencia, coluna, "
                 "descricao, conteudo) VALUES (:alias, :tipo, :sequencia, :coluna, "
                 ":descricao, :conteudo)", rows)
-        elif sx_name == "SXG":
-            # Contar campos por grupo apos SX3 ja ter sido ingerido
-            conn = self.db.get_raw_conn()
-            for row in rows:
-                try:
-                    total = conn.execute(
-                        "SELECT COUNT(*) FROM campos WHERE grpsxg=?", (row["grupo"],)
-                    ).fetchone()[0]
-                    row["total_campos"] = total
-                except Exception:
-                    row["total_campos"] = 0
-            self.db.executemany(
-                "INSERT OR REPLACE INTO grupos_campo (grupo, descricao, tamanho_max, "
-                "tamanho_min, tamanho, total_campos) VALUES (:grupo, :descricao, "
-                ":tamanho_max, :tamanho_min, :tamanho, :total_campos)", rows)
-
         self.db.commit()
