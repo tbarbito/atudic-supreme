@@ -313,7 +313,7 @@ async function wsIngestLive() {
     var slug = document.getElementById('ws-slug').value.trim();
     var connId = document.getElementById('ws-conn-id').value;
     var company = document.getElementById('ws-company').value.trim() || '01';
-    var padraoDir = document.getElementById('ws-padrao-dir').value.trim();
+    var padraoDir = (document.getElementById('ws-padrao-dir') || {}).value || '';
     var fontesDir = document.getElementById('ws-fontes-dir').value.trim();
     if (!slug) return showNotification('Informe o nome do workspace', 'warning');
     if (!connId) return showNotification('Selecione uma conexao', 'warning');
@@ -360,7 +360,7 @@ async function wsIngestHybrid() {
     var connId = document.getElementById('ws-conn-id').value;
     var company = document.getElementById('ws-company').value.trim() || '01';
     var fontesDir = document.getElementById('ws-fontes-dir').value.trim();
-    var padraoDir = document.getElementById('ws-padrao-dir').value.trim();
+    var padraoDir = (document.getElementById('ws-padrao-dir') || {}).value || '';
     if (!slug) return showNotification('Informe o nome do workspace', 'warning');
     if (!connId) return showNotification('Selecione uma conexao', 'warning');
     if (!fontesDir) return showNotification('Informe o diretorio dos fontes', 'warning');
@@ -459,7 +459,7 @@ async function wsTestREST() {
 
 async function wsIngestREST() {
     var slug = document.getElementById('ws-slug').value.trim();
-    var padraoDir = document.getElementById('ws-padrao-dir').value.trim();
+    var padraoDir = (document.getElementById('ws-padrao-dir') || {}).value || '';
     var payload = _wsGetRestPayload();
 
     if (!slug) return showNotification('Informe o nome do workspace', 'warning');
@@ -556,7 +556,7 @@ async function wsSelectWorkspace(params) {
 async function wsIngestCSV() {
     var slug = document.getElementById('ws-slug').value.trim();
     var csvDir = document.getElementById('ws-csv-dir').value.trim();
-    var padraoDir = document.getElementById('ws-padrao-dir').value.trim();
+    var padraoDir = (document.getElementById('ws-padrao-dir') || {}).value || '';
     var fontesDir = document.getElementById('ws-fontes-dir').value.trim();
     if (!slug) return showNotification('Informe o nome do workspace', 'warning');
     if (!csvDir) return showNotification('Informe o diretorio dos CSVs', 'warning');
