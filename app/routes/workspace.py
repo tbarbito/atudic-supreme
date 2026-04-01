@@ -137,6 +137,44 @@ def _get_db(slug: str) -> Database:
     return db
 
 
+def _get_rest_credentials(connection_id: int) -> dict:
+    """Resolve credenciais REST a partir de uma database_connection.
+
+    Retorna {"rest_url": "...", "user": "...", "password": "..."} ou levanta erro.
+    """
+    from app.database.core import get_db_connection, release_db_connection
+    from app.utils import crypto
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT rest_url, username, password_encrypted "
+            "FROM database_connections WHERE id = %s AND is_active = TRUE",
+            (connection_id,)
+        )
+        row = cursor.fetchone()
+    finally:
+        release_db_connection(conn)
+
+    if not row:
+        raise ValueError(f"Conexao {connection_id} nao encontrada ou inativa")
+
+    rest_url = (row["rest_url"] or "").strip()
+    if not rest_url:
+        raise ValueError(f"Conexao {connection_id} nao possui URL REST configurada")
+
+    username = row["username"] or ""
+    password = ""
+    if row["password_encrypted"] and crypto.token_encryption:
+        try:
+            password = crypto.token_encryption.decrypt_token(row["password_encrypted"])
+        except Exception:
+            raise ValueError("Falha ao descriptografar senha da conexao")
+
+    return {"rest_url": rest_url, "user": username, "password": password}
+
+
 # ========================================================================
 # WORKSPACE CRUD
 # ========================================================================
@@ -353,27 +391,26 @@ def ingest_hybrid(slug):
 def ingest_rest(slug):
     """Popula workspace via API REST do Protheus.
 
-    Body JSON: {
-        "rest_url": "http://host:port/rest",
-        "rest_user": "admin",
-        "rest_password": "protheus",
-        "padrao_csv_dir": "..." (opcional)
-    }
+    Body JSON: {"connection_id": 1, "padrao_csv_dir": "..." (opcional)}
+    Credenciais resolvidas da database_connections (criptografadas).
     """
     import asyncio
     data = request.get_json()
-    rest_url = data.get("rest_url", "").strip()
-    rest_user = data.get("rest_user", "").strip()
-    rest_password = data.get("rest_password", "")
+    connection_id = data.get("connection_id")
 
-    if not rest_url or not rest_user:
-        return jsonify({"error": "rest_url e rest_user sao obrigatorios"}), 400
+    if not connection_id:
+        return jsonify({"error": "connection_id e obrigatorio"}), 400
+
+    try:
+        creds = _get_rest_credentials(int(connection_id))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
 
     from app.services.workspace.rest_client import ProtheusRESTClient
     from app.services.workspace.rest_ingestor import RESTIngestor
 
     # Testar conexao primeiro
-    client = ProtheusRESTClient(rest_url, rest_user, rest_password)
+    client = ProtheusRESTClient(creds["rest_url"], creds["user"], creds["password"])
     test = client.test_connection()
     if not test.get("ok"):
         return jsonify({"error": f"Falha na conexao REST: {test.get('message', 'erro desconhecido')}"}), 400
@@ -423,20 +460,23 @@ def ingest_rest(slug):
 
 @workspace_bp.route("/workspaces/<slug>/ingest/rest/test", methods=["POST"])
 def ingest_rest_test(slug):
-    """Testa conexao REST antes de iniciar ingestao.
+    """Testa conexao REST a partir de uma connection_id.
 
-    Body JSON: {"rest_url": "...", "rest_user": "...", "rest_password": "..."}
+    Body JSON: {"connection_id": 1}
     """
     data = request.get_json()
-    rest_url = data.get("rest_url", "").strip()
-    rest_user = data.get("rest_user", "").strip()
-    rest_password = data.get("rest_password", "")
+    connection_id = data.get("connection_id")
 
-    if not rest_url or not rest_user:
-        return jsonify({"error": "rest_url e rest_user sao obrigatorios"}), 400
+    if not connection_id:
+        return jsonify({"ok": False, "message": "connection_id e obrigatorio"}), 400
+
+    try:
+        creds = _get_rest_credentials(int(connection_id))
+    except ValueError as e:
+        return jsonify({"ok": False, "message": str(e)})
 
     from app.services.workspace.rest_client import ProtheusRESTClient
-    client = ProtheusRESTClient(rest_url, rest_user, rest_password)
+    client = ProtheusRESTClient(creds["rest_url"], creds["user"], creds["password"])
     result = client.test_connection()
     return jsonify(result)
 
@@ -449,12 +489,17 @@ def list_connections():
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, name, driver, host, port, database_name, environment_id "
+            "SELECT id, name, driver, host, port, database_name, environment_id, rest_url "
             "FROM database_connections WHERE is_active = TRUE ORDER BY name"
         )
         rows = cursor.fetchall()
         release_db_connection(conn)
-        return jsonify([dict(r) for r in rows])
+        result = []
+        for r in rows:
+            d = dict(r)
+            d["has_rest"] = bool(d.get("rest_url", "").strip())
+            result.append(d)
+        return jsonify(result)
     except Exception as e:
         return jsonify([])
 

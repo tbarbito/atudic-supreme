@@ -165,22 +165,25 @@ async function wsRenderSetup(container) {
                             '</div>' +
                         '</div>' +
 
-                        // Campos REST API
+                        // Campos REST API (usa conexao cadastrada — credenciais protegidas)
                         '<div id="ws-rest-fields" style="display:none">' +
                             '<div class="mb-3">' +
-                                '<label class="form-label fw-semibold">URL da API REST do Protheus</label>' +
-                                '<input type="text" class="form-control" id="ws-rest-url" placeholder="http://servidor:porta/rest">' +
-                                '<small class="text-muted"><i class="fas fa-info-circle me-1"></i>Porta REST configurada no AppServer do Protheus.</small>' +
-                            '</div>' +
-                            '<div class="row">' +
-                                '<div class="col-md-6 mb-3">' +
-                                    '<label class="form-label fw-semibold">Usuario</label>' +
-                                    '<input type="text" class="form-control" id="ws-rest-user" placeholder="admin">' +
-                                '</div>' +
-                                '<div class="col-md-6 mb-3">' +
-                                    '<label class="form-label fw-semibold">Senha</label>' +
-                                    '<input type="password" class="form-control" id="ws-rest-password" placeholder="senha">' +
-                                '</div>' +
+                                '<label class="form-label fw-semibold">Conexao com REST API</label>' +
+                                '<select class="form-select" id="ws-rest-conn-id">' +
+                                    '<option value="">-- Selecione uma conexao com REST --</option>' +
+                                    (function() {
+                                        var opts = '';
+                                        connections.forEach(function(c) {
+                                            if (c.has_rest) {
+                                                opts += '<option value="' + c.id + '">' + c.name + ' (' + (c.rest_url || '') + ')</option>';
+                                            }
+                                        });
+                                        return opts;
+                                    })() +
+                                '</select>' +
+                                (connections.filter(function(c){ return c.has_rest; }).length === 0
+                                    ? '<small class="text-warning mt-1 d-block"><i class="fas fa-exclamation-triangle me-1"></i>Nenhuma conexao com URL REST configurada. Cadastre em <strong>Banco de Dados > Conexoes</strong> e preencha o campo REST URL.</small>'
+                                    : '<small class="text-muted"><i class="fas fa-lock me-1"></i>Credenciais protegidas por criptografia. Cadastre/edite em Banco de Dados > Conexoes.</small>') +
                             '</div>' +
                             '<div class="mb-3">' +
                                 '<button class="btn btn-outline-info btn-sm" data-action="wsTestREST">' +
@@ -423,13 +426,11 @@ async function wsIngestHybrid() {
 }
 
 async function wsTestREST() {
-    var url = document.getElementById('ws-rest-url').value.trim();
-    var user = document.getElementById('ws-rest-user').value.trim();
-    var password = document.getElementById('ws-rest-password').value;
+    var connId = document.getElementById('ws-rest-conn-id').value;
     var resultEl = document.getElementById('ws-rest-test-result');
 
-    if (!url || !user) {
-        resultEl.innerHTML = '<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Preencha URL e usuario</span>';
+    if (!connId) {
+        resultEl.innerHTML = '<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Selecione uma conexao</span>';
         return;
     }
 
@@ -438,7 +439,7 @@ async function wsTestREST() {
 
     try {
         var result = await apiRequest('/workspace/workspaces/' + slug + '/ingest/rest/test', 'POST', {
-            rest_url: url, rest_user: user, rest_password: password
+            connection_id: parseInt(connId)
         });
         if (result.ok) {
             resultEl.innerHTML = '<span class="text-success"><i class="fas fa-check-circle me-1"></i>Conectado! ' +
@@ -453,25 +454,18 @@ async function wsTestREST() {
 
 async function wsIngestREST() {
     var slug = document.getElementById('ws-slug').value.trim();
-    var restUrl = document.getElementById('ws-rest-url').value.trim();
-    var restUser = document.getElementById('ws-rest-user').value.trim();
-    var restPassword = document.getElementById('ws-rest-password').value;
+    var connId = document.getElementById('ws-rest-conn-id').value;
     var padraoDir = document.getElementById('ws-padrao-dir').value.trim();
 
     if (!slug) return showNotification('Informe o nome do workspace', 'warning');
-    if (!restUrl) return showNotification('Informe a URL da API REST', 'warning');
-    if (!restUser) return showNotification('Informe o usuario', 'warning');
+    if (!connId) return showNotification('Selecione uma conexao com REST', 'warning');
 
     document.getElementById('ws-progress').style.display = 'block';
     document.getElementById('ws-progress-bar').style.width = '10%';
     document.getElementById('ws-progress-text').textContent = 'Conectando a API REST do Protheus...';
 
     try {
-        var data = {
-            rest_url: restUrl,
-            rest_user: restUser,
-            rest_password: restPassword
-        };
+        var data = { connection_id: parseInt(connId) };
         if (padraoDir) data.padrao_csv_dir = padraoDir;
 
         document.getElementById('ws-progress-bar').style.width = '30%';
