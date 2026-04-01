@@ -1085,6 +1085,83 @@ def _tool_execute_equalization(params):
     return _internal_api("POST", "/api/dictionary/equalize/execute", params)
 
 
+def _tool_equalize_field(params):
+    """Equaliza um campo entre dois ambientes — tool simplificada.
+
+    O LLM so precisa informar: field_name, source (HML/PRD), target (HML/PRD).
+    O codigo monta items, faz preview e retorna para confirmacao.
+    Elimina a necessidade do LLM construir a estrutura de items.
+    """
+    field_name = str(params.get("field_name", "")).strip().upper()
+    if not field_name:
+        return {"error": "Parametro 'field_name' e obrigatorio (ex: 'A1_XEDITP')."}
+
+    source = params.get("source_conn_id") or params.get("source", "")
+    target = params.get("target_conn_id") or params.get("target", "")
+    company_code = params.get("company_code", "")
+
+    if not source or not target:
+        return {"error": "Parametros 'source_conn_id' e 'target_conn_id' sao obrigatorios (ou aliases HML/PRD)."}
+
+    # Inferir table_alias do prefixo do campo: A1_X → SA1, C5_X → SC5, D1_X → SD1
+    table_alias = ""
+    if "_" in field_name:
+        prefix = field_name.split("_")[0]
+        if len(prefix) >= 2:
+            table_alias = "S" + prefix
+
+    # Inferir meta_table: campos vao na SX3
+    items = [{"type": "field", "meta_table": "SX3", "table_alias": table_alias, "field_name": field_name}]
+
+    logger.info("equalize_field: field=%s table=%s source=%s target=%s", field_name, table_alias, source, target)
+
+    # Chamar preview
+    preview_params = {
+        "source_conn_id": source,
+        "target_conn_id": target,
+        "company_code": company_code,
+        "items": items,
+        "environment_id": params.get("environment_id"),
+    }
+    preview_result = _tool_preview_equalization(preview_params)
+
+    if isinstance(preview_result, dict) and preview_result.get("error"):
+        return preview_result
+
+    # Extrair resultados
+    ddl = preview_result.get("phase1_ddl", [])
+    dml = preview_result.get("phase2_dml", [])
+    token = preview_result.get("confirmation_token", "")
+    total = len(ddl) + len(dml)
+
+    if total == 0:
+        return {
+            "message": f"Campo {field_name} ja esta sincronizado entre os ambientes — nenhuma acao necessaria.",
+            "statements": 0,
+        }
+
+    # Formatar para o LLM mostrar ao usuario
+    lines = [f"Preview de equalizacao do campo **{field_name}** ({table_alias}):"]
+    for s in ddl:
+        lines.append(f"- DDL: {s.get('description', s.get('sql', '')[:100])}")
+    for s in dml:
+        lines.append(f"- DML: {s.get('description', s.get('sql', '')[:100])}")
+
+    return {
+        "preview_text": "\n".join(lines),
+        "field_name": field_name,
+        "table_alias": table_alias,
+        "statements_count": total,
+        "confirmation_token": token,
+        "sql_statements": ddl + dml,
+        "source_conn_id": preview_params.get("source_conn_id"),
+        "target_conn_id": preview_params.get("target_conn_id"),
+        "company_code": preview_params.get("company_code"),
+        "items": items,
+        "_action_hint": "Mostre o preview ao usuario e pergunte se deseja aplicar.",
+    }
+
+
 # =========================================================
 # INGESTOR DE DICIONARIO — Handlers
 # =========================================================
@@ -1936,6 +2013,22 @@ def init_tools():
          {"name": "items", "type": "list", "description": "Itens a equalizar (obrigatorio)"},
          {"name": "confirmation_token", "type": "str", "description": "Token do preview (se omitido, faz preview automatico)"}],
         "admin", _tool_execute_equalization, risk_level="high")
+
+    register_tool(
+        "equalize_field",
+        "Equaliza UM campo entre dois ambientes Protheus. PREFIRA esta tool para equalizar campos — "
+        "basta informar field_name e direcao. O sistema monta items, preview e token automaticamente. "
+        "Muito mais simples que preview_equalization + execute_equalization.",
+        [
+            {"name": "field_name", "type": "str", "description": "Nome do campo (ex: 'A1_XEDITP', 'C5_XTIPPV')"},
+            {"name": "source_conn_id", "type": "int|str", "description": "Conexao origem — alias ou ID (ex: 'HML', 1)"},
+            {"name": "target_conn_id", "type": "int|str", "description": "Conexao destino — alias ou ID (ex: 'PRD', 2)"},
+            {"name": "company_code", "type": "str", "description": "Codigo da empresa (usa o do contexto se omitido)"},
+        ],
+        "admin",
+        _tool_equalize_field,
+        risk_level="high",
+    )
 
     # --- Ingestor de Dicionário ---
     register_tool("upload_ingest_file", "Faz upload e parse de arquivo de ingestão de dicionário (JSON ou MD).",
