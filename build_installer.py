@@ -234,7 +234,11 @@ def obfuscate_python():
         # Copiar arquivos estáticos na nova estrutura modular
         # NOTA: static e templates ficam na raiz e não dentro de app/
         dirs_to_copy = [
-            (os.path.join(PROJECT_ROOT, 'static'), os.path.join(obfuscated_dir, 'app', 'static'))
+            (os.path.join(PROJECT_ROOT, 'static'), os.path.join(obfuscated_dir, 'app', 'static')),
+            # Workspace — base de conhecimento Protheus (processoPadrao, templates, ADVPL)
+            (os.path.join(PROJECT_ROOT, 'processoPadrao'), os.path.join(obfuscated_dir, 'processoPadrao')),
+            (os.path.join(PROJECT_ROOT, 'templates', 'processos'), os.path.join(obfuscated_dir, 'templates', 'processos')),
+            (os.path.join(PROJECT_ROOT, 'ADVPL'), os.path.join(obfuscated_dir, 'ADVPL')),
         ]
 
         for src, dest in dirs_to_copy:
@@ -447,6 +451,9 @@ def create_executable():
         'oracledb',
         # Workspace (ExtraiRPO) — parser de fontes ADVPL/TLPP
         'chardet',
+        # Workspace — config (pydantic) e vectorstore (chromadb)
+        'pydantic', 'pydantic.fields',
+        'chromadb',
     ])
 
     app_dir = os.path.join(PROJECT_ROOT, 'app')
@@ -497,6 +504,9 @@ a = Analysis(
         ('{obfuscated_rel}/prompt/specialists', 'prompt/specialists'),
         ('{obfuscated_rel}/prompt/skills', 'prompt/skills'),
         ('{obfuscated_rel}/sw.js', '.'),
+        ('{obfuscated_rel}/processoPadrao', 'processoPadrao'),
+        ('{obfuscated_rel}/templates/processos', 'templates/processos'),
+        ('{obfuscated_rel}/ADVPL', 'ADVPL'),
     ],
     hiddenimports=[
         {hidden_imports_str}

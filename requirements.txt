@@ -57,6 +57,12 @@ beautifulsoup4==4.13.4
 # Detecção de encoding (Workspace — parser de fontes ADVPL/TLPP)
 chardet>=5.2.0
 
+# Workspace — config (validação de modelos)
+pydantic>=2.10.0
+
+# Workspace — vectorstore (embeddings + busca semântica)
+chromadb>=0.6.0
+
 # =====================================================================
 # TESTES
 # =====================================================================
