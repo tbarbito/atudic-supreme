@@ -231,7 +231,7 @@ async function wsRenderSetup(container) {
                                     '</button>' +
                                 '</div>' +
                                 '<input type="file" id="ws-fontes-dir-picker" webkitdirectory style="display:none" onchange="document.getElementById(\'ws-fontes-dir\').value=this.files[0]?this.files[0].webkitRelativePath.split(\'/\')[0]:\'\'">' +
-                                '<small class="text-muted"><i class="fas fa-info-circle me-1"></i>Mapa de modulos Protheus carregado automaticamente do banco.</small>' +
+                                '<small class="text-muted"><i class="fas fa-info-circle me-1"></i>Fontes customizados do cliente (.prw, .tlpp). Modulo detectado automaticamente.</small>' +
                             '</div>' +
                         '</div>' +
 
