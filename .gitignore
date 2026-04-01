@@ -22,6 +22,7 @@ prompt/*
 !prompt/specialists.yml
 !prompt/specialists/
 .claude/
+db/
 
 # Arquivos de cache e compilados do Python
 __pycache__/
