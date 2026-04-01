@@ -283,7 +283,7 @@ class ProtheusRESTClient:
             table=sx_upper,
             fields=fields,
             page_size=page_size,
-            max_pages=100,  # SX tables podem ser grandes (SX3 especialmente)
+            max_pages=500,  # SX3 pode ter 200k+ campos, 500 pags x 500 = 250k registros
         )
 
         logger.info("%s retornou %d registro(s)", sx_upper, len(items))

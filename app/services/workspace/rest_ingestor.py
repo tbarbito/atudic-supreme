@@ -28,8 +28,11 @@ def _safe_int(val) -> int:
 
 
 def _s(item: dict, key: str) -> str:
-    """Extrai string de um item REST, tratando None e espaços."""
-    return (item.get(key) or "").strip()
+    """Extrai string de um item REST, tratando None, int e espaços."""
+    val = item.get(key)
+    if val is None:
+        return ""
+    return str(val).strip()
 
 
 def _is_custom_table(codigo: str) -> bool:
