@@ -156,10 +156,6 @@ async function wsRenderSetup(container) {
                             '<div class="btn-group w-100" role="group">' +
                                 '<input type="radio" class="btn-check" name="ws-mode" id="ws-mode-csv" value="csv" checked>' +
                                 '<label class="btn btn-outline-primary" for="ws-mode-csv"><i class="fas fa-file-csv me-1"></i>CSV (Offline)</label>' +
-                                '<input type="radio" class="btn-check" name="ws-mode" id="ws-mode-live" value="live">' +
-                                '<label class="btn btn-outline-success" for="ws-mode-live"><i class="fas fa-database me-1"></i>Live (DB)</label>' +
-                                '<input type="radio" class="btn-check" name="ws-mode" id="ws-mode-hybrid" value="hybrid">' +
-                                '<label class="btn btn-outline-warning" for="ws-mode-hybrid"><i class="fas fa-random me-1"></i>Hibrido</label>' +
                                 '<input type="radio" class="btn-check" name="ws-mode" id="ws-mode-rest" value="rest">' +
                                 '<label class="btn btn-outline-info" for="ws-mode-rest"><i class="fas fa-globe me-1"></i>REST API</label>' +
                             '</div>' +
@@ -210,19 +206,6 @@ async function wsRenderSetup(container) {
                             '</div>' +
                         '</div>' +
 
-                        // Campos Live/Hibrido (conexao DB)
-                        '<div id="ws-live-fields" style="display:none">' +
-                            '<div class="mb-3">' +
-                                '<label class="form-label fw-semibold">Conexao ao banco Protheus</label>' +
-                                '<select class="form-select" id="ws-conn-id">' + connOptions + '</select>' +
-                                (connections.length === 0 ? '<small class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Nenhuma conexao configurada. Cadastre em <strong>Banco de Dados > Conexoes</strong>.</small>' : '') +
-                            '</div>' +
-                            '<div class="mb-3">' +
-                                '<label class="form-label fw-semibold">Codigo da empresa (M0_CODIGO)</label>' +
-                                '<input type="text" class="form-control" id="ws-company" value="01" placeholder="01">' +
-                            '</div>' +
-                        '</div>' +
-
                         // Campos CSV (diretorio)
                         '<div id="ws-csv-fields">' +
                             '<div class="mb-3">' +
@@ -237,22 +220,7 @@ async function wsRenderSetup(container) {
                             '</div>' +
                         '</div>' +
 
-                        // Diretorio CSV SX padrao (sempre visivel — para comparacao diff)
-                        '<div id="ws-padrao-fields">' +
-                            '<div class="mb-3">' +
-                                '<label class="form-label fw-semibold">Diretorio dos CSVs SX padrao <small class="text-muted">(para comparacao)</small></label>' +
-                                '<div class="input-group">' +
-                                    '<input type="text" class="form-control" id="ws-padrao-dir" placeholder="C:\\caminho\\para\\csvs_padrao">' +
-                                    '<button class="btn btn-outline-secondary" type="button" onclick="document.getElementById(\'ws-padrao-dir-picker\').click()">' +
-                                        '<i class="fas fa-folder-open"></i>' +
-                                    '</button>' +
-                                '</div>' +
-                                '<input type="file" id="ws-padrao-dir-picker" webkitdirectory style="display:none" onchange="document.getElementById(\'ws-padrao-dir\').value=this.files[0]?this.files[0].webkitRelativePath.split(\'/\')[0]:\'\'">' +
-                                '<small class="text-muted"><i class="fas fa-info-circle me-1"></i>CSVs do dicionario padrao TOTVS para gerar diff (padrao x cliente).</small>' +
-                            '</div>' +
-                        '</div>' +
-
-                        // Campos Fontes (hibrido + CSV)
+                        // Campos Fontes
                         '<div id="ws-fontes-fields">' +
                             '<div class="mb-3">' +
                                 '<label class="form-label fw-semibold">Diretorio dos fontes .prw/.tlpp <small class="text-muted">(opcional)</small></label>' +
@@ -271,12 +239,6 @@ async function wsRenderSetup(container) {
                         '<div class="d-flex gap-2" id="ws-action-buttons">' +
                             '<button class="btn btn-primary" data-action="wsIngestCSV" id="ws-btn-csv">' +
                                 '<i class="fas fa-upload me-1"></i>Ingerir CSVs' +
-                            '</button>' +
-                            '<button class="btn btn-success" data-action="wsIngestLive" id="ws-btn-live" style="display:none">' +
-                                '<i class="fas fa-database me-1"></i>Importar do Banco' +
-                            '</button>' +
-                            '<button class="btn btn-warning" data-action="wsIngestHybrid" id="ws-btn-hybrid" style="display:none">' +
-                                '<i class="fas fa-random me-1"></i>Importar Hibrido' +
                             '</button>' +
                             '<button class="btn btn-info" data-action="wsIngestREST" id="ws-btn-rest" style="display:none">' +
                                 '<i class="fas fa-globe me-1"></i>Importar via REST' +
@@ -320,22 +282,15 @@ async function wsRenderSetup(container) {
 
 function wsUpdateModeUI(mode) {
     var csvFields = document.getElementById('ws-csv-fields');
-    var liveFields = document.getElementById('ws-live-fields');
     var restFields = document.getElementById('ws-rest-fields');
     var fontesFields = document.getElementById('ws-fontes-fields');
     var btnCsv = document.getElementById('ws-btn-csv');
-    var btnLive = document.getElementById('ws-btn-live');
-    var btnHybrid = document.getElementById('ws-btn-hybrid');
     var btnRest = document.getElementById('ws-btn-rest');
 
     // Reset
     csvFields.style.display = 'none';
-    liveFields.style.display = 'none';
     restFields.style.display = 'none';
-    fontesFields.style.display = 'none';
     btnCsv.style.display = 'none';
-    btnLive.style.display = 'none';
-    btnHybrid.style.display = 'none';
     btnRest.style.display = 'none';
 
     // Fontes custom visivel em TODOS os modos
@@ -344,12 +299,6 @@ function wsUpdateModeUI(mode) {
     if (mode === 'csv') {
         csvFields.style.display = 'block';
         btnCsv.style.display = 'inline-block';
-    } else if (mode === 'live') {
-        liveFields.style.display = 'block';
-        btnLive.style.display = 'inline-block';
-    } else if (mode === 'hybrid') {
-        liveFields.style.display = 'block';
-        btnHybrid.style.display = 'inline-block';
     } else if (mode === 'rest') {
         restFields.style.display = 'block';
         btnRest.style.display = 'inline-block';
