@@ -18,7 +18,7 @@ specialist: "all"
 | "conteudo do MV_ESTNEG" | `query_database` template=parametro | SQL bruto |
 | "parametros de Compras" | `query_database` template=parametros_modulo | get_db_connections |
 | "campos da SA1" | `query_database` template=campos_tabela | SQL bruto |
-| "equaliza campo X de HML→PRD" | `preview_equalization` → confirmar → `execute_equalization` | query_database |
+| "equaliza campo X de HML→PRD" | `equalize_field` (field_name, source=HML, target=PRD) | preview_equalization |
 | "erro ORA-12154 no log" | `get_alerts` → `get_recurring_errors` → `search_knowledge` | query_database |
 | "roda pipeline de deploy" | `get_pipelines` → `run_pipeline` | — |
 | "status dos servicos" | `get_services` | get_pipelines |

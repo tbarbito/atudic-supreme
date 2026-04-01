@@ -73,6 +73,7 @@ database:
     - get_dictionary_history
     - preview_equalization
     - execute_equalization
+    - equalize_field
     - search_knowledge
     - search_tdn
     - get_server_variables
@@ -283,6 +284,7 @@ dicionarista:
     - get_dictionary_history
     - preview_equalization
     - execute_equalization
+    - equalize_field
     - get_db_connections
     - analyze_impact
     - list_vinculos
