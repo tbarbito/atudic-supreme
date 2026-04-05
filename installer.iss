@@ -1,14 +1,14 @@
-; ATUDIC DevOps - Script de Instalação Inno Setup
+; BiizHubOps - Script de Instalação Inno Setup
 ; Versão: 3.0 (Simplificado - 2 páginas de configuração)
 ; Data: 2026-01-03
 ; Encoding: UTF-8
 
-#define MyAppName "ATUDIC DevOps"
+#define MyAppName "BiizHubOps"
 #define MyAppVersion "1.0.0"
-#define MyAppPublisher "AtuDIC"
-#define MyAppURL "https://www.atudic.com.br"
-#define MyAppExeName "ATUDIC.exe"
-#define MyAppServiceName "ATUDICDevOpsService"
+#define MyAppPublisher "BiizHub"
+#define MyAppURL "https://www.biizhubflow.com.br"
+#define MyAppExeName "BiizHubOps.exe"
+#define MyAppServiceName "BiizHubOpsService"
 
 [Setup]
 AppId={{A7B8C9D0-E1F2-4567-8901-ABCDEF123456}
@@ -24,7 +24,7 @@ UsePreviousAppDir=no
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=aturpo_win\Output
-OutputBaseFilename=ATUDIC_Setup_{#MyAppVersion}
+OutputBaseFilename=BiizHubOps_Setup_{#MyAppVersion}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -42,7 +42,7 @@ Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortugue
 brazilianportuguese.WelcomeLabel2=Este assistente irá instalar o [name/ver] no seu computador.%n%nO sistema requer PostgreSQL instalado. O usuário e senha serão configurados durante a instalação.%n%nIMPORTANTE: Na primeira utilização, use o "Primeiro Acesso" na tela de login para criar seu administrador.%n%nÉ recomendado que você feche todos os outros aplicativos antes de continuar.
 
 [Files]
-Source: "aturpo_win\dist\ATUDIC.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "aturpo_win\dist\BiizHubOps.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "aturpo_win\dist\nssm.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "aturpo_win\dist\install_service.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "aturpo_win\dist\uninstall_service.bat"; DestDir: "{app}"; Flags: ignoreversion
@@ -114,13 +114,13 @@ begin
   LocalDBPage.Values[1] := '5432';
 
   LocalDBPage.Add('Nome do Banco de Dados:', False);
-  LocalDBPage.Values[2] := 'atudic';
+  LocalDBPage.Values[2] := 'biizhubops';
 
   LocalDBPage.Add('Usuário do PostgreSQL:', False);
-  LocalDBPage.Values[3] := 'atudic';
+  LocalDBPage.Values[3] := 'biizhubops';
 
   LocalDBPage.Add('Senha do PostgreSQL:', True);
-  LocalDBPage.Values[4] := 'atudic';
+  LocalDBPage.Values[4] := 'biizhubops';
 
   // ========================================
   // PÁGINA 3: Configuração Nuvem
@@ -131,17 +131,17 @@ begin
     'Preencha as credenciais fornecidas pelo seu provedor de nuvem.' + #13#10 + #13#10 +
     'IMPORTANTE: O usuário informado deve ter permissão CREATEDB para que o banco seja criado automaticamente.');
 
-  CloudDBPage.Add('URI / Host (Ex: atudic-proj.aivencloud.com):', False);
+  CloudDBPage.Add('URI / Host (Ex: biizhubops-proj.aivencloud.com):', False);
   CloudDBPage.Values[0] := '';
 
   CloudDBPage.Add('Porta (Ex: 19132):', False);
   CloudDBPage.Values[1] := '5432';
 
   CloudDBPage.Add('Nome do Banco de Dados:', False);
-  CloudDBPage.Values[2] := 'atudic';
+  CloudDBPage.Values[2] := 'biizhubops';
 
   CloudDBPage.Add('Usuário (Ex: avnadmin):', False);
-  CloudDBPage.Values[3] := 'atudic';
+  CloudDBPage.Values[3] := 'biizhubops';
 
   CloudDBPage.Add('Senha:', True); // Campo com asteriscos
   CloudDBPage.Values[4] := '';
@@ -155,7 +155,7 @@ begin
   AppConfigPage := CreateInputQueryPage(CloudDBPage.ID,
     'Configuração da Aplicação Web',
     'Configure as portas e informações da empresa',
-    'Preencha as informações gerais do ATUDIC DevOps.' + #13#10 + #13#10 +
+    'Preencha as informações gerais do BiizHubOps.' + #13#10 + #13#10 +
     'PRIMEIRO ACESSO: Após a instalação, use a opção "Primeiro Acesso" na tela de login da Web para criar seu administrador.');
 
   AppConfigPage.Add('Porta da Aplicação Web:', False);
@@ -175,7 +175,7 @@ begin
     False, '');
   
   LogsDirPage.Add('');
-  LogsDirPage.Values[0] := ExpandConstant('{autopf}\ATUDIC DevOps\logs');
+  LogsDirPage.Values[0] := ExpandConstant('{autopf}\BiizHubOps\logs');
 end;
 
 // ============================================================================
@@ -397,7 +397,7 @@ begin
   EnvFile := ExpandConstant('{app}\config.env');
   EnvContent := TStringList.Create;
   try
-    EnvContent.Add('# ATUDIC DevOps - Arquivo de Configuracao');
+    EnvContent.Add('# BiizHubOps - Arquivo de Configuracao');
     EnvContent.Add('# Gerado automaticamente pelo instalador em: ' + GetDateTimeString('dd/mm/yyyy hh:nn:ss', #0, #0));
     EnvContent.Add('');
     EnvContent.Add('# === CONFIGURACAO DO BANCO DE DADOS ===');
@@ -433,7 +433,7 @@ begin
 end;
 
 // ============================================================================
-// VERIFICAÇÃO DO USUÁRIO ATUDIC NO POSTGRESQL (Apenas para Local)
+// VERIFICAÇÃO DO USUÁRIO BIIZHUBOPS NO POSTGRESQL (Apenas para Local)
 // ============================================================================
 
 function SetupDatabaseViaSQL: Boolean;

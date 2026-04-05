@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-AtuDIC - Sistema de Build e Instalador
+BiizHubOps - Sistema de Build e Instalador
 Versão: 2.0
 Data: 2025-11-17
 
@@ -34,7 +34,7 @@ if sys.platform == 'win32':
 
 # Configurações
 VERSION = "1.0.0"
-APP_NAME = "AtuDIC"
+APP_NAME = "BiizHubOps"
 AUTHOR = "Barbito / Normatel"
 
 # Diretório raiz do projeto (onde este script reside)
@@ -153,10 +153,10 @@ def clean_build_dirs():
             print_warning(f"Diretório não existe: {os.path.relpath(dir_path, PROJECT_ROOT)}/")
 
     # Remover arquivo .spec se existir
-    spec_file = os.path.join(BUILD_DIR, 'ATUDIC.spec')
+    spec_file = os.path.join(BUILD_DIR, 'BiizHubOps.spec')
     if os.path.exists(spec_file):
         os.remove(spec_file)
-        print_success("Removido: aturpo_win/ATUDIC.spec")
+        print_success("Removido: aturpo_win/BiizHubOps.spec")
 
 def minify_frontend():
     """Minifica assets JS e CSS do frontend."""
@@ -533,7 +533,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='ATUDIC',
+    name='BiizHubOps',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -549,7 +549,7 @@ exe = EXE(
 )
 """
 
-        spec_file = os.path.join(BUILD_DIR, 'ATUDIC.spec')
+        spec_file = os.path.join(BUILD_DIR, 'BiizHubOps.spec')
         with open(spec_file, 'w', encoding='utf-8') as f:
             f.write(spec_content)
 
@@ -561,13 +561,13 @@ exe = EXE(
             'pyinstaller',
             '--clean',
             '--noconfirm',
-            'ATUDIC.spec'
+            'BiizHubOps.spec'
         ], capture_output=True, text=True, cwd=BUILD_DIR)
 
-        dist_exe = os.path.join(BUILD_DIR, 'dist', 'ATUDIC.exe')
+        dist_exe = os.path.join(BUILD_DIR, 'dist', 'BiizHubOps.exe')
         if result.returncode == 0 and os.path.exists(dist_exe):
             size = os.path.getsize(dist_exe) / (1024 * 1024)
-            print_success(f"Executável criado: aturpo_win/dist/ATUDIC.exe ({size:.2f} MB)")
+            print_success(f"Executável criado: aturpo_win/dist/BiizHubOps.exe ({size:.2f} MB)")
             return True
         else:
             print_error("Falha ao criar executável")
@@ -647,10 +647,10 @@ def create_installer():
         ], capture_output=True, text=True, timeout=300)
 
         if result.returncode == 0:
-            installer_file = os.path.join(BUILD_DIR, 'Output', f"ATUDIC_Setup_{VERSION}.exe")
+            installer_file = os.path.join(BUILD_DIR, 'Output', f"BiizHubOps_Setup_{VERSION}.exe")
             if os.path.exists(installer_file):
                 size = os.path.getsize(installer_file) / (1024 * 1024)
-                print_success(f"Instalador criado: aturpo_win/Output/ATUDIC_Setup_{VERSION}.exe ({size:.2f} MB)")
+                print_success(f"Instalador criado: aturpo_win/Output/BiizHubOps_Setup_{VERSION}.exe ({size:.2f} MB)")
                 return True
             else:
                 print_error("Instalador não foi criado")
@@ -720,12 +720,12 @@ def main():
 
     print(f"\n⏱ Tempo total: {duration:.1f} segundos")
     print(f"\n📁 Arquivos gerados:")
-    print(f"   • aturpo_win/dist/ATUDIC.exe")
+    print(f"   • aturpo_win/dist/BiizHubOps.exe")
 
     if installer_created:
-        print(f"   • aturpo_win/Output/ATUDIC_Setup_{VERSION}.exe")
+        print(f"   • aturpo_win/Output/BiizHubOps_Setup_{VERSION}.exe")
         print(f"\n{Colors.OKGREEN}{Colors.BOLD}✓ BUILD CONCLUÍDO COM SUCESSO!{Colors.ENDC}")
-        print(f"\n🚀 Instalador pronto em: aturpo_win/Output/ATUDIC_Setup_{VERSION}.exe")
+        print(f"\n🚀 Instalador pronto em: aturpo_win/Output/BiizHubOps_Setup_{VERSION}.exe")
     else:
         print(f"\n{Colors.WARNING}⚠ Executável criado, mas instalador não foi gerado.{Colors.ENDC}")
         print(f"   Execute manualmente: ISCC.exe installer.iss")
