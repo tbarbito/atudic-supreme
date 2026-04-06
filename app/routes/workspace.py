@@ -695,23 +695,31 @@ def explorer_tabela_detail(slug, codigo):
                     "campo_diff": r[2], "valor_padrao": r[3], "valor_cliente": r[4]
                 })
 
-        has_diff = len(diff_rows) > 0
+        # Verificar se padrao_campos tem dados (diff so e confiavel se sim)
+        padrao_global_count = 0
+        try:
+            padrao_global_count = db.execute("SELECT COUNT(*) FROM padrao_campos").fetchone()[0]
+        except Exception:
+            pass
+
+        has_diff = len(diff_rows) > 0 and padrao_global_count > 0
 
         # Carregar dados padrao para comparacao inline (quando diff existe ou como fallback)
         padrao_map = {}
-        try:
-            padrao_rows = db.execute(
-                "SELECT campo, tipo, tamanho, validacao, titulo, f3 "
-                "FROM padrao_campos WHERE tabela = ?",
-                (codigo.upper(),)
-            ).fetchall()
-            for pr in padrao_rows:
-                padrao_map[pr[0]] = {
-                    "tipo": pr[1] or "", "tamanho": pr[2] or 0,
-                    "validacao": pr[3] or "", "titulo": pr[4] or "", "f3": pr[5] or ""
-                }
-        except Exception:
-            pass
+        if padrao_global_count > 0:
+            try:
+                padrao_rows = db.execute(
+                    "SELECT campo, tipo, tamanho, validacao, titulo, f3 "
+                    "FROM padrao_campos WHERE tabela = ?",
+                    (codigo.upper(),)
+                ).fetchall()
+                for pr in padrao_rows:
+                    padrao_map[pr[0]] = {
+                        "tipo": pr[1] or "", "tamanho": pr[2] or 0,
+                        "validacao": pr[3] or "", "titulo": pr[4] or "", "f3": pr[5] or ""
+                    }
+            except Exception:
+                pass
 
         has_padrao = len(padrao_map) > 0
 
@@ -827,26 +835,24 @@ def explorer_summary(slug):
 
 def _compute_diff_stats(db, _c):
     """Calcula stats de diff com fallback para campos.custom quando tabela diff esta vazia."""
-    # Auto-diff lazy se diff vazia
-    diff_count = _c("SELECT COUNT(*) FROM diff")
-    if diff_count == 0:
+    # Verificar se padrao_campos tem dados — sem isso, diff nao e confiavel
+    padrao_count = _c("SELECT COUNT(*) FROM padrao_campos")
+
+    if padrao_count == 0:
+        # Sem base padrao: auto-diff para tentar popular via banco_padrao.db
         _auto_calculate_diff(db)
-    diff_add = _c("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx IN ('campo','SX3') AND acao='adicionado'")
-    diff_alt = _c("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx IN ('campo','SX3') AND acao='alterado'")
-    diff_rem = _c("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx IN ('campo','SX3') AND acao='removido'")
-    if (diff_add + diff_alt + diff_rem) > 0:
-        return {"adicionados": diff_add, "alterados": diff_alt, "removidos": diff_rem}
-    # Fallback: usar campos.custom + comparacao inline com padrao_campos
+        padrao_count = _c("SELECT COUNT(*) FROM padrao_campos")
+
+    if padrao_count > 0:
+        # Base padrao disponivel — diff confiavel
+        diff_add = _c("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx IN ('campo','SX3') AND acao='adicionado'")
+        diff_alt = _c("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx IN ('campo','SX3') AND acao='alterado'")
+        diff_rem = _c("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx IN ('campo','SX3') AND acao='removido'")
+        if (diff_add + diff_alt + diff_rem) > 0:
+            return {"adicionados": diff_add, "alterados": diff_alt, "removidos": diff_rem}
+
+    # Fallback: usar campos.custom (sem base padrao ou diff vazio apos tentativa)
     custom_total = _c("SELECT COUNT(*) FROM campos WHERE custom = 1")
-    # Verificar se padrao_campos tem dados para calcular alterados
-    has_padrao = _c("SELECT COUNT(*) FROM padrao_campos") > 0
-    if has_padrao:
-        alterados = _c(
-            "SELECT COUNT(*) FROM campos c INNER JOIN padrao_campos p "
-            "ON c.tabela = p.tabela AND c.campo = p.campo "
-            "WHERE c.custom = 0 AND (c.tipo != p.tipo OR c.tamanho != p.tamanho OR c.validacao != p.validacao)"
-        )
-        return {"adicionados": custom_total, "alterados": alterados, "removidos": 0}
     return {"adicionados": custom_total, "alterados": 0, "removidos": 0}
 
 
@@ -1629,18 +1635,25 @@ def workspace_dashboard(slug):
             return 0
 
     # --- RESUMO ---
-    # Auto-diff lazy: se tabela diff esta vazia e banco_padrao.db existe, calcular agora
-    diff_count = _count("SELECT COUNT(*) FROM diff")
-    if diff_count == 0:
+    # Auto-diff lazy: tentar popular padrao_campos via banco_padrao.db se necessario
+    padrao_count = _count("SELECT COUNT(*) FROM padrao_campos")
+    if padrao_count == 0:
         _auto_calculate_diff(db)
+        padrao_count = _count("SELECT COUNT(*) FROM padrao_campos")
 
     tabelas_total = _count("SELECT COUNT(*) FROM tabelas")
     tabelas_custom = _count("SELECT COUNT(*) FROM tabelas WHERE custom = 1")
     campos_total = _count("SELECT COUNT(*) FROM campos")
     campos_custom = _count("SELECT COUNT(*) FROM campos WHERE custom = 1")
-    campos_adicionados = _count("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx = 'SX3' AND acao = 'adicionado'")
-    campos_alterados = _count("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx = 'SX3' AND acao = 'alterado'")
-    diff_removidos = _count("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx = 'SX3' AND acao = 'removido'")
+    # Diff so e confiavel se padrao_campos foi populada
+    if padrao_count > 0:
+        campos_adicionados = _count("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx = 'SX3' AND acao = 'adicionado'")
+        campos_alterados = _count("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx = 'SX3' AND acao = 'alterado'")
+        diff_removidos = _count("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx = 'SX3' AND acao = 'removido'")
+    else:
+        campos_adicionados = campos_custom
+        campos_alterados = 0
+        diff_removidos = 0
     indices_total = _count("SELECT COUNT(*) FROM indices")
     indices_custom = _count("SELECT COUNT(*) FROM indices WHERE custom = 1")
     gatilhos_total = _count("SELECT COUNT(*) FROM gatilhos")
