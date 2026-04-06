@@ -897,6 +897,10 @@ def calculate_diff(db: Database) -> dict:
                 ("indices", "padrao_indices"),
                 ("gatilhos", "padrao_gatilhos"),
                 ("parametros", "padrao_parametros"),
+                ("menus", "padrao_menus"),
+                ("consultas", "padrao_consultas"),
+                ("pastas", "padrao_pastas"),
+                ("relacionamentos", "padrao_relacionamentos"),
             ]:
                 try:
                     conn.execute(f"DELETE FROM {tbl_dst}")

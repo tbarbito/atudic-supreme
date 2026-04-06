@@ -88,8 +88,9 @@ CONCEITO_MAP = {
 
 
 def _get_padrao_db() -> Optional[sqlite3.Connection]:
-    """Get padrao.db connection."""
-    padrao_path = Path("workspace/padrao/db/padrao.db")
+    """Get padrao.db connection (fontes padrao Protheus)."""
+    from app.services.workspace.workspace_populator import _get_fontes_padrao_db_path
+    padrao_path = _get_fontes_padrao_db_path()
     if not padrao_path.exists():
         return None
     return sqlite3.connect(str(padrao_path))

@@ -8,7 +8,16 @@ import json
 from pathlib import Path
 from app.services.workspace.padrao_database import PadraoDB
 
-PADRAO_DB_PATH = Path("workspace") / "padrao" / "db" / "padrao.db"
+def _resolve_padrao_db_path() -> Path:
+    """Resolve path do padrao.db usando mesma logica do workspace_populator."""
+    import sys
+    if getattr(sys, 'frozen', False):
+        base = Path(sys.executable).parent
+    else:
+        base = Path(__file__).parent.parent.parent.parent
+    return base / "db" / "padrao.db"
+
+PADRAO_DB_PATH = _resolve_padrao_db_path()
 
 
 def _get_padrao_db() -> PadraoDB:

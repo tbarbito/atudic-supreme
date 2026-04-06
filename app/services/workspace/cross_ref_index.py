@@ -179,7 +179,8 @@ def get_index() -> CrossRefIndex:
         config = load_config(Path("config.json"))
         client_dir = get_client_workspace(Path("workspace"), config.active_client)
         db_path = client_dir / "db" / "extrairpo.db"
-        padrao_path = Path("workspace") / "padrao" / "db" / "padrao.db"
+        from app.services.workspace.workspace_populator import _get_fontes_padrao_db_path
+        padrao_path = _get_fontes_padrao_db_path()
         _index = CrossRefIndex(db_path, padrao_path)
     return _index
 

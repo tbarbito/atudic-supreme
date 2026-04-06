@@ -107,7 +107,8 @@ def _resolve_tabelas_rotina(db: Database, rotina: str) -> list[str]:
     # 2. Fallback: try padrao.db
     try:
         from app.services.workspace.padrao_database import PadraoDB
-        padrao_path = Path("workspace") / "padrao" / "db" / "padrao.db"
+        from app.services.workspace.workspace_populator import _get_fontes_padrao_db_path
+        padrao_path = _get_fontes_padrao_db_path()
         if padrao_path.exists():
             pdb = PadraoDB(padrao_path)
             pdb.initialize()

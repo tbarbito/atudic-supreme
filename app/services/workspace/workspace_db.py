@@ -536,22 +536,23 @@ CREATE TABLE IF NOT EXISTS acervo_fontes (
 
 -- Padrao (standard) consultas SXB para diff
 CREATE TABLE IF NOT EXISTS padrao_consultas (
-    tabela      TEXT,
+    alias       TEXT,
     tipo        TEXT,
     sequencia   TEXT,
     coluna      TEXT,
     descricao   TEXT,
     conteudo    TEXT,
-    PRIMARY KEY (tabela, sequencia, coluna)
+    PRIMARY KEY (alias, sequencia, coluna)
 );
 
 -- Padrao (standard) pastas SXA para diff
 CREATE TABLE IF NOT EXISTS padrao_pastas (
-    tabela      TEXT,
+    alias       TEXT,
     ordem       TEXT,
     descricao   TEXT,
     proprietario TEXT,
-    PRIMARY KEY (tabela, ordem)
+    agrupamento TEXT,
+    PRIMARY KEY (alias, ordem)
 );
 
 -- Padrao (standard) relacionamentos SX9 para diff
@@ -559,9 +560,11 @@ CREATE TABLE IF NOT EXISTS padrao_relacionamentos (
     tabela_origem TEXT,
     identificador TEXT,
     tabela_destino TEXT,
-    expressao   TEXT,
-    expressao_dest TEXT,
+    expressao_origem TEXT,
+    expressao_destino TEXT,
     proprietario TEXT,
+    condicao_sql TEXT,
+    custom      INTEGER DEFAULT 0,
     PRIMARY KEY (tabela_origem, identificador, tabela_destino)
 );
 
@@ -716,28 +719,31 @@ class Database:
                 hash        TEXT
             )""",
             """CREATE TABLE IF NOT EXISTS padrao_consultas (
-                tabela      TEXT,
+                alias       TEXT,
                 tipo        TEXT,
                 sequencia   TEXT,
                 coluna      TEXT,
                 descricao   TEXT,
                 conteudo    TEXT,
-                PRIMARY KEY (tabela, sequencia, coluna)
+                PRIMARY KEY (alias, sequencia, coluna)
             )""",
             """CREATE TABLE IF NOT EXISTS padrao_pastas (
-                tabela      TEXT,
+                alias       TEXT,
                 ordem       TEXT,
                 descricao   TEXT,
                 proprietario TEXT,
-                PRIMARY KEY (tabela, ordem)
+                agrupamento TEXT,
+                PRIMARY KEY (alias, ordem)
             )""",
             """CREATE TABLE IF NOT EXISTS padrao_relacionamentos (
                 tabela_origem TEXT,
                 identificador TEXT,
                 tabela_destino TEXT,
-                expressao   TEXT,
-                expressao_dest TEXT,
+                expressao_origem TEXT,
+                expressao_destino TEXT,
                 proprietario TEXT,
+                condicao_sql TEXT,
+                custom      INTEGER DEFAULT 0,
                 PRIMARY KEY (tabela_origem, identificador, tabela_destino)
             )""",
             """CREATE TABLE IF NOT EXISTS padrao_menus (
@@ -781,6 +787,24 @@ class Database:
                 self._conn.commit()
             except Exception:
                 pass
+
+        # Migration: corrigir schema das tabelas padrao_consultas/pastas/relacionamentos
+        # Workspaces antigos tem colunas 'tabela' em vez de 'alias', e 'expressao' em vez de 'expressao_origem'
+        for old_col, table_name in [("tabela", "padrao_consultas"), ("tabela", "padrao_pastas")]:
+            try:
+                cols = [r[1] for r in self._conn.execute(f"PRAGMA table_info({table_name})").fetchall()]
+                if old_col in cols and "alias" not in cols:
+                    self._conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+                    self._conn.commit()
+            except Exception:
+                pass
+        try:
+            cols = [r[1] for r in self._conn.execute("PRAGMA table_info(padrao_relacionamentos)").fetchall()]
+            if "expressao" in cols and "expressao_origem" not in cols:
+                self._conn.execute("DROP TABLE IF EXISTS padrao_relacionamentos")
+                self._conn.commit()
+        except Exception:
+            pass
 
     def execute(self, sql: str, params: tuple = ()):
         return self._conn.execute(sql, params)
