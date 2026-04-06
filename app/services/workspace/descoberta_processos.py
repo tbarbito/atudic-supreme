@@ -402,8 +402,12 @@ def _passo5_llm(dados: dict, llm) -> list[dict]:
     }
     prompt = _PASSO5_PROMPT.format(dados=json.dumps(dados_compacto, ensure_ascii=False, indent=2))
     response = llm.chat([{"role": "user", "content": prompt}], max_tokens=8000)
-    # Strip markdown code block if LLM wrapped the JSON
-    text = response.strip()
+    # Normaliza resposta (pode ser str ou dict dependendo do provider)
+    if isinstance(response, dict):
+        text = response.get("content", response.get("response", ""))
+    else:
+        text = str(response)
+    text = text.strip()
     md_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
     if md_match:
         text = md_match.group(1).strip()
