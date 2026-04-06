@@ -2786,20 +2786,59 @@ def padrao_modulo_detail(slug, modulo):
 @workspace_bp.route("/workspaces/<slug>/padrao/pes", methods=["GET"])
 @require_permission("devworkspace:view")
 def padrao_pes(slug):
-    """Lista pontos de entrada da base padrao."""
+    """Lista pontos de entrada da base padrao.
+
+    Fontes de dados (em ordem de prioridade):
+    1. Tabela padrao_pes no workspace (se populada)
+    2. padrao.db (fontes padrao) — extrai User Functions com pattern de PE
+    """
     db = _get_db(slug)
 
-    # Tentar tabela padrao_pes (pode nao existir em todos os workspaces)
+    # 1. Tentar tabela padrao_pes local
     try:
         rows = db.execute(
             "SELECT nome, rotina, modulo, objetivo FROM padrao_pes ORDER BY nome"
         ).fetchall()
-        return jsonify([
-            {"nome": r[0], "rotina": r[1], "modulo": r[2], "objetivo": r[3] or ""}
-            for r in rows
-        ])
+        if rows:
+            return jsonify([
+                {"nome": r[0], "rotina": r[1], "modulo": r[2], "objetivo": r[3] or ""}
+                for r in rows
+            ])
     except Exception:
-        # Tabela nao existe — retornar lista vazia
+        pass
+
+    # 2. Fallback: extrair PEs do padrao.db (fontes padrao)
+    from app.services.workspace.workspace_populator import _get_fontes_padrao_db_path
+    padrao_db_path = _get_fontes_padrao_db_path()
+    if not padrao_db_path.exists():
+        return jsonify([])
+
+    import sqlite3 as _sqlite3
+    try:
+        pconn = _sqlite3.connect(str(padrao_db_path))
+        # User Functions com pattern de Ponto de Entrada Protheus
+        pe_rows = pconn.execute("""
+            SELECT f.nome, f.arquivo, COALESCE(fo.modulo, '') AS modulo
+            FROM funcoes f
+            JOIN fontes fo ON f.arquivo = fo.arquivo
+            WHERE f.tipo = 'user_function'
+              AND (
+                f.nome GLOB '[A-Z][A-Z][0-9][0-9][0-9][A-Z]*'
+                OR f.nome GLOB 'MT[A0-9][0-9][0-9][0-9][A-Z]*'
+                OR f.nome GLOB 'MTA[0-9][0-9][0-9][A-Z]*'
+                OR f.nome GLOB '[A-Z][0-9][0-9][0-9][A-Z][A-Z]*'
+                OR f.nome GLOB '[A-Z][A-Z][A-Z][A-Z][0-9][0-9][0-9][A-Z]*'
+              )
+            ORDER BY f.nome
+        """).fetchall()
+        pconn.close()
+
+        return jsonify([
+            {"nome": r[0], "rotina": r[1].replace(".prw", "").replace(".PRW", ""), "modulo": r[2], "objetivo": ""}
+            for r in pe_rows
+        ])
+    except Exception as e:
+        logger.warning("Erro ao extrair PEs do padrao.db: %s", e)
         return jsonify([])
 
 
