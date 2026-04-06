@@ -1308,7 +1308,8 @@ function hasPermission(section) {
     const permissions = {
         'admin': ['dashboard', 'repositories', 'source-control', 'pipelines', 'schedules', 'commands', 'observability', 'database', 'auditor', 'devworkspace', 'agent', 'services-management', 'users', 'settings'],
         'operator': ['dashboard', 'repositories', 'source-control', 'pipelines', 'schedules', 'commands', 'observability', 'database', 'auditor', 'devworkspace', 'agent', 'services-management'],
-        'viewer': ['dashboard', 'repositories', 'source-control', 'pipelines', 'schedules', 'observability', 'database', 'auditor', 'devworkspace', 'agent']
+        'viewer': ['dashboard', 'repositories', 'source-control', 'pipelines', 'schedules', 'observability', 'database', 'auditor', 'devworkspace', 'agent'],
+        'user': ['dashboard', 'repositories', 'source-control', 'pipelines', 'schedules', 'observability', 'database', 'auditor', 'devworkspace', 'agent']
     };
     return permissions[currentUser.profile]?.includes(section) || false;
 }

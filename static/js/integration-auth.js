@@ -1389,15 +1389,34 @@ async function showPermissionOverridesModal({ userId }) {
 
     // Gerar HTML
     const resourceLabels = {
-        users: 'Usuários', environments: 'Ambientes', repositories: 'Repositórios',
-        commands: 'Comandos', pipelines: 'Pipelines', schedules: 'Agendamentos',
+        // Admin
+        users: 'Usuários', environments: 'Ambientes', settings: 'Configurações',
+        license: 'Licença', api_keys: 'Chaves de API',
+        // CI/CD
+        pipelines: 'Pipelines', schedules: 'Agendamentos', commands: 'Comandos',
         service_actions: 'Ações de Serviço', variables: 'Variáveis', services: 'Serviços',
-        github_settings: 'Configurações GitHub'
+        webhooks: 'Webhooks', processes: 'Processos de Negócio',
+        // Repositórios
+        repositories: 'Repositórios', source_control: 'Source Control',
+        github_settings: 'Configurações GitHub',
+        // Monitoramento
+        observability: 'Observabilidade', database_connections: 'Conexões de Banco',
+        auditor: 'Auditor INI',
+        // IA
+        agent: 'Agente IA', knowledge: 'Base de Conhecimento',
+        tdn: 'TDN', documentation: 'Documentação',
+        // Workspace
+        devworkspace: 'Workspace', dictionary: 'Dicionário Protheus',
+        rpo: 'Análise RPO'
     };
 
     const actionLabels = {
         view: 'Visualizar', create: 'Criar', edit: 'Editar', delete: 'Excluir',
         execute: 'Executar', release: 'Liberar Release', sync: 'Sincronizar',
+        manage: 'Gerenciar', chat: 'Conversar', tools: 'Executar Tools',
+        search: 'Buscar', ingest: 'Ingerir', compare: 'Comparar',
+        equalize: 'Equalizar', analyze: 'Analisar', query: 'Executar Query',
+        acknowledge: 'Reconhecer Alertas', test: 'Testar',
         edit_protected: 'Editar Protegidos'
     };
 

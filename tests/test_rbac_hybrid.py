@@ -64,11 +64,13 @@ class TestBasePermissions:
         assert "pipelines:execute" in keys
         assert "pipelines:release" in keys
 
-    def test_viewer_so_le(self):
+    def test_viewer_acesso_restrito(self):
         keys = get_base_permissions("viewer")
-        # viewer so ve — nunca cria/edita/deleta/executa
+        # viewer nao cria/edita/deleta — so view, chat, search
+        allowed_actions = {"view", "chat", "search"}
         for key in keys:
-            assert key.endswith(":view"), f"Viewer tem permissao nao-view: {key}"
+            action = key.split(":")[1]
+            assert action in allowed_actions, f"Viewer tem permissao inesperada: {key}"
 
     def test_profile_desconhecido_cai_em_viewer(self):
         keys = get_base_permissions("xpto_role_inexistente")
@@ -174,27 +176,51 @@ class TestNestedDict:
 class TestMatrixLegacyCompat:
     """Valida que a matriz default mantem a mesma semantica do codigo legado."""
 
-    def test_admin_legado_vs_atual(self):
+    def test_admin_acesso_completo(self):
         keys = get_base_permissions("admin")
-        # Amostras do comportamento original:
         assert "users:view" in keys
         assert "users:create" in keys
         assert "environments:view" in keys
         assert "environments:create" not in keys  # admin nao cria ambientes (legado)
         assert "pipelines:release" in keys
+        # Novos modulos
+        assert "agent:manage" in keys
+        assert "observability:manage" in keys
+        assert "dictionary:equalize" in keys
+        assert "devworkspace:delete" in keys
+        assert "settings:edit" in keys
+        assert "license:manage" in keys
 
-    def test_operator_legado_vs_atual(self):
+    def test_operator_acesso_operacional(self):
         keys = get_base_permissions("operator")
-        assert "repositories:delete" not in keys  # legado: operator nao deleta repo
+        assert "repositories:delete" not in keys  # operator nao deleta repo
         assert "repositories:sync" not in keys
         assert "commands:view" in keys
-        assert "commands:create" not in keys  # legado: operator so ve comandos
-        assert "pipelines:delete" in keys  # legado: operator deleta pipelines
+        assert "commands:create" not in keys  # operator so ve comandos
+        assert "pipelines:delete" in keys
+        # Novos modulos: operator opera mas nao gerencia admin
+        assert "agent:chat" in keys
+        assert "agent:manage" not in keys
+        assert "observability:view" in keys
+        assert "observability:manage" not in keys
+        assert "devworkspace:analyze" in keys
+        assert "dictionary:compare" in keys
+        assert "dictionary:equalize" not in keys  # operator nao equaliza
+        assert "settings:view" not in keys  # operator nao ve settings
 
-    def test_viewer_so_ve_pipelines_repos_schedules(self):
+    def test_viewer_tem_modulos_de_leitura(self):
         keys = get_base_permissions("viewer")
-        assert keys == frozenset({
-            "repositories:view",
-            "pipelines:view",
-            "schedules:view",
-        })
+        # Viewer ve todos os modulos mas nao gerencia
+        assert "pipelines:view" in keys
+        assert "repositories:view" in keys
+        assert "observability:view" in keys
+        assert "agent:view" in keys
+        assert "agent:chat" in keys
+        assert "devworkspace:view" in keys
+        assert "dictionary:view" in keys
+        assert "tdn:view" in keys
+        assert "tdn:search" in keys
+        # Viewer nunca cria/edita/deleta
+        assert "pipelines:create" not in keys
+        assert "users:view" not in keys
+        assert "settings:view" not in keys

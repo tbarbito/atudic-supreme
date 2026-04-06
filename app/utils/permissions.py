@@ -19,6 +19,7 @@ Usado por:
 # Cada entrada: (key, resource, action, description)
 
 PERMISSION_CATALOG = [
+    # ── ADMIN ──────────────────────────────────────────────────────────
     # users
     ("users:view",              "users",            "view",     "Visualizar usuarios"),
     ("users:create",            "users",            "create",   "Criar usuarios"),
@@ -31,19 +32,20 @@ PERMISSION_CATALOG = [
     ("environments:edit",       "environments",     "edit",     "Editar ambientes"),
     ("environments:delete",     "environments",     "delete",   "Excluir ambientes"),
 
-    # repositories
-    ("repositories:view",       "repositories",     "view",     "Visualizar repositorios"),
-    ("repositories:create",     "repositories",     "create",   "Criar repositorios"),
-    ("repositories:edit",       "repositories",     "edit",     "Editar repositorios"),
-    ("repositories:delete",     "repositories",     "delete",   "Excluir repositorios"),
-    ("repositories:sync",       "repositories",     "sync",     "Sincronizar repositorios"),
+    # settings
+    ("settings:view",           "settings",         "view",     "Visualizar configuracoes do sistema"),
+    ("settings:edit",           "settings",         "edit",     "Editar configuracoes do sistema"),
 
-    # commands
-    ("commands:view",           "commands",         "view",     "Visualizar comandos"),
-    ("commands:create",         "commands",         "create",   "Criar comandos"),
-    ("commands:edit",           "commands",         "edit",     "Editar comandos"),
-    ("commands:delete",         "commands",         "delete",   "Excluir comandos"),
+    # license
+    ("license:view",            "license",          "view",     "Visualizar licenca"),
+    ("license:manage",          "license",          "manage",   "Gerenciar licenca"),
 
+    # api_keys
+    ("api_keys:view",           "api_keys",         "view",     "Visualizar chaves de API"),
+    ("api_keys:create",         "api_keys",         "create",   "Criar chaves de API"),
+    ("api_keys:delete",         "api_keys",         "delete",   "Excluir chaves de API"),
+
+    # ── CI/CD ──────────────────────────────────────────────────────────
     # pipelines
     ("pipelines:view",          "pipelines",        "view",     "Visualizar pipelines"),
     ("pipelines:create",        "pipelines",        "create",   "Criar pipelines"),
@@ -57,6 +59,12 @@ PERMISSION_CATALOG = [
     ("schedules:create",        "schedules",        "create",   "Criar agendamentos"),
     ("schedules:edit",          "schedules",        "edit",     "Editar agendamentos"),
     ("schedules:delete",        "schedules",        "delete",   "Excluir agendamentos"),
+
+    # commands
+    ("commands:view",           "commands",         "view",     "Visualizar comandos"),
+    ("commands:create",         "commands",         "create",   "Criar comandos"),
+    ("commands:edit",           "commands",         "edit",     "Editar comandos"),
+    ("commands:delete",         "commands",         "delete",   "Excluir comandos"),
 
     # service_actions
     ("service_actions:view",    "service_actions",  "view",     "Visualizar acoes de servico"),
@@ -77,10 +85,95 @@ PERMISSION_CATALOG = [
     ("services:edit",           "services",         "edit",     "Editar servicos"),
     ("services:delete",         "services",         "delete",   "Excluir servicos"),
 
+    # webhooks
+    ("webhooks:view",           "webhooks",         "view",     "Visualizar webhooks"),
+    ("webhooks:create",         "webhooks",         "create",   "Criar webhooks"),
+    ("webhooks:edit",           "webhooks",         "edit",     "Editar webhooks"),
+    ("webhooks:delete",         "webhooks",         "delete",   "Excluir webhooks"),
+    ("webhooks:test",           "webhooks",         "test",     "Testar webhooks"),
+
+    # processes
+    ("processes:view",          "processes",        "view",     "Visualizar processos de negocio"),
+    ("processes:create",        "processes",        "create",   "Criar processos de negocio"),
+    ("processes:edit",          "processes",        "edit",     "Editar processos de negocio"),
+    ("processes:delete",        "processes",        "delete",   "Excluir processos de negocio"),
+
+    # ── REPOSITORIOS ───────────────────────────────────────────────────
+    # repositories
+    ("repositories:view",       "repositories",     "view",     "Visualizar repositorios"),
+    ("repositories:create",     "repositories",     "create",   "Criar repositorios"),
+    ("repositories:edit",       "repositories",     "edit",     "Editar repositorios"),
+    ("repositories:delete",     "repositories",     "delete",   "Excluir repositorios"),
+    ("repositories:sync",       "repositories",     "sync",     "Sincronizar repositorios"),
+
+    # source_control
+    ("source_control:view",     "source_control",   "view",     "Visualizar source control"),
+    ("source_control:execute",  "source_control",   "execute",  "Executar operacoes de source control"),
+
     # github_settings
     ("github_settings:view",    "github_settings",  "view",     "Visualizar configuracoes GitHub"),
     ("github_settings:edit",    "github_settings",  "edit",     "Editar configuracoes GitHub"),
 
+    # ── MONITORAMENTO ──────────────────────────────────────────────────
+    # observability
+    ("observability:view",      "observability",    "view",     "Visualizar logs e alertas"),
+    ("observability:manage",    "observability",    "manage",   "Gerenciar regras de alerta"),
+    ("observability:acknowledge", "observability",  "acknowledge", "Reconhecer alertas"),
+
+    # database_connections
+    ("database_connections:view",   "database_connections", "view",    "Visualizar conexoes de banco"),
+    ("database_connections:create", "database_connections", "create",  "Criar conexoes de banco"),
+    ("database_connections:edit",   "database_connections", "edit",    "Editar conexoes de banco"),
+    ("database_connections:delete", "database_connections", "delete",  "Excluir conexoes de banco"),
+    ("database_connections:query",  "database_connections", "query",   "Executar queries no banco"),
+
+    # auditor (INI Auditor)
+    ("auditor:view",            "auditor",          "view",     "Visualizar auditorias INI"),
+    ("auditor:execute",         "auditor",          "execute",  "Executar auditoria INI"),
+    ("auditor:manage",          "auditor",          "manage",   "Gerenciar configuracoes do auditor"),
+
+    # ── IA (AGENTE) ───────────────────────────────────────────────────
+    # agent
+    ("agent:view",              "agent",            "view",     "Visualizar agente IA (chat)"),
+    ("agent:chat",              "agent",            "chat",     "Conversar com agente IA"),
+    ("agent:manage",            "agent",            "manage",   "Gerenciar configuracoes do agente"),
+    ("agent:tools",             "agent",            "tools",    "Executar tools do agente"),
+
+    # knowledge (Base de Conhecimento)
+    ("knowledge:view",          "knowledge",        "view",     "Visualizar base de conhecimento"),
+    ("knowledge:create",        "knowledge",        "create",   "Criar entradas de conhecimento"),
+    ("knowledge:edit",          "knowledge",        "edit",     "Editar base de conhecimento"),
+    ("knowledge:delete",        "knowledge",        "delete",   "Excluir entradas de conhecimento"),
+    ("knowledge:ingest",        "knowledge",        "ingest",   "Ingerir documentos na base"),
+
+    # tdn (TDN Knowledge)
+    ("tdn:view",                "tdn",              "view",     "Visualizar conteudo TDN"),
+    ("tdn:search",              "tdn",              "search",   "Buscar no TDN"),
+
+    # documentation
+    ("documentation:view",      "documentation",    "view",     "Visualizar documentacao"),
+    ("documentation:create",    "documentation",    "create",   "Criar documentacao"),
+    ("documentation:edit",      "documentation",    "edit",     "Editar documentacao"),
+
+    # ── WORKSPACE ──────────────────────────────────────────────────────
+    # devworkspace
+    ("devworkspace:view",       "devworkspace",     "view",     "Visualizar workspaces"),
+    ("devworkspace:create",     "devworkspace",     "create",   "Criar workspaces"),
+    ("devworkspace:edit",       "devworkspace",     "edit",     "Editar workspaces"),
+    ("devworkspace:delete",     "devworkspace",     "delete",   "Excluir workspaces"),
+    ("devworkspace:analyze",    "devworkspace",     "analyze",  "Executar analises no workspace"),
+
+    # dictionary (Dicionario Protheus)
+    ("dictionary:view",         "dictionary",       "view",     "Visualizar dicionario Protheus"),
+    ("dictionary:compare",      "dictionary",       "compare",  "Comparar dicionarios"),
+    ("dictionary:equalize",     "dictionary",       "equalize", "Equalizar dicionarios"),
+    ("dictionary:ingest",       "dictionary",       "ingest",   "Ingerir dicionario"),
+
+    # rpo (Analise RPO)
+    ("rpo:view",                "rpo",              "view",     "Visualizar analise RPO"),
+    ("rpo:execute",             "rpo",              "execute",  "Executar analise RPO"),
+
+    # ── SISTEMA ────────────────────────────────────────────────────────
     # can_edit_protected (flag especial preservada por compat)
     ("system:edit_protected",   "system",           "edit_protected", "Editar itens protegidos"),
 ]
@@ -99,30 +192,83 @@ VALID_PERMISSION_KEYS = frozenset(entry[0] for entry in PERMISSION_CATALOG)
 
 DEFAULT_ROLE_PERMISSIONS = {
     "admin": frozenset([
+        # Admin
         "users:view", "users:create", "users:edit", "users:delete",
         "environments:view",
-        "repositories:view", "repositories:create", "repositories:edit", "repositories:delete", "repositories:sync",
-        "commands:view", "commands:create", "commands:edit", "commands:delete",
+        "settings:view", "settings:edit",
+        "license:view", "license:manage",
+        "api_keys:view", "api_keys:create", "api_keys:delete",
+        # CI/CD
         "pipelines:view", "pipelines:create", "pipelines:edit", "pipelines:delete", "pipelines:execute", "pipelines:release",
         "schedules:view", "schedules:create", "schedules:edit", "schedules:delete",
+        "commands:view", "commands:create", "commands:edit", "commands:delete",
         "service_actions:view", "service_actions:create", "service_actions:edit", "service_actions:delete", "service_actions:execute",
         "variables:view", "variables:create", "variables:edit", "variables:delete",
         "services:view", "services:create", "services:edit", "services:delete",
+        "webhooks:view", "webhooks:create", "webhooks:edit", "webhooks:delete", "webhooks:test",
+        "processes:view", "processes:create", "processes:edit", "processes:delete",
+        # Repositorios
+        "repositories:view", "repositories:create", "repositories:edit", "repositories:delete", "repositories:sync",
+        "source_control:view", "source_control:execute",
         "github_settings:view", "github_settings:edit",
+        # Monitoramento
+        "observability:view", "observability:manage", "observability:acknowledge",
+        "database_connections:view", "database_connections:create", "database_connections:edit", "database_connections:delete", "database_connections:query",
+        "auditor:view", "auditor:execute", "auditor:manage",
+        # IA
+        "agent:view", "agent:chat", "agent:manage", "agent:tools",
+        "knowledge:view", "knowledge:create", "knowledge:edit", "knowledge:delete", "knowledge:ingest",
+        "tdn:view", "tdn:search",
+        "documentation:view", "documentation:create", "documentation:edit",
+        # Workspace
+        "devworkspace:view", "devworkspace:create", "devworkspace:edit", "devworkspace:delete", "devworkspace:analyze",
+        "dictionary:view", "dictionary:compare", "dictionary:equalize", "dictionary:ingest",
+        "rpo:view", "rpo:execute",
     ]),
     "operator": frozenset([
-        "repositories:view", "repositories:create", "repositories:edit",
-        "commands:view",
+        # CI/CD
         "pipelines:view", "pipelines:create", "pipelines:edit", "pipelines:delete", "pipelines:execute", "pipelines:release",
         "schedules:view", "schedules:create", "schedules:edit", "schedules:delete",
+        "commands:view",
         "service_actions:view", "service_actions:create", "service_actions:edit", "service_actions:delete", "service_actions:execute",
         "variables:view", "variables:create", "variables:edit", "variables:delete",
         "services:view", "services:create", "services:edit", "services:delete",
+        # Repositorios
+        "repositories:view", "repositories:create", "repositories:edit",
+        "source_control:view", "source_control:execute",
+        # Monitoramento
+        "observability:view", "observability:acknowledge",
+        "database_connections:view",
+        "auditor:view", "auditor:execute",
+        # IA
+        "agent:view", "agent:chat", "agent:tools",
+        "knowledge:view", "knowledge:create", "knowledge:edit", "knowledge:ingest",
+        "tdn:view", "tdn:search",
+        "documentation:view", "documentation:create",
+        # Workspace
+        "devworkspace:view", "devworkspace:create", "devworkspace:edit", "devworkspace:analyze",
+        "dictionary:view", "dictionary:compare",
+        "rpo:view",
     ]),
     "viewer": frozenset([
-        "repositories:view",
+        # CI/CD (somente leitura)
         "pipelines:view",
         "schedules:view",
+        "repositories:view",
+        "source_control:view",
+        # Monitoramento (somente leitura)
+        "observability:view",
+        "database_connections:view",
+        "auditor:view",
+        # IA (pode ver e chatear)
+        "agent:view", "agent:chat",
+        "knowledge:view",
+        "tdn:view", "tdn:search",
+        "documentation:view",
+        # Workspace (somente leitura)
+        "devworkspace:view",
+        "dictionary:view",
+        "rpo:view",
     ]),
 }
 
