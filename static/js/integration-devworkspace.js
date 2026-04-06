@@ -1114,10 +1114,10 @@ function wsDetailTab(tab) {
 function _wsRenderCamposTab(info) {
     if (!info.campos || !info.campos.length) return '<p class="text-muted">Nenhum campo.</p>';
     // Legenda
-    var html = '<div class="d-flex gap-3 mb-2" style="font-size:0.8rem">' +
-        '<span><i class="fas fa-circle text-secondary" style="font-size:0.5rem"></i> Padrao</span>' +
-        '<span><i class="fas fa-circle text-success" style="font-size:0.5rem"></i> Adicionado</span>' +
-        '<span><i class="fas fa-circle text-warning" style="font-size:0.5rem"></i> Alterado</span>' +
+    var html = '<div class="d-flex gap-3 mb-2 align-items-center" style="font-size:0.82rem">' +
+        '<span><i class="fas fa-circle text-secondary" style="font-size:0.6rem;vertical-align:middle"></i> Padrao</span>' +
+        '<span><i class="fas fa-circle text-success" style="font-size:0.6rem;vertical-align:middle"></i> Adicionado</span>' +
+        '<span><i class="fas fa-circle text-warning" style="font-size:0.6rem;vertical-align:middle"></i> Alterado</span>' +
     '</div>';
     html += '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:0.82rem"><thead class="table-light"><tr>' +
         '<th style="width:20px"></th><th>Campo</th><th>Tipo</th><th>Tam</th><th>Titulo</th><th>F3</th><th>Validacao</th><th>Alteracoes</th>' +
@@ -1131,7 +1131,7 @@ function _wsRenderCamposTab(info) {
                     (a.valor_padrao || '') + ' → Cliente: ' + (a.valor_cliente || '') + '">' + a.campo_diff + '</span>';
             });
         }
-        html += '<tr><td><i class="fas fa-circle ' + dotColor + '" style="font-size:0.5rem"></i></td>' +
+        html += '<tr><td><i class="fas fa-circle ' + dotColor + '" style="font-size:0.6rem;vertical-align:middle"></i></td>' +
             '<td><code style="font-size:0.78rem">' + c.campo + '</code></td>' +
             '<td>' + (c.tipo || '') + '</td><td>' + (c.tamanho || '') + '</td>' +
             '<td>' + (c.titulo || '') + '</td><td>' + (c.f3 || '') + '</td>' +

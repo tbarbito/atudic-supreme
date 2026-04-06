@@ -662,15 +662,60 @@ def explorer_tabela_detail(slug, codigo):
                     "campo_diff": r[2], "valor_padrao": r[3], "valor_cliente": r[4]
                 })
 
+        has_diff = len(diff_rows) > 0
+
+        # Carregar dados padrao para comparacao inline (quando diff existe ou como fallback)
+        padrao_map = {}
+        try:
+            padrao_rows = db.execute(
+                "SELECT campo, tipo, tamanho, validacao, titulo, f3 "
+                "FROM padrao_campos WHERE tabela = ?",
+                (codigo.upper(),)
+            ).fetchall()
+            for pr in padrao_rows:
+                padrao_map[pr[0]] = {
+                    "tipo": pr[1] or "", "tamanho": pr[2] or 0,
+                    "validacao": pr[3] or "", "titulo": pr[4] or "", "f3": pr[5] or ""
+                }
+        except Exception:
+            pass
+
+        has_padrao = len(padrao_map) > 0
+
         for campo in info.get("campos", []):
             nome = campo["campo"]
-            if nome in diff_added:
-                campo["status"] = "adicionado"
-            elif nome in diff_altered:
-                campo["status"] = "alterado"
-                campo["alteracoes"] = diff_altered[nome]
+            if has_diff:
+                # Usar tabela diff como fonte primaria
+                if nome in diff_added:
+                    campo["status"] = "adicionado"
+                elif nome in diff_altered:
+                    campo["status"] = "alterado"
+                    campo["alteracoes"] = diff_altered[nome]
+                else:
+                    campo["status"] = "padrao"
+            elif has_padrao:
+                # Fallback: comparar diretamente com padrao_campos
+                if nome not in padrao_map:
+                    campo["status"] = "adicionado"
+                else:
+                    pad = padrao_map[nome]
+                    diffs = []
+                    if str(campo.get("tipo", "")) != str(pad["tipo"]):
+                        diffs.append({"campo_diff": "tipo", "valor_padrao": pad["tipo"], "valor_cliente": campo.get("tipo", "")})
+                    if int(campo.get("tamanho", 0)) != int(pad["tamanho"] or 0):
+                        diffs.append({"campo_diff": "tamanho", "valor_padrao": str(pad["tamanho"]), "valor_cliente": str(campo.get("tamanho", ""))})
+                    cli_valid = (campo.get("validacao") or "").strip()
+                    pad_valid = (pad["validacao"] or "").strip()
+                    if cli_valid != pad_valid:
+                        diffs.append({"campo_diff": "validacao", "valor_padrao": pad_valid[:80], "valor_cliente": cli_valid[:80]})
+                    if diffs:
+                        campo["status"] = "alterado"
+                        campo["alteracoes"] = diffs
+                    else:
+                        campo["status"] = "padrao"
             else:
-                campo["status"] = "padrao"
+                # Sem diff e sem padrao: usar flag custom do campo
+                campo["status"] = "adicionado" if campo.get("custom") else "padrao"
     except Exception:
         pass
 
@@ -747,6 +792,27 @@ def explorer_summary(slug):
     return jsonify(ks.get_custom_summary())
 
 
+def _compute_diff_stats(db, _c):
+    """Calcula stats de diff com fallback para campos.custom quando tabela diff esta vazia."""
+    diff_add = _c("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx IN ('campo','SX3') AND acao='adicionado'")
+    diff_alt = _c("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx IN ('campo','SX3') AND acao='alterado'")
+    diff_rem = _c("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx IN ('campo','SX3') AND acao='removido'")
+    if (diff_add + diff_alt + diff_rem) > 0:
+        return {"adicionados": diff_add, "alterados": diff_alt, "removidos": diff_rem}
+    # Fallback: usar campos.custom + comparacao inline com padrao_campos
+    custom_total = _c("SELECT COUNT(*) FROM campos WHERE custom = 1")
+    # Verificar se padrao_campos tem dados para calcular alterados
+    has_padrao = _c("SELECT COUNT(*) FROM padrao_campos") > 0
+    if has_padrao:
+        alterados = _c(
+            "SELECT COUNT(*) FROM campos c INNER JOIN padrao_campos p "
+            "ON c.tabela = p.tabela AND c.campo = p.campo "
+            "WHERE c.custom = 0 AND (c.tipo != p.tipo OR c.tamanho != p.tamanho OR c.validacao != p.validacao)"
+        )
+        return {"adicionados": custom_total, "alterados": alterados, "removidos": 0}
+    return {"adicionados": custom_total, "alterados": 0, "removidos": 0}
+
+
 @workspace_bp.route("/workspaces/<slug>/explorer/stats", methods=["GET"])
 @require_permission("devworkspace:view")
 def explorer_stats(slug):
@@ -768,11 +834,7 @@ def explorer_stats(slug):
         "parametros": {"total": _c("SELECT COUNT(*) FROM parametros"), "custom": _c("SELECT COUNT(*) FROM parametros WHERE custom=1")},
         "vinculos": {"total": _c("SELECT COUNT(*) FROM vinculos")},
         "menus": {"total": _c("SELECT COUNT(*) FROM menus")},
-        "diff": {
-            "adicionados": _c("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx IN ('campo','SX3') AND acao='adicionado'"),
-            "alterados": _c("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx IN ('campo','SX3') AND acao='alterado'"),
-            "removidos": _c("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx IN ('campo','SX3') AND acao='removido'")
-        },
+        "diff": _compute_diff_stats(db, _c),
         "jobs": {"total": _c("SELECT COUNT(*) FROM jobs")},
         "schedules": {"total": _c("SELECT COUNT(*) FROM schedules"), "ativos": _c("SELECT COUNT(*) FROM schedules WHERE status='Ativo'")}
     })
