@@ -622,6 +622,11 @@ const actionHandlers = {
     'showAdminChangePasswordModal': (params) => window.showAdminChangePasswordModal(params.userId),
     'adminChangePassword': () => adminChangePassword(),
 
+    // ===== PERMISSÕES (RBAC HIBRIDO) =====
+    'showPermissionOverridesModal': (params) => showPermissionOverridesModal(params),
+    'setPermOverride': (params) => setPermOverride(params),
+    'removePermOverride': (params) => removePermOverride(params),
+
     // ===== COMANDOS =====
     'showCreateCommandModal': () => window.showCreateCommandModal(),
     'createNewCommand': () => createNewCommand(),
