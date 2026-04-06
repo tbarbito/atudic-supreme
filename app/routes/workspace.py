@@ -315,19 +315,37 @@ def _ingest_padrao_if_provided(data: dict, db) -> dict | None:
         return {"padrao": {"error": str(e)}, "diff": {}}
 
 
+_padrao_db_failed = False  # Cache para evitar retry em toda requisicao
+
 def _auto_calculate_diff(db) -> dict | None:
     """Calcula diff automaticamente usando banco_padrao.db se disponivel.
 
     Chamado apos ingestao e lazy no dashboard/explorer quando tabela diff esta vazia.
+    Cacheia falha para nao spammar logs em toda requisicao.
     """
+    global _padrao_db_failed
+    if _padrao_db_failed:
+        return None
     from app.services.workspace.workspace_populator import calculate_diff, _get_padrao_db_path
     padrao_path = _get_padrao_db_path()
     if not padrao_path.exists():
+        _padrao_db_failed = True
         return None
     try:
-        return calculate_diff(db)
+        result = calculate_diff(db)
+        # Verificar se padrao_campos foi populada (ATTACH pode ter falhado silenciosamente)
+        try:
+            count = db.execute("SELECT COUNT(*) FROM padrao_campos").fetchone()[0]
+            if count == 0:
+                logger.warning("banco_padrao.db existe mas padrao_campos ficou vazia — arquivo pode estar corrompido")
+                _padrao_db_failed = True
+                return None
+        except Exception:
+            pass
+        return result
     except Exception as e:
         logger.warning("Erro ao calcular diff com banco_padrao.db: %s", e)
+        _padrao_db_failed = True
         return None
 
 
