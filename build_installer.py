@@ -35,7 +35,7 @@ if sys.platform == 'win32':
 # Configurações
 VERSION = "1.0.0"
 APP_NAME = "BiizHubOps"
-AUTHOR = "Barbito / Normatel"
+AUTHOR = "BiizHub"
 
 # Diretório raiz do projeto (onde este script reside)
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))

@@ -243,5 +243,25 @@
     "triggerCount": "Triggers",
     "lastTriggered": "Last triggered",
     "noRules": "No rules configured"
+  },
+  "permissions": {
+    "title": "Detailed Permissions",
+    "profile": "Profile",
+    "override": "Override",
+    "effective": "Effective",
+    "actions": "Actions",
+    "inherited": "Profile",
+    "grant": "Granted",
+    "deny": "Denied",
+    "noAccess": "No access",
+    "reason": "Reason",
+    "reasonRequired": "Reason is required for auditing",
+    "expiresAt": "Expires at",
+    "overrideCreated": "Override created",
+    "overrideRemoved": "Override removed",
+    "overrideUpdated": "Override updated",
+    "removeConfirm": "Remove this override? The user will fall back to profile permissions.",
+    "rootNoOverrides": "Root admin has full access — overrides not allowed",
+    "infoText": "Base profile sets default permissions. Overrides grant or deny individual permissions. DENY always prevails over profile."
   }
 }

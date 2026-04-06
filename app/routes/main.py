@@ -652,13 +652,24 @@ def change_own_password():
 def get_current_user_permissions():
     """Retorna as permissões do usuário autenticado"""
     user = request.current_user
-    permissions = get_user_permissions(user["profile"], user["username"])
+    permissions = get_user_permissions(
+        user["profile"], user["username"], user_id=user["id"]
+    )
+
+    # Tambem retorna as keys granulares (formato 'resource:action') para uso
+    # futuro no frontend com checks finos sem quebrar compat com canPerformAction.
+    from app.utils.security import get_effective_permission_keys
+    effective_keys = sorted(
+        get_effective_permission_keys(user["id"], user["profile"], user["username"])
+    )
+
     return jsonify(
         {
             "profile": user["profile"],
             "username": user["username"],
             "is_root": user["username"] == "admin",
             "permissions": permissions,
+            "permission_keys": effective_keys,
         }
     )
 

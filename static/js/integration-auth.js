@@ -1266,11 +1266,17 @@ function renderUsers() {
                                             title="Editar usuário">
                                         <i class="fas fa-edit"></i>
                                     </button>
-                                    <button class="btn btn-outline-warning" 
-                                            data-action="showChangePasswordModal" 
+                                    <button class="btn btn-outline-warning"
+                                            data-action="showChangePasswordModal"
                                             data-params='{"userId":${user.id}}'
                                             title="Alterar senha">
                                         <i class="fas fa-key"></i>
+                                    </button>
+                                    <button class="btn btn-outline-info"
+                                            data-action="showPermissionOverridesModal"
+                                            data-params='{"userId":${user.id}}'
+                                            title="Permissões detalhadas">
+                                        <i class="fas fa-user-shield"></i>
                                     </button>
                                     ` : '<span class="badge bg-secondary"><i class="fas fa-lock me-1"></i>Protegido</span>'}
                                     ${canDeleteThisUser && canEditThisUser ? `
@@ -1309,5 +1315,287 @@ function showUsers() {
     `;
     document.getElementById('content-area').innerHTML = content;
     ensureUserModalsExist();
+}
+
+
+// =====================================================================
+// RBAC HIBRIDO - PERMISSION OVERRIDES
+// =====================================================================
+
+// Cache do catalogo de permissoes (carregado 1x por sessao)
+let _permissionCatalog = null;
+let _permissionRoles = null;
+
+async function loadPermissionCatalog() {
+    if (_permissionCatalog) return _permissionCatalog;
+    try {
+        const res = await fetch('/api/permissions/catalog', {
+            headers: { 'Authorization': authToken }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            _permissionCatalog = data.catalog;
+            _permissionRoles = data.roles;
+            return _permissionCatalog;
+        }
+    } catch (e) {
+        console.error('Erro ao carregar catálogo de permissões:', e);
+    }
+    return null;
+}
+
+async function showPermissionOverridesModal({ userId }) {
+    if (!isAdmin()) {
+        showNotification('Acesso negado!', 'error');
+        return;
+    }
+
+    // Carregar catalogo e permissoes do usuario em paralelo
+    const [catalog, permRes] = await Promise.all([
+        loadPermissionCatalog(),
+        fetch(`/api/users/${userId}/permissions`, {
+            headers: { 'Authorization': authToken }
+        })
+    ]);
+
+    if (!catalog || !permRes.ok) {
+        showNotification('Erro ao carregar permissões', 'error');
+        return;
+    }
+
+    const permData = await permRes.json();
+
+    if (permData.is_root) {
+        showNotification('Root admin tem permissão total — não aceita overrides', 'warning');
+        return;
+    }
+
+    // Agrupar catalogo por resource
+    const groups = {};
+    catalog.forEach(entry => {
+        if (entry.resource === 'system') return;
+        if (!groups[entry.resource]) groups[entry.resource] = [];
+        groups[entry.resource].push(entry);
+    });
+
+    // Mapear overrides por key
+    const overrideMap = {};
+    (permData.overrides || []).forEach(o => {
+        overrideMap[o.permission_key] = o;
+    });
+
+    // Permissoes do perfil base
+    const roleKeys = new Set(_permissionRoles[permData.profile] || []);
+
+    // Gerar HTML
+    const resourceLabels = {
+        users: 'Usuários', environments: 'Ambientes', repositories: 'Repositórios',
+        commands: 'Comandos', pipelines: 'Pipelines', schedules: 'Agendamentos',
+        service_actions: 'Ações de Serviço', variables: 'Variáveis', services: 'Serviços',
+        github_settings: 'Configurações GitHub'
+    };
+
+    const actionLabels = {
+        view: 'Visualizar', create: 'Criar', edit: 'Editar', delete: 'Excluir',
+        execute: 'Executar', release: 'Liberar Release', sync: 'Sincronizar',
+        edit_protected: 'Editar Protegidos'
+    };
+
+    const effectLabels = {
+        inherited: '<span class="badge bg-secondary">Perfil</span>',
+        GRANT: '<span class="badge bg-success">Concedido</span>',
+        DENY: '<span class="badge bg-danger">Negado</span>',
+        not_in_profile: '<span class="badge bg-dark">Sem acesso</span>'
+    };
+
+    let accordionHtml = '';
+    Object.entries(groups).forEach(([resource, entries]) => {
+        const label = resourceLabels[resource] || resource;
+        const collapseId = `perm_collapse_${resource}`;
+
+        let rowsHtml = entries.map(entry => {
+            const key = entry.key;
+            const override = overrideMap[key];
+            const inProfile = roleKeys.has(key);
+            const effectiveGranted = permData.permission_keys.includes(key);
+
+            let currentState = 'inherited';
+            if (override) {
+                currentState = override.effect;
+            } else if (!inProfile) {
+                currentState = 'not_in_profile';
+            }
+
+            const effectiveIcon = effectiveGranted
+                ? '<i class="fas fa-check-circle text-success" title="Acesso efetivo: Permitido"></i>'
+                : '<i class="fas fa-times-circle text-danger" title="Acesso efetivo: Negado"></i>';
+
+            const actionLabel = actionLabels[entry.action] || entry.action;
+
+            return `
+                <tr data-perm-key="${key}" data-user-id="${userId}"
+                    data-override-id="${override ? override.id : ''}">
+                    <td>${actionLabel}</td>
+                    <td class="text-center">${inProfile ? '<i class="fas fa-check text-muted"></i>' : ''}</td>
+                    <td class="text-center perm-override-cell">
+                        ${override ? effectLabels[override.effect] : (inProfile ? effectLabels.inherited : effectLabels.not_in_profile)}
+                    </td>
+                    <td class="text-center">${effectiveIcon}</td>
+                    <td class="text-end">
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-success btn-sm" title="Conceder (GRANT)"
+                                    data-action="setPermOverride"
+                                    data-params='${JSON.stringify({userId, key, effect: "GRANT"})}'>
+                                <i class="fas fa-plus-circle"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" title="Negar (DENY)"
+                                    data-action="setPermOverride"
+                                    data-params='${JSON.stringify({userId, key, effect: "DENY"})}'>
+                                <i class="fas fa-minus-circle"></i>
+                            </button>
+                            ${override ? `
+                            <button class="btn btn-outline-secondary btn-sm" title="Remover override (voltar ao perfil)"
+                                    data-action="removePermOverride"
+                                    data-params='${JSON.stringify({userId, overrideId: override.id})}'>
+                                <i class="fas fa-undo"></i>
+                            </button>` : ''}
+                        </div>
+                    </td>
+                </tr>`;
+        }).join('');
+
+        // Contar overrides nesse resource
+        const overrideCount = entries.filter(e => overrideMap[e.key]).length;
+        const overrideBadge = overrideCount > 0
+            ? ` <span class="badge bg-info">${overrideCount} override${overrideCount > 1 ? 's' : ''}</span>`
+            : '';
+
+        accordionHtml += `
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed py-2" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#${collapseId}">
+                        <i class="fas fa-layer-group me-2"></i>${label}${overrideBadge}
+                    </button>
+                </h2>
+                <div id="${collapseId}" class="accordion-collapse collapse">
+                    <div class="accordion-body p-0">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Ação</th>
+                                    <th class="text-center" style="width:80px">Perfil</th>
+                                    <th class="text-center" style="width:100px">Override</th>
+                                    <th class="text-center" style="width:80px">Efetivo</th>
+                                    <th class="text-end" style="width:120px">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rowsHtml}</tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>`;
+    });
+
+    // Remover modal anterior se existir
+    const existing = document.getElementById('permOverridesModal');
+    if (existing) existing.remove();
+
+    const modalHtml = `
+        <div class="modal fade" id="permOverridesModal" tabindex="-1">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="fas fa-user-shield me-2"></i>Permissões Detalhadas
+                            <small class="text-muted ms-2">
+                                ${escapeHtml(permData.username)}
+                                <span class="badge bg-${permData.profile === 'admin' ? 'danger' : permData.profile === 'operator' ? 'primary' : 'secondary'} ms-1">
+                                    ${permData.profile}
+                                </span>
+                            </small>
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info py-2 small">
+                            <i class="fas fa-info-circle me-1"></i>
+                            <strong>Perfil base:</strong> define permissões padrão.
+                            <strong>Overrides:</strong> concedem (GRANT) ou negam (DENY) permissões individualmente.
+                            DENY sempre prevalece sobre o perfil.
+                        </div>
+                        <div class="accordion" id="permAccordion">
+                            ${accordionHtml}
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-1"></i>Fechar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    const modal = new bootstrap.Modal(document.getElementById('permOverridesModal'));
+    modal.show();
+}
+
+async function setPermOverride({ userId, key, effect }) {
+    const reason = prompt(`Motivo para ${effect === 'GRANT' ? 'conceder' : 'negar'} "${key}":`);
+    if (!reason) {
+        showNotification('Motivo é obrigatório para auditoria', 'warning');
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/users/${userId}/permissions/overrides`, {
+            method: 'POST',
+            headers: {
+                'Authorization': authToken,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ permission_key: key, effect, reason })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+            showNotification(data.message || 'Override criado', 'success');
+            // Fechar e reabrir modal para atualizar
+            const modal = bootstrap.Modal.getInstance(document.getElementById('permOverridesModal'));
+            if (modal) modal.hide();
+            setTimeout(() => showPermissionOverridesModal({ userId }), 300);
+        } else {
+            showNotification(data.error || 'Erro ao criar override', 'error');
+        }
+    } catch (e) {
+        console.error('Erro ao criar override:', e);
+        showNotification('Erro de comunicação', 'error');
+    }
+}
+
+async function removePermOverride({ userId, overrideId }) {
+    if (!confirm('Remover este override? O usuário voltará ao perfil base para esta permissão.')) return;
+
+    try {
+        const res = await fetch(`/api/users/${userId}/permissions/overrides/${overrideId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': authToken }
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+            showNotification('Override removido', 'success');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('permOverridesModal'));
+            if (modal) modal.hide();
+            setTimeout(() => showPermissionOverridesModal({ userId }), 300);
+        } else {
+            showNotification(data.error || 'Erro ao remover override', 'error');
+        }
+    } catch (e) {
+        console.error('Erro ao remover override:', e);
+        showNotification('Erro de comunicação', 'error');
+    }
 }
 

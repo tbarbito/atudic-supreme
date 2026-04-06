@@ -344,11 +344,22 @@ class PipelineScheduler:
             """)
             alerts_deleted = cursor.rowcount
 
+            # Permission overrides expirados — limpar para manter banco enxuto
+            overrides_deleted = 0
+            try:
+                cursor.execute("""
+                    DELETE FROM user_permission_overrides
+                    WHERE expires_at IS NOT NULL AND expires_at < NOW()
+                """)
+                overrides_deleted = cursor.rowcount
+            except Exception:
+                pass  # Tabela pode nao existir se migration 022 nao rodou
+
             conn.commit()
 
-            total = chat_deleted + audit_deleted + alerts_deleted
+            total = chat_deleted + audit_deleted + alerts_deleted + overrides_deleted
             if total > 0:
-                print(f"🧹 Cleanup: {chat_deleted} chat msgs, {audit_deleted} audit logs, {alerts_deleted} alertas antigos removidos")
+                print(f"🧹 Cleanup: {chat_deleted} chat msgs, {audit_deleted} audit logs, {alerts_deleted} alertas, {overrides_deleted} overrides expirados removidos")
         except Exception as e:
             conn.rollback()
             print(f"⚠️ Cleanup falhou (tabelas podem nao existir): {e}")

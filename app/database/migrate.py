@@ -37,6 +37,7 @@ _KNOWN_MIGRATIONS = [
     "019_sandbox_unique.py",
     "020_tdn_knowledge.py",
     "021_token_economy.py",
+    "022_user_permission_overrides.py",
 ]
 
 

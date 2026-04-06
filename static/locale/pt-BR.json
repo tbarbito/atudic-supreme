@@ -274,5 +274,25 @@
     "confirmDelete": "Remover esta conexão?",
     "connectionSuccess": "Conexão estabelecida com sucesso",
     "connectionFailed": "Falha na conexão"
+  },
+  "permissions": {
+    "title": "Permissões Detalhadas",
+    "profile": "Perfil",
+    "override": "Override",
+    "effective": "Efetivo",
+    "actions": "Ações",
+    "inherited": "Perfil",
+    "grant": "Concedido",
+    "deny": "Negado",
+    "noAccess": "Sem acesso",
+    "reason": "Motivo",
+    "reasonRequired": "Motivo é obrigatório para auditoria",
+    "expiresAt": "Expira em",
+    "overrideCreated": "Override criado",
+    "overrideRemoved": "Override removido",
+    "overrideUpdated": "Override atualizado",
+    "removeConfirm": "Remover este override? O usuário voltará ao perfil base para esta permissão.",
+    "rootNoOverrides": "Root admin tem permissão total — não aceita overrides",
+    "infoText": "Perfil base define permissões padrão. Overrides concedem (GRANT) ou negam (DENY) permissões individualmente. DENY sempre prevalece sobre o perfil."
   }
 }
