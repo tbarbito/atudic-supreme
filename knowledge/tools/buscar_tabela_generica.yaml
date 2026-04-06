@@ -1,0 +1,11 @@
+id: buscar_tabela_generica
+name: "Buscar Tabela Generica"
+description: "Buscar tabelas genericas SX5 (combos)"
+source: "backend/services/analista_tools.py:596"
+when_to_use:
+  - "valores de combo"
+  - "tabela generica SX5"
+inputs:
+  termo: "termo de busca"
+outputs:
+  - "lista de chaves e descricoes"

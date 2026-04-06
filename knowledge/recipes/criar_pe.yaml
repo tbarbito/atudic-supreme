@@ -1,0 +1,21 @@
+id: criar_pe
+name: "Criar PE"
+description: "Criar ou customizar ponto de entrada"
+modo: melhoria
+action_type: pe
+trigger:
+  keywords: ["criar pe", "novo pe", "implementar pe", "customizar rotina via pe"]
+steps:
+  - tool: pes_disponiveis
+    reason: "PEs disponiveis na rotina padrao"
+  - tool: codigo_pe
+    reason: "Como o PE e chamado no padrao"
+  - tool: fonte_padrao
+    reason: "Estrutura da rotina padrao"
+  - tool: buscar_pes_cliente
+    reason: "PEs ja implementados pelo cliente"
+notes: |
+  Antes de criar, verificar se o PE adequado ja existe.
+  Verificar PARAMIXB — quais parametros recebe.
+  Verificar tipo de retorno esperado.
+cross_reference_padrao: true

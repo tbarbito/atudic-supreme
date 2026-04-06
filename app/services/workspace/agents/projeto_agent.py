@@ -116,9 +116,11 @@ def research(demand_text: str, entities: dict, db, vs=None) -> dict:
                 for r in fontes_rows
             ]
 
+            # Note: 'tabela' in gatilhos is SEEK table, not field table
+            field_prefix = tabela[1:] + "_" if len(tabela) == 3 else tabela + "_"
             gatilhos_rows = db.execute(
-                "SELECT campo_origem, campo_destino, regra, tipo FROM gatilhos WHERE tabela=?",
-                (tabela,),
+                "SELECT campo_origem, campo_destino, regra, tipo FROM gatilhos WHERE campo_origem LIKE ?",
+                (f"{field_prefix}%",),
             ).fetchall()
             gatilhos = [
                 {

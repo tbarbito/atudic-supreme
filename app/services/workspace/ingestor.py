@@ -697,6 +697,82 @@ def ingest_padrao_sxs(db: Database, padrao_csv_dir: Path) -> dict:
     return summary
 
 
+def ingest_record_counts(db: Database, csv_path: Path) -> dict:
+    """Ingest total_registros_tabelas.csv into record_counts table.
+
+    Lógica de limpeza:
+    - Apenas tabelas Protheus (3 letras + sufixo numérico, ex: SD1010)
+    - Remove sufixo de empresa/filial (010, 020, etc) → código base (SD1)
+    - Soma registros de todas as filiais na mesma tabela base
+    - Ignora: tabelas Oracle ($), hashes, backups (_BKP, _OLD, _DEL, _LOG, _TEMP)
+    - Ignora: tabelas com sufixo não-padrão (ex: SC509620 com >3 chars de sufixo empresa)
+
+    Returns: {total_csv: N, filtradas: N, tabelas_unicas: N}
+    """
+    import csv as csv_mod
+
+    conn = db.get_raw_conn()
+    conn.execute("CREATE TABLE IF NOT EXISTS record_counts (tabela TEXT PRIMARY KEY, registros INTEGER DEFAULT 0)")
+    conn.execute("DELETE FROM record_counts")
+    conn.commit()
+
+    # Regex: 2-3 letras + 3 dígitos (empresa+filial padrão Protheus)
+    # Ex: SD1010, SA1010, ZJT010, CSB010, GWM010
+    _TABLE_RE = re.compile(r'^([A-Z][A-Z0-9]{1,2})(\d{3})$')
+
+    # Sufixos a ignorar no TABLE_NAME
+    _IGNORE_SUFFIXES = ('_BKP', '_OLD', '_DEL', '_LOG', '_TEMP', '_COPY', '_BAK', '_TMP')
+
+    acumulado: dict[str, int] = {}  # tabela_base → soma registros
+    total_csv = 0
+    filtradas = 0
+
+    with open(csv_path, 'r', encoding='utf-8-sig') as f:
+        reader = csv_mod.DictReader(f)
+        for row in reader:
+            total_csv += 1
+            table_name = row.get('TABLE_NAME', '').strip().upper()
+            num_rows = int(row.get('NUM_ROWS', 0) or 0)
+
+            # Ignorar tabelas de sistema Oracle
+            if '$' in table_name:
+                filtradas += 1
+                continue
+
+            # Ignorar backups/temporárias
+            if any(table_name.endswith(s) or s in table_name for s in _IGNORE_SUFFIXES):
+                filtradas += 1
+                continue
+
+            # Ignorar hashes (nomes muito longos sem padrão Protheus)
+            if len(table_name) > 10:
+                filtradas += 1
+                continue
+
+            # Tentar extrair código base Protheus
+            m = _TABLE_RE.match(table_name)
+            if m:
+                base = m.group(1)  # SD1, SA1, ZJT, etc
+                acumulado[base] = acumulado.get(base, 0) + num_rows
+            else:
+                # Tabela com 2-3 letras sem sufixo numérico padrão → ignorar
+                filtradas += 1
+
+    # Inserir no banco
+    batch = [(base, regs) for base, regs in acumulado.items()]
+    conn.executemany(
+        "INSERT OR REPLACE INTO record_counts (tabela, registros) VALUES (?, ?)",
+        batch,
+    )
+    conn.commit()
+
+    return {
+        "total_csv": total_csv,
+        "filtradas": filtradas,
+        "tabelas_unicas": len(acumulado),
+    }
+
+
 def calculate_diff(db: Database) -> dict:
     """Compare cliente tables vs padrao tables and populate the diff table.
 

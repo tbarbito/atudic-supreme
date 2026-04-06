@@ -1,0 +1,25 @@
+id: verification
+name: "Pipeline de Verificacao"
+description: "Anti-alucinacao: draft → verify → reflect"
+source: "backend/services/verification.py"
+
+stages:
+  draft:
+    description: "Gerar resposta baseada EXCLUSIVAMENTE no contexto"
+    rules: ["Usar APENAS informacoes do contexto", "Indicar fonte [FONTE: tool]"]
+    temperature: 0.3
+
+  verify:
+    description: "Verificar cada afirmacao contra o contexto"
+    outputs: [claims_verificados, claims_sem_base, dados_faltando, confianca]
+    temperature: 0.1
+
+  reflect:
+    description: "Verificacao de qualidade por modo"
+    checks:
+      ajuste: "Identificamos a CAUSA RAIZ ou so sintomas?"
+      melhoria: "Listamos TODOS os pontos de impacto?"
+      duvida: "Explicacao e clara e completa?"
+    temperature: 0.1
+
+model: "gen (barato) para todos os 3 estagios"

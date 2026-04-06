@@ -1,0 +1,22 @@
+id: aumento_campo
+name: "Aumento de Campo"
+description: "Aumentar tamanho de campo chave (SXG-aware)"
+modo: melhoria
+action_type: aumento_campo
+trigger:
+  keywords: ["aumentar", "aumento", "ampliar", "expandir", "tamanho", "posicoes", "posições", "de 15 para", "de 6 para"]
+steps:
+  - tool: analise_aumento_campo
+    reason: "Analise COMPLETA de aumento: grupo SXG, campos fora do grupo, PadR chumbado, indices, MsExecAuto"
+  - tool: info_tabela
+    reason: "Metadata da tabela para contexto"
+  - tool: operacoes_escrita
+    reason: "Fontes que gravam na tabela"
+notes: |
+  Pontos criticos de aumento de campo chave:
+  - Grupo SXG: campos do grupo mudam automaticamente via Configurador
+  - Campos com F3 na tabela mas FORA do grupo: precisam ajuste MANUAL
+  - PadR/Space chumbado: vao TRUNCAR o valor — maior risco
+  - Indices: podem estourar limite de 250 chars
+  - MsExecAuto: podem enviar campo com tamanho antigo
+  SEMPRE verificar se o campo ja esta com o tamanho desejado antes de propor alteracao.

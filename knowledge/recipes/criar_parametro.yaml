@@ -1,0 +1,12 @@
+id: criar_parametro
+name: "Criar Parametro"
+description: "Criar novo parametro SX6"
+modo: melhoria
+action_type: parametro
+trigger:
+  keywords: ["parametro", "mv_", "mgf_", "criar parametro"]
+steps:
+  - tool: ver_parametro
+    reason: "Verificar se parametro ja existe"
+  - tool: buscar_propositos
+    reason: "Fontes que poderiam usar o parametro"

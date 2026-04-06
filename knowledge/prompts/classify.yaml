@@ -1,0 +1,14 @@
+id: classify
+name: "Prompt de Classificacao"
+description: "Classifica pergunta do usuario em modulos, tabelas e tipo de analise"
+source: "backend/services/llm.py:5"
+
+outputs:
+  modulos: "lista de modulos envolvidos"
+  tabelas: "lista de tabelas detectadas"
+  tipo_analise: "processo | tabela | customizacao | desenvolvimento"
+  gerar_doc: "bool — se deve gerar documento"
+  search_terms: "keywords para busca"
+
+model: "gen (barato)"
+temperature: 0.1

@@ -1,0 +1,14 @@
+id: entender_tabela
+name: "Entender Tabela"
+description: "Entender estrutura e uso de uma tabela"
+modo: duvida
+action_type: tabela
+trigger:
+  keywords: ["tabela", "campos", "dicionario", "sx3", "estrutura"]
+steps:
+  - tool: info_tabela
+    reason: "Metadata da tabela"
+  - tool: operacoes_escrita
+    reason: "Quem escreve nesta tabela"
+  - tool: buscar_fontes_tabela
+    reason: "Fontes que acessam a tabela"

@@ -1,0 +1,13 @@
+id: buscar_texto_fonte
+name: "Buscar Texto em Fonte"
+description: "Buscar texto/tag/variavel dentro de um fonte especifico"
+source: "backend/services/analista_tools.py"
+when_to_use:
+  - "procurar string no codigo"
+  - "onde aparece essa variavel"
+inputs:
+  arquivo: "nome do arquivo"
+  texto: "texto a buscar"
+  contexto: "linhas de contexto (default: 15)"
+outputs:
+  - "trechos encontrados com contexto"

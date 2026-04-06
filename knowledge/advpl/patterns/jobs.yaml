@@ -1,0 +1,269 @@
+id: jobs
+name: "Padrao Jobs/Scheduler"
+description: "Processamento em background, multi-threading e tarefas agendadas no Protheus"
+when_to_use:
+  - "Processamento em lote sem interface"
+  - "Integracoes assincronas"
+  - "Tarefas agendadas (cron-like)"
+  - "Processamento paralelo multi-thread"
+  - "Envio de emails/notificacoes em background"
+  - "ETL e migracao de dados"
+
+includes:
+  - '#Include "TOTVS.CH"'
+
+key_functions:
+  StartJob:
+    syntax: "StartJob(cFuncName, cEnvironment, lWait, parm1, parm2, ..., parm25)"
+    params:
+      cFuncName: "Nome da User Function a executar"
+      cEnvironment: "Ambiente do servidor (usar GetEnvServer())"
+      lWait: ".T. aguarda conclusao, .F. roda em background"
+      parm1_to_25: "Ate 25 parametros opcionais"
+  RpcSetEnv:
+    syntax: "lRet := RpcSetEnv(cCodEmp, cCodFil, cUsuario, cSenha, cModulo, cFunName, aTables)"
+    warning: "NUNCA usar cFilial, cFilAnt, cEmpAnt como nomes de variavel — sao Private reservadas do framework"
+  RpcClearEnv:
+    syntax: "RpcClearEnv()"
+    warning: "SEMPRE chamar apos RpcSetEnv, mesmo em caso de erro"
+  LockByName:
+    syntax: "lLocked := LockByName(cName, lByCompany, lByBranch)"
+    description: "Semaforo nomeado para controle de concorrencia"
+  UnlockByName:
+    syntax: "UnlockByName(cName, lByCompany, lByBranch)"
+    description: "Libera semaforo criado por LockByName"
+
+appserver_ini:
+  onstart: |
+    [OnStart]
+    JOBS=MYJOB
+    REFRESHRATE=120
+
+    [MYJOB]
+    MAIN=U_zJobMain
+    ENVIRONMENT=PRODUCAO
+  multiple_jobs: |
+    [OnStart]
+    JOBS=JOB_INTEG,JOB_LOTE,JOB_HTTP
+    REFRESHRATE=300
+
+    [JOB_INTEG]
+    MAIN=U_zIntegJob
+    ENVIRONMENT=PRODUCAO
+
+    [JOB_LOTE]
+    MAIN=U_zLoteJob
+    ENVIRONMENT=PRODUCAO
+
+template: |
+  #Include "TOTVS.CH"
+
+  /*/{Protheus.doc} zJobLote
+  Job de processamento em lote
+  @type User Function
+  @author Autor
+  @since 01/01/2026
+  @version 1.0
+  /*/
+  User Function zJobLote()
+      Local cCodEmp := "99"
+      Local cCodFil := "01"
+
+      ConOut("[zJobLote] Iniciando: " + DToC(Date()) + " " + Time())
+
+      // 1. Preparar ambiente
+      If !RpcSetEnv(cCodEmp, cCodFil, "admin", " ", "FAT", "zJobLote")
+          ConOut("[zJobLote] ERRO: Falha ao preparar ambiente.")
+          Return Nil
+      EndIf
+
+      // 2. Controle de concorrencia
+      If !LockByName("JOB_PROC_LOTE", .F., .F.)
+          ConOut("[zJobLote] Job ja em execucao. Saindo.")
+          RpcClearEnv()
+          Return Nil
+      EndIf
+
+      // 3. Processar com protecao contra excecoes
+      Begin Sequence
+          fProcessaLote()
+      Recover
+          ConOut("[zJobLote] ERRO: Excecao durante processamento.")
+      End Sequence
+
+      // 4. Liberar recursos (SEMPRE)
+      UnlockByName("JOB_PROC_LOTE", .F., .F.)
+      RpcClearEnv()
+
+      ConOut("[zJobLote] Finalizado: " + DToC(Date()) + " " + Time())
+  Return Nil
+
+  Static Function fProcessaLote()
+      Local cAlias  := "ZA9"
+      Local aArea   := GetArea()
+      Local nCount  := 0
+      Local nErrors := 0
+
+      DbSelectArea(cAlias)
+      DbSetOrder(1)
+      DbGoTop()
+
+      While !Eof()
+          If xFilial(cAlias) == ZA9->ZA9_FILIAL .And. ZA9->ZA9_STATUS == "1"
+              Begin Transaction
+                  RecLock(cAlias, .F.)
+                      ZA9->ZA9_STATUS := "2"  // Em processamento
+                  MsUnlock()
+
+                  If fProcessaRegistro(ZA9->ZA9_CODIGO)
+                      RecLock(cAlias, .F.)
+                          ZA9->ZA9_STATUS := "3"  // Processado
+                          ZA9->ZA9_DTPROC := Date()
+                          ZA9->ZA9_HRPROC := Time()
+                      MsUnlock()
+                      nCount++
+                  Else
+                      RecLock(cAlias, .F.)
+                          ZA9->ZA9_STATUS := "9"  // Erro
+                      MsUnlock()
+                      nErrors++
+                  EndIf
+              End Transaction
+          EndIf
+          DbSkip()
+      EndWh
+
+      ConOut("[zJobLote] OK: " + cValToChar(nCount) + " | Erros: " + cValToChar(nErrors))
+      RestArea(aArea)
+  Return Nil
+
+  Static Function fProcessaRegistro(cCodigo)
+      Local lRet := .T.
+      ConOut("[zJobLote] Processando: " + cCodigo)
+      // Logica de negocio...
+  Return lRet
+
+sections:
+  - name: "Dispatcher Multi-Thread"
+    description: "Cria multiplas threads workers para processamento paralelo"
+    code: |
+      User Function zDispatcher()
+          Local nThreads := 5
+          Local nI       := 0
+
+          If !RpcSetEnv("99", "01", "admin", " ", "FAT", "zDispatcher")
+              Return Nil
+          EndIf
+
+          For nI := 1 To nThreads
+              StartJob("U_zWorker", GetEnvServer(), .F., cValToChar(nI))
+              ConOut("[Dispatcher] Thread " + cValToChar(nI) + " iniciada.")
+          Next nI
+
+          RpcClearEnv()
+      Return Nil
+
+      User Function zWorker(cThreadId)
+          Default cThreadId := "0"
+
+          // Cada thread prepara SEU PROPRIO ambiente
+          If !RpcSetEnv("99", "01", "admin", " ", "FAT", "zWorker")
+              Return Nil
+          EndIf
+
+          ConOut("[Worker-" + cThreadId + "] Inicio: " + Time())
+
+          // Processamento...
+          fWorkerProcess(cThreadId)
+
+          RpcClearEnv()
+          ConOut("[Worker-" + cThreadId + "] Fim: " + Time())
+      Return Nil
+
+  - name: "Job com Intervalo (RefreshRate)"
+    description: "Job executado periodicamente pelo OnStart"
+    key_points:
+      - "RefreshRate no appserver.ini controla intervalo"
+      - "Usar LockByName para evitar sobreposicao"
+      - "Job executa, finaliza, e OnStart re-executa apos RefreshRate"
+    code: |
+      User Function zJobLoop()
+          If !RpcSetEnv("99", "01")
+              Return Nil
+          EndIf
+
+          If !LockByName("JOB_LOOP", .F., .F.)
+              RpcClearEnv()
+              Return Nil
+          EndIf
+
+          fProcessaPendencias()
+
+          UnlockByName("JOB_LOOP", .F., .F.)
+          RpcClearEnv()
+      Return Nil
+
+  - name: "Logging"
+    description: "Padrao de logging para jobs"
+    code: |
+      // ConOut — basico
+      ConOut("[JOB_NOME] INFO: Inicio " + DToC(Date()) + " " + Time())
+      ConOut("[JOB_NOME] ERRO: " + cMsgErro)
+
+      // FWLogMsg — estruturado (recomendado)
+      FWLogMsg("INFO",  /*cTxId*/, "MYJOB", /*cCat*/, /*cStep*/, "001", "Inicio do processamento")
+      FWLogMsg("ERROR", /*cTxId*/, "MYJOB", /*cCat*/, /*cStep*/, "002", "Erro: " + cMsgErro)
+
+  - name: "Error Recovery"
+    description: "Padrao de recuperacao de erros em jobs"
+    code: |
+      User Function zJobSafe()
+          Local oErrorBlock := ErrorBlock({|oErr| fJobError(oErr)})
+
+          If !RpcSetEnv("99", "01")
+              Return Nil
+          EndIf
+
+          If !LockByName("JOB_SAFE", .F., .F.)
+              RpcClearEnv()
+              Return Nil
+          EndIf
+
+          Begin Sequence
+              fProcessa()
+          Recover
+              ConOut("[zJobSafe] ERRO CRITICO — processamento interrompido")
+          End Sequence
+
+          UnlockByName("JOB_SAFE", .F., .F.)
+          RpcClearEnv()
+          ErrorBlock(oErrorBlock)
+      Return Nil
+
+      Static Function fJobError(oErr)
+          ConOut("[zJobSafe] Exception: " + oErr:Description)
+          ConOut("[zJobSafe] Stack: " + oErr:ErrorStack)
+      Return .T.
+
+  - name: "StartJob Basico"
+    description: "Formas de usar StartJob"
+    code: |
+      // Background sem esperar
+      StartJob("U_zProcessa", GetEnvServer(), .F.)
+
+      // Aguardar conclusao
+      StartJob("U_zProcessa", GetEnvServer(), .T.)
+
+      // Com parametros (ate 25)
+      StartJob("U_zProcessa", GetEnvServer(), .F., "99", "01", "PARAM3")
+
+best_practices:
+  - "SEMPRE chamar RpcClearEnv() apos RpcSetEnv(), mesmo em erro (usar Begin Sequence)"
+  - "NUNCA chamar RpcSetEnv/RpcClearEnv em rotinas do menu Protheus"
+  - "Cada thread StartJob DEVE chamar seu proprio RpcSetEnv"
+  - "Usar LockByName/UnlockByName para evitar execucao simultanea"
+  - "Liberar lock no Recover para evitar deadlock permanente"
+  - "Incluir timestamps e identificadores em logs"
+  - "NUNCA usar cFilial/cFilAnt/cEmpAnt como nomes de variavel Local"
+  - "Controlar numero maximo de threads para nao esgotar pool"
+  - "Usar FWLogMsg em producao em vez de ConOut"

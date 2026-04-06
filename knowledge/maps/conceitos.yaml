@@ -1,0 +1,77 @@
+id: conceitos
+name: "Mapa de Conceitos de Negocio"
+description: "Conceitos de negocio Protheus mapeados para rotinas e tabelas"
+source: "backend/services/query_decomposer.py:63"
+
+conceitos:
+  adiantamento:
+    rotinas: [FINA050, MATA121, ATFA040]
+    tabelas: [SE2, SC7, FIE]
+    extras:
+      e2_tipo: PA
+  nota fiscal entrada:
+    rotinas: [MATA103]
+    tabelas: [SF1, SD1]
+  nota fiscal saida:
+    rotinas: [MATA460]
+    tabelas: [SF2, SD2]
+  pedido de compras:
+    rotinas: [MATA120, MATA121]
+    tabelas: [SC7]
+  pedido de venda:
+    rotinas: [MATA410]
+    tabelas: [SC5, SC6]
+  solicitacao de compras:
+    rotinas: [MATA110]
+    tabelas: [SC1]
+  aprovacao alcada:
+    rotinas: [MATA094]
+    tabelas: [SCR, Z12, DBM]
+  bordero:
+    rotinas: [FINA240]
+    tabelas: [SEA]
+  cadastro produto:
+    rotinas: [MATA010, MATA261]
+    tabelas: [SB1]
+  cadastro cliente:
+    rotinas: [MATA030]
+    tabelas: [SA1]
+  cadastro fornecedor:
+    rotinas: [MATA020]
+    tabelas: [SA2]
+  ativo imobilizado:
+    rotinas: [ATFA010, ATFA010A, ATFA012]
+    tabelas: [SN1, SN3]
+  ativo fixo:
+    rotinas: [ATFA010, ATFA010A, ATFA012]
+    tabelas: [SN1, SN3]
+  classificacao ativo:
+    rotinas: [ATFA240]
+    tabelas: [SN1, SN3, SNN]
+  depreciacao:
+    rotinas: [ATFA050, ATFA060]
+    tabelas: [SN1, SN3]
+  baixa ativo:
+    rotinas: [ATFA030, ATFA036]
+    tabelas: [SN1, SN3]
+  transferencia ativo:
+    rotinas: [ATFA020]
+    tabelas: [SN1, SN4]
+  contas pagar:
+    rotinas: [FINA050]
+    tabelas: [SE2]
+  contas receber:
+    rotinas: [FINA040]
+    tabelas: [SE1]
+  contabilizacao:
+    rotinas: [CTBA102]
+    tabelas: [CT2]
+  livro fiscal:
+    rotinas: [MATA950]
+    tabelas: [SF3]
+  ordem producao:
+    rotinas: [MATA650]
+    tabelas: [SC2]
+  cotacao:
+    rotinas: [MATA140]
+    tabelas: [SC8]

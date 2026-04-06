@@ -1,0 +1,26 @@
+id: campo_obrigatorio
+name: "Campo Obrigatorio"
+description: "Investigacao para campo mudando de opcional para obrigatorio"
+modo: melhoria
+action_type: campo
+trigger:
+  keywords: ["obrigatório", "obrigatorio", "opcional para obrigatorio", "tornar obrigatorio", "campo obrigatorio"]
+steps:
+  - tool: info_tabela
+    reason: "Verificar tabela destino e campos existentes"
+  - tool: analise_impacto
+    reason: "Analise COMPLETA: fontes de escrita, MsExecAuto, integracoes, gatilhos — CRITICO para campo obrigatorio"
+  - tool: operacoes_escrita
+    reason: "Detalhe de todas operacoes de escrita na tabela"
+  - tool: buscar_pes_cliente
+    reason: "PEs existentes para a rotina"
+  - tool: pes_disponiveis
+    reason: "PEs disponiveis no padrao para customizar"
+notes: |
+  Campo obrigatorio impacta TUDO que grava na tabela:
+  - Inclusao manual (tela) — usuario precisa preencher
+  - MsExecAuto — vai dar erro se nao enviar o campo
+  - Importacoes/integracoes REST — podem nao enviar o campo
+  - Gatilhos — se o campo e preenchido por gatilho, pode nao ser obrigatorio
+  SEMPRE listar TODOS os MsExecAuto. Um esquecido = erro em producao.
+cross_reference_padrao: true

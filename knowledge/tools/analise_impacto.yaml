@@ -1,0 +1,46 @@
+id: analise_impacto
+name: "Analise de Impacto"
+description: "Analisa impacto completo de alteracao em campo ou tabela"
+source: "backend/services/analista_tools.py:182"
+when_to_use:
+  - "novo campo obrigatorio"
+  - "alterar campo de opcional para obrigatorio"
+  - "preciso saber quem grava na tabela"
+  - "adicionar campo em tabela"
+what_it_checks:
+  - "fontes que GRAVAM na tabela (write_tables)"
+  - "MsExecAuto que chamam rotinas da tabela (CRITICO para campo obrigatorio)"
+  - "ExecBlock/calls_execblock nas fontes"
+  - "gatilhos do campo (por prefixo ex: C7_ para SC7)"
+  - "integracoes/WebServices que gravam"
+  - "campos custom existentes"
+  - "operacoes_escrita detalhadas"
+  - "uso real da tabela (volumetria)"
+inputs:
+  tabela: "codigo da tabela (ex: SC5)"
+  campo: "codigo do campo (opcional)"
+  alteracao: "tipo: novo_campo, obrigatorio, etc"
+outputs:
+  fontes_escrita: "lista de fontes que gravam"
+  msexecauto_fontes: "fontes com MsExecAuto (RISCO CRITICO)"
+  exec_autos: "fontes com ExecBlock"
+  integracoes: "WebServices/APIs"
+  gatilhos: "gatilhos da tabela"
+  campos_custom: "campos customizados existentes"
+  operacoes_escrita: "detalhe das operacoes de escrita"
+  uso_tabela: "volumetria real (ativo/residual/inexistente)"
+input_schema:
+  tabela:
+    type: string
+    required: true
+    pattern: "^[A-Z][A-Z0-9]{2}$"
+  campo:
+    type: string
+    required: false
+  alteracao:
+    type: string
+    required: false
+notes: |
+  Esta tool e CRITICA para cenarios de campo obrigatorio.
+  MsExecAuto que nao tratam o novo campo vao QUEBRAR em producao.
+  Sempre verificar integracoes — elas podem gravar sem passar por validacao.

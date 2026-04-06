@@ -1,0 +1,87 @@
+id: analise_campo_obrigatorio
+name: "Heurística: Impacto de Tornar Campo Obrigatório"
+description: |
+  Cadeia de raciocínio de consultor para perguntas sobre tornar campos obrigatórios.
+  Foco em: o que vai quebrar quando o campo passar a ser exigido.
+
+versao: 1
+autor: Joni
+data_criacao: "2026-04-04"
+status: implementado
+
+trigger:
+  keywords: ["obrigatório", "obrigatorio", "obrigatoria", "mandatory"]
+  entidades_necessarias: ["campo (XX_CAMPO)"]
+  exemplos_pergunta:
+    - "Qual o impacto de tornar C7_CC obrigatório?"
+    - "Posso deixar o campo D1_TOTAL obrigatório?"
+    - "O que quebra se eu tornar B1_XCODBAR obrigatório?"
+
+raciocinio:
+  - passo: 1
+    nome: "Verificar se já é obrigatório"
+    fonte: "tabela campos (SX3)"
+    dados_extraidos:
+      - obrigatorio (sim/não)
+      - validacao (regra atual)
+      - inicializador (se tem preenchimento automático)
+      - vlduser (validação extra)
+      - trigger_flag (tem gatilho?)
+      - f3 (consulta disponível)
+    decisao: "Se já é obrigatório, parar aqui"
+
+  - passo: 2
+    nome: "MsExecAuto que gravam na tabela"
+    fonte: "fonte_chunks (busca por MsExecAuto + rotina da tabela)"
+    analise: |
+      Para cada MsExecAuto encontrado:
+      - Verificar se o código REFERENCIA o campo
+      - Se NÃO referencia → ALTO RISCO (vai dar erro em produção)
+      - Verificar se está em Job/Schedule (processo automático sem tela)
+    alerta: "MsExecAuto que não trata o campo = erro garantido em produção"
+
+  - passo: 3
+    nome: "Programas com RecLock na tabela"
+    fonte: "fontes.reclock_tables + fonte_chunks"
+    analise: |
+      Para cada programa com RecLock:
+      - Verificar se o código referencia o campo
+      - Se NÃO → programa precisa análise manual
+      - Verificar se é PE, Job, Schedule, tela, WS
+    alerta: "RecLock sem tratar campo obrigatório = pode gravar registro inválido"
+
+  - passo: 4
+    nome: "Gatilhos que preenchem o campo"
+    fonte: "tabela gatilhos (SX7)"
+    analise: |
+      Se há gatilho preenchendo automaticamente:
+      - Reduz risco para operações de TELA
+      - MAS MsExecAuto e RecLock NÃO disparam gatilhos!
+      - Gatilho NÃO protege contra processos batch
+
+  - passo: 5
+    nome: "Montar resumo de impacto"
+    template: |
+      Ao tornar {campo} obrigatório:
+      - {qtd_msexec} MsExecAuto precisam revisão
+      - {qtd_reclock} programas com RecLock ({qtd_sem} não referenciam)
+      - {se_tem_gatilho}: gatilho reduz risco em tela
+      - {se_tem_jobs}: processos automáticos podem quebrar
+
+implementacao:
+  arquivo: "backend/services/query_decomposer.py"
+  funcoes:
+    - step3d_analise_campo_obrigatorio
+  fast_path: true
+  sufficiency: true
+
+gaps:
+  - id: msexecauto_array
+    descricao: "Ler o array do MsExecAuto e verificar se o campo está no aHeader/aItens"
+    prioridade: alta
+  - id: integracao_rest
+    descricao: "Verificar endpoints REST/WS que gravam na tabela"
+    prioridade: alta
+  - id: validacao_cascata
+    descricao: "Se campo é FK, verificar tabela de destino (ex: CTT para CC)"
+    prioridade: media

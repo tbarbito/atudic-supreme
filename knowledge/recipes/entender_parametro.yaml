@@ -1,0 +1,25 @@
+id: entender_parametro
+name: "Entender Parametro"
+description: "Entender o que um parametro faz e onde e usado (qualquer prefixo)"
+modo: duvida
+action_type: parametro
+trigger:
+  keywords: ["parametro", "mv_", "mgf_", "ti_", "sy_", "xg_", "supergetmv", "getmv", "putmv", "o que faz o parametro", "onde e usado"]
+steps:
+  - tool: ver_parametro
+    reason: "Consultar valor atual e descricao do parametro no SX6"
+  - tool: buscar_texto_fonte
+    reason: "Buscar em quais fontes o parametro e referenciado (via SuperGetMV/GetMV/PutMV)"
+  - tool: buscar_propositos
+    reason: "Fontes relacionados que podem usar o parametro"
+notes: |
+  Parametros podem ter QUALQUER prefixo — nao so MV_/MGF_.
+  Prefixos comuns: MV_, MGF_, TI_, SY_, XG_, TX_, MF_, PT_
+  Funcoes de acesso: SuperGetMV, GetMV, GetNewPar, PutMV, PutMvFil
+
+  Passos:
+  1. Consultar valor e descricao no SX6
+  2. Buscar nos fontes onde e chamado (SuperGetMV/GetMV/PutMV)
+  3. Mostrar trechos de codigo que usam o parametro
+  4. Explicar como o valor influencia a logica
+  5. Se o parametro controla uma validacao, explicar o que acontece com .T. vs .F.

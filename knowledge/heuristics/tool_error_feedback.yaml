@@ -1,0 +1,14 @@
+id: tool_error_feedback
+name: "Tool Errors como Feedback"
+description: "Erros de tools retornam como feedback estruturado para o LLM adaptar estrategia"
+source: "backend/services/investigation_loop.py"
+
+behavior:
+  - "Quando tool retorna erro, resultado vai pro contexto acumulado"
+  - "LLM ve o erro na proxima iteracao e pode adaptar (args diferentes, outra tool)"
+  - "Erros NAO sao truncados (sao pequenos e criticos)"
+  - "Pipeline continua executando proximos steps (nao para no erro)"
+  - "Status event mostra erro pro usuario"
+
+antes: "Erros silenciosos — LLM nao sabia que tool falhou"
+depois: "Erros como feedback — LLM adapta estrategia"

@@ -15,6 +15,7 @@ from flask import Blueprint, request, jsonify, Response, stream_with_context
 from app.services.workspace.workspace_populator import WorkspacePopulator
 from app.services.workspace.workspace_db import Database
 from app.services.workspace.knowledge import KnowledgeService
+from app.utils.security import require_auth, require_permission
 
 logger = logging.getLogger(__name__)
 
@@ -236,6 +237,7 @@ def _get_rest_credentials(connection_id: int) -> dict:
 # ========================================================================
 
 @workspace_bp.route("/workspaces", methods=["GET"])
+@require_permission("devworkspace:view")
 def list_workspaces():
     """Lista workspaces existentes."""
     if not WORKSPACE_BASE.exists():
@@ -257,6 +259,7 @@ def list_workspaces():
 
 
 @workspace_bp.route("/workspaces/<slug>", methods=["DELETE"])
+@require_permission("devworkspace:delete")
 def delete_workspace(slug):
     """Exclui workspace e todos os dados."""
     import shutil
@@ -277,6 +280,7 @@ def delete_workspace(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/stats", methods=["GET"])
+@require_permission("devworkspace:view")
 def workspace_stats(slug):
     """Retorna estatisticas do workspace."""
     ws_path = _get_workspace_path(slug)
@@ -316,6 +320,7 @@ def _ingest_padrao_if_provided(data: dict, db) -> dict | None:
 # ========================================================================
 
 @workspace_bp.route("/workspaces/<slug>/ingest/csv", methods=["POST"])
+@require_permission("devworkspace:ingest")
 def ingest_csv(slug):
     """Ingere CSVs SX no workspace.
 
@@ -347,6 +352,7 @@ def ingest_csv(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/ingest/fontes", methods=["POST"])
+@require_permission("devworkspace:ingest")
 def ingest_fontes(slug):
     """Parseia fontes ADVPL/TLPP e popula workspace.
 
@@ -375,6 +381,7 @@ def ingest_fontes(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/ingest/live", methods=["POST"])
+@require_permission("devworkspace:ingest")
 def ingest_live(slug):
     """Popula workspace lendo SX* diretamente do banco Protheus.
 
@@ -407,6 +414,7 @@ def ingest_live(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/ingest/hybrid", methods=["POST"])
+@require_permission("devworkspace:ingest")
 def ingest_hybrid(slug):
     """Modo hibrido: dicionario do DB + fontes do filesystem.
 
@@ -444,6 +452,7 @@ def ingest_hybrid(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/ingest/rest", methods=["POST"])
+@require_permission("devworkspace:ingest")
 def ingest_rest(slug):
     """Popula workspace via API REST do Protheus.
 
@@ -537,6 +546,7 @@ def ingest_rest(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/ingest/rest/test", methods=["POST"])
+@require_permission("devworkspace:ingest")
 def ingest_rest_test(slug):
     """Testa conexao REST.
 
@@ -573,6 +583,7 @@ def ingest_rest_test(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/rest-config", methods=["GET"])
+@require_permission("devworkspace:view")
 def get_rest_config(slug):
     """Retorna config REST salva no workspace (sem expor senha)."""
     saved = _load_rest_config_from_workspace(slug)
@@ -582,6 +593,7 @@ def get_rest_config(slug):
 
 
 @workspace_bp.route("/connections", methods=["GET"])
+@require_permission("devworkspace:view")
 def list_connections():
     """Lista conexoes de banco disponiveis para modo live."""
     try:
@@ -609,6 +621,7 @@ def list_connections():
 # ========================================================================
 
 @workspace_bp.route("/workspaces/<slug>/explorer/tabelas", methods=["GET"])
+@require_permission("devworkspace:view")
 def explorer_tabelas(slug):
     """Lista todas as tabelas do workspace."""
     db = _get_db(slug)
@@ -622,6 +635,7 @@ def explorer_tabelas(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/explorer/tabela/<codigo>", methods=["GET"])
+@require_permission("devworkspace:view")
 def explorer_tabela_detail(slug, codigo):
     """Retorna informacoes completas de uma tabela (campos, indices, gatilhos, fontes vinculados).
     Enriquece campos com status diff (padrao/adicionado/alterado)."""
@@ -683,6 +697,7 @@ def explorer_tabela_detail(slug, codigo):
 
 
 @workspace_bp.route("/workspaces/<slug>/explorer/fontes", methods=["GET"])
+@require_permission("devworkspace:view")
 def explorer_fontes(slug):
     """Lista fontes parseados no workspace."""
     db = _get_db(slug)
@@ -705,6 +720,7 @@ def explorer_fontes(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/explorer/vinculos", methods=["GET"])
+@require_permission("devworkspace:view")
 def explorer_vinculos(slug):
     """Lista vinculos do workspace, opcionalmente filtrados por modulo."""
     db = _get_db(slug)
@@ -723,6 +739,7 @@ def explorer_vinculos(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/explorer/summary", methods=["GET"])
+@require_permission("devworkspace:view")
 def explorer_summary(slug):
     """Retorna resumo de customizacoes do workspace."""
     db = _get_db(slug)
@@ -731,6 +748,7 @@ def explorer_summary(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/explorer/stats", methods=["GET"])
+@require_permission("devworkspace:view")
 def explorer_stats(slug):
     """Retorna estatisticas resumidas para a barra de stats do Explorer."""
     db = _get_db(slug)
@@ -761,6 +779,7 @@ def explorer_stats(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/explorer/tree", methods=["GET"])
+@require_permission("devworkspace:view")
 def explorer_tree(slug):
     """Retorna arvore hierarquica de modulos com contagens por categoria."""
     db = _get_db(slug)
@@ -895,6 +914,7 @@ def explorer_tree(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/explorer/category/<modulo>/<cat>", methods=["GET"])
+@require_permission("devworkspace:view")
 def explorer_category_items(slug, modulo, cat):
     """Retorna itens de uma categoria dentro de um modulo."""
     db = _get_db(slug)
@@ -1040,6 +1060,7 @@ def explorer_category_items(slug, modulo, cat):
 
 
 @workspace_bp.route("/workspaces/<slug>/explorer/fonte/<arquivo>", methods=["GET"])
+@require_permission("devworkspace:view")
 def explorer_fonte_detail(slug, arquivo):
     """Retorna detalhe de um fonte (funcoes, tabelas, PEs, operacoes de escrita)."""
     db = _get_db(slug)
@@ -1125,6 +1146,7 @@ def explorer_fonte_detail(slug, arquivo):
 
 
 @workspace_bp.route("/workspaces/<slug>/explorer/diff/<tabela>", methods=["GET"])
+@require_permission("devworkspace:view")
 def explorer_diff_detail(slug, tabela):
     """Retorna diff detalhado padrao vs cliente para uma tabela."""
     db = _get_db(slug)
@@ -1203,6 +1225,7 @@ def explorer_diff_detail(slug, tabela):
 
 
 @workspace_bp.route("/workspaces/<slug>/explorer/search", methods=["GET"])
+@require_permission("devworkspace:view")
 def explorer_search(slug):
     """Busca global no workspace: tabelas, fontes, menus, campos."""
     db = _get_db(slug)
@@ -1267,6 +1290,7 @@ def explorer_search(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/explorer/fonte/<arquivo>/overview", methods=["POST"])
+@require_permission("devworkspace:analyze")
 def explorer_fonte_overview(slug, arquivo):
     """Gera overview IA do fonte (resumo do programa)."""
     db = _get_db(slug)
@@ -1353,6 +1377,7 @@ Baseie-se APENAS nos dados fornecidos. Seja conciso."""
 
 
 @workspace_bp.route("/workspaces/<slug>/explorer/funcao/<arquivo>/<funcao>/resumir", methods=["POST"])
+@require_permission("devworkspace:analyze")
 def explorer_funcao_resumir(slug, arquivo, funcao):
     """Gera resumo IA de uma funcao especifica."""
     db = _get_db(slug)
@@ -1415,6 +1440,7 @@ Seja direto e tecnico."""
 
 
 @workspace_bp.route("/workspaces/<slug>/explorer/funcao/<arquivo>/<funcao>/codigo", methods=["GET"])
+@require_permission("devworkspace:view")
 def explorer_funcao_codigo(slug, arquivo, funcao):
     """Retorna codigo fonte de uma funcao (do chunk)."""
     db = _get_db(slug)
@@ -1432,6 +1458,7 @@ def explorer_funcao_codigo(slug, arquivo, funcao):
 
 
 @workspace_bp.route("/workspaces/<slug>/explorer/anotacoes/<tipo>/<chave>", methods=["GET"])
+@require_permission("devworkspace:view")
 def explorer_listar_anotacoes(slug, tipo, chave):
     """Lista anotacoes de uma tabela/fonte/campo."""
     db = _get_db(slug)
@@ -1449,6 +1476,7 @@ def explorer_listar_anotacoes(slug, tipo, chave):
 
 
 @workspace_bp.route("/workspaces/<slug>/explorer/anotacoes", methods=["POST"])
+@require_permission("devworkspace:edit")
 def explorer_criar_anotacao(slug):
     """Cria anotacao em tabela/fonte/campo."""
     db = _get_db(slug)
@@ -1472,6 +1500,7 @@ def explorer_criar_anotacao(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/explorer/anotacoes/<int:anotacao_id>", methods=["DELETE"])
+@require_permission("devworkspace:delete")
 def explorer_deletar_anotacao(slug, anotacao_id):
     """Deleta anotacao."""
     db = _get_db(slug)
@@ -1484,6 +1513,7 @@ def explorer_deletar_anotacao(slug, anotacao_id):
 
 
 @workspace_bp.route("/workspaces/<slug>/dashboard", methods=["GET"])
+@require_permission("devworkspace:view")
 def workspace_dashboard(slug):
     """Retorna dados ricos para dashboard do workspace (similar ao ExtraiRPO)."""
     try:
@@ -1717,6 +1747,7 @@ def workspace_dashboard(slug):
 # ========================================================================
 
 @workspace_bp.route("/workspaces/<slug>/context/module/<modulo>", methods=["GET"])
+@require_permission("devworkspace:view")
 def context_module(slug, modulo):
     """Gera contexto estruturado (markdown) de um modulo para o agente IA."""
     db = _get_db(slug)
@@ -1726,6 +1757,7 @@ def context_module(slug, modulo):
 
 
 @workspace_bp.route("/workspaces/<slug>/context/table/<tabela>", methods=["GET"])
+@require_permission("devworkspace:view")
 def context_table(slug, tabela):
     """Gera analise profunda de uma tabela para o agente IA."""
     db = _get_db(slug)
@@ -1741,6 +1773,7 @@ def context_table(slug, tabela):
 # ========================================================================
 
 @workspace_bp.route("/workspaces/<slug>/docs/modules", methods=["GET"])
+@require_permission("devworkspace:view")
 def docs_modules(slug):
     """Lista modulos disponiveis para geracao de docs."""
     db = _get_db(slug)
@@ -1750,6 +1783,7 @@ def docs_modules(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/docs/generate/<modulo>", methods=["POST"])
+@require_permission("devworkspace:analyze")
 def docs_generate(slug, modulo):
     """Gera documentacao para um modulo (sem LLM = apenas contexto)."""
     db = _get_db(slug)
@@ -1775,6 +1809,7 @@ def docs_generate(slug, modulo):
 # ========================================================================
 
 @workspace_bp.route("/workspaces/<slug>/export/campos", methods=["GET"])
+@require_permission("devworkspace:export")
 def export_campos(slug):
     """Exporta campos customizados em CSV."""
     db = _get_db(slug)
@@ -1787,6 +1822,7 @@ def export_campos(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/export/indices", methods=["GET"])
+@require_permission("devworkspace:export")
 def export_indices(slug):
     """Exporta indices customizados em CSV."""
     db = _get_db(slug)
@@ -1799,6 +1835,7 @@ def export_indices(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/export/gatilhos", methods=["GET"])
+@require_permission("devworkspace:export")
 def export_gatilhos(slug):
     """Exporta gatilhos customizados em CSV."""
     db = _get_db(slug)
@@ -1810,6 +1847,7 @@ def export_gatilhos(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/export/atudic", methods=["GET"])
+@require_permission("devworkspace:export")
 def export_atudic(slug):
     """Exporta em formato AtuDic JSON."""
     db = _get_db(slug)
@@ -1821,6 +1859,7 @@ def export_atudic(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/export/diff", methods=["GET"])
+@require_permission("devworkspace:export")
 def export_diff(slug):
     """Exporta diff padrao x cliente em CSV."""
     db = _get_db(slug)
@@ -1837,6 +1876,7 @@ def export_diff(slug):
 # ========================================================================
 
 @workspace_bp.route("/workspaces/<slug>/build-vinculos", methods=["POST"])
+@require_permission("devworkspace:analyze")
 def rebuild_vinculos(slug):
     """Reconstroi grafo de vinculos do workspace (11 tipos de relacionamento)."""
     ws_path = _get_workspace_path(slug)
@@ -1862,6 +1902,7 @@ def rebuild_vinculos(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/processos/descobrir", methods=["POST"])
+@require_permission("devworkspace:analyze")
 def descobrir_processos_endpoint(slug):
     """Roda pipeline de descoberta automatica de processos (5 passos SQL + LLM)."""
     data = request.get_json() or {}
@@ -1884,6 +1925,7 @@ def descobrir_processos_endpoint(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/processos", methods=["GET"])
+@require_permission("devworkspace:view")
 def listar_processos(slug):
     """Lista processos de negocio detectados no workspace."""
     db = _get_db(slug)
@@ -1916,6 +1958,7 @@ def listar_processos(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/processos/<int:processo_id>/fluxo", methods=["POST"])
+@require_permission("devworkspace:analyze")
 def gerar_fluxo_processo(slug, processo_id):
     """Gera (ou retorna cache) diagrama Mermaid de um processo via LLM."""
     db = _get_db(slug)
@@ -1988,6 +2031,7 @@ def gerar_fluxo_processo(slug, processo_id):
 
 
 @workspace_bp.route("/workspaces/<slug>/processos/<int:processo_id>/analise", methods=["GET"])
+@require_permission("devworkspace:view")
 def get_analise_processo(slug, processo_id):
     """Gera (ou retorna cache) analise tecnica de um processo via investigacao + LLM."""
     db = _get_db(slug)
@@ -2196,6 +2240,7 @@ Baseie-se APENAS nos dados de investigacao fornecidos. Nao invente dados."""
 
 
 @workspace_bp.route("/workspaces/<slug>/processos/<int:processo_id>/chat", methods=["POST"])
+@require_permission("devworkspace:chat")
 def chat_processo(slug, processo_id):
     """SSE streaming chat escopado a um processo — usa modo duvida com contexto do processo."""
     db = _get_db(slug)
@@ -2341,6 +2386,7 @@ Analise tecnica existente (JSON): {analise_json}
 
 
 @workspace_bp.route("/workspaces/<slug>/processos/<int:processo_id>/mensagens", methods=["GET"])
+@require_permission("devworkspace:view")
 def listar_mensagens_processo(slug, processo_id):
     """Lista mensagens de chat de um processo."""
     db = _get_db(slug)
@@ -2367,6 +2413,7 @@ def listar_mensagens_processo(slug, processo_id):
 
 
 @workspace_bp.route("/workspaces/<slug>/processos/registrar", methods=["POST"])
+@require_permission("devworkspace:edit")
 def registrar_processo(slug):
     """Registra ou enriquece um processo a partir de descricao livre (usa LLM para classificar)."""
     data = request.get_json()
@@ -2416,6 +2463,7 @@ Texto: {descricao}"""
 # ========================================================================
 
 @workspace_bp.route("/workspaces/<slug>/analista/ask", methods=["POST"])
+@require_permission("devworkspace:chat")
 def analista_ask(slug):
     """Envia pergunta ao analista do workspace."""
     data = request.get_json()
@@ -2507,6 +2555,7 @@ def analista_ask(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/analista/history", methods=["GET"])
+@require_permission("devworkspace:view")
 def analista_history(slug):
     """Historico de perguntas do analista."""
     db = _get_db(slug)
@@ -2542,6 +2591,7 @@ _PADRAO_DIR = Path("processoPadrao")
 
 
 @workspace_bp.route("/workspaces/<slug>/padrao/modulos", methods=["GET"])
+@require_permission("devworkspace:view")
 def padrao_modulos(slug):
     """Lista modulos da base padrao."""
     # Validar que o workspace existe
@@ -2565,6 +2615,7 @@ def padrao_modulos(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/padrao/modulos/<modulo>", methods=["GET"])
+@require_permission("devworkspace:view")
 def padrao_modulo_detail(slug, modulo):
     """Conteudo de um modulo padrao."""
     ws_path = _get_workspace_path(slug)
@@ -2594,6 +2645,7 @@ def padrao_modulo_detail(slug, modulo):
 
 
 @workspace_bp.route("/workspaces/<slug>/padrao/pes", methods=["GET"])
+@require_permission("devworkspace:view")
 def padrao_pes(slug):
     """Lista pontos de entrada da base padrao."""
     db = _get_db(slug)
@@ -2613,6 +2665,7 @@ def padrao_pes(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/padrao/tdn", methods=["GET"])
+@require_permission("devworkspace:view")
 def padrao_tdn(slug):
     """Referencia TDN."""
     ws_path = _get_workspace_path(slug)
@@ -2657,6 +2710,7 @@ def padrao_tdn(slug):
 # ========================================================================
 
 @workspace_bp.route("/workspaces/<slug>/docs/search", methods=["GET"])
+@require_permission("devworkspace:view")
 def docs_search(slug):
     """Busca tabelas e fontes para geracao de docs."""
     db = _get_db(slug)
@@ -2694,6 +2748,7 @@ def docs_search(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/docs/summary", methods=["GET"])
+@require_permission("devworkspace:view")
 def docs_summary(slug):
     """Resumo de dados do workspace para geracao de docs."""
     db = _get_db(slug)
@@ -2713,6 +2768,7 @@ def docs_summary(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/docs/generate", methods=["POST"])
+@require_permission("devworkspace:analyze")
 def docs_generate_v2(slug):
     """Gera documentacao IA para um modulo."""
     data = request.get_json()
@@ -2772,6 +2828,7 @@ def docs_generate_v2(slug):
 # ========================================================================
 
 @workspace_bp.route("/workspaces/<slug>/chat", methods=["POST"])
+@require_permission("devworkspace:chat")
 def workspace_chat(slug):
     """Chat focado no workspace."""
     data = request.get_json()
@@ -2858,6 +2915,7 @@ def workspace_chat(slug):
 
 
 @workspace_bp.route("/workspaces/<slug>/chat/history", methods=["GET"])
+@require_permission("devworkspace:view")
 def workspace_chat_history(slug):
     """Historico do chat do workspace."""
     db = _get_db(slug)
@@ -2882,3 +2940,1090 @@ def workspace_chat_history(slug):
         return jsonify(items)
     except Exception:
         return jsonify([])
+
+
+# ========================================================================
+# Endpoints migrados do ExtraiRPO — helpers e rotas adicionais
+# ========================================================================
+
+# --- Helpers auxiliares (migrados) ---
+
+def _table_exists(db, table_name: str) -> bool:
+    """Verifica se tabela existe no SQLite."""
+    row = db.execute(
+        "SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?",
+        (table_name,),
+    ).fetchone()
+    return row[0] > 0
+
+
+def _safe_json(val):
+    """Parse JSON string, retornando [] em caso de falha."""
+    if not val:
+        return []
+    if isinstance(val, list):
+        return val
+    try:
+        return json.loads(val)
+    except (json.JSONDecodeError, TypeError):
+        return []
+
+
+def _load_diff_counts(db) -> dict:
+    """Carrega contagens de diff por tabela."""
+    result = {}
+    try:
+        rows = db.execute(
+            "SELECT tabela, acao, COUNT(DISTINCT chave) FROM diff "
+            "WHERE tipo_sx IN ('campo','SX3') GROUP BY tabela, acao"
+        ).fetchall()
+        for r in rows:
+            tab = r[0]
+            if tab not in result:
+                result[tab] = {"adicionados": 0, "alterados": 0}
+            if r[1] == "adicionado":
+                result[tab]["adicionados"] = r[2]
+            elif r[1] == "alterado":
+                result[tab]["alterados"] = r[2]
+    except Exception:
+        pass
+    return result
+
+
+def _load_anotacoes(db, tipo: str, chave: str) -> list:
+    """Carrega anotacoes de um item."""
+    try:
+        if not _table_exists(db, "anotacoes"):
+            return []
+        rows = db.execute(
+            "SELECT id, texto, autor, tags, data FROM anotacoes WHERE tipo=? AND chave=? ORDER BY data DESC",
+            (tipo, chave),
+        ).fetchall()
+        return [
+            {"id": r[0], "texto": r[1] or "", "autor": r[2] or "consultor",
+             "tags": _safe_json(r[3]), "data": r[4] or ""}
+            for r in rows
+        ]
+    except Exception:
+        return []
+
+
+def _load_menus_lookup(db) -> dict:
+    """Carrega lookup de menus por rotina."""
+    lookup = {}
+    try:
+        if _table_exists(db, "menus"):
+            for r in db.execute("SELECT rotina, nome, menu FROM menus").fetchall():
+                lookup[(r[0] or "").upper()] = {"nome": r[1] or "", "menu_path": r[2] or ""}
+    except Exception:
+        pass
+    return lookup
+
+
+def _load_mapa_modulos() -> dict:
+    """Carrega mapa-modulos.json."""
+    mapa_path = Path("templates/processos/mapa-modulos.json")
+    if not mapa_path.exists():
+        return {}
+    try:
+        return json.loads(mapa_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _pe_to_rotina(pe_name: str) -> str:
+    """Tenta derivar rotina padrao a partir do nome do PE."""
+    clean = pe_name.upper().replace("_PE", "")
+    m = re.match(r'^MT(\d{3})', clean)
+    if m:
+        return f"MATA{m.group(1)}"
+    m = re.match(r'^A(\d{3})', clean)
+    if m:
+        return f"MATA{m.group(1)}"
+    m = re.match(r'^FA(\d{3})', clean)
+    if m:
+        return f"FATA{m.group(1)}"
+    return ""
+
+
+_MODULO_NORMALIZE_MAP = {
+    "compras": "SIGACOM", "faturamento": "SIGAFAT", "financeiro": "SIGAFIN",
+    "estoque": "SIGAEST", "fiscal": "SIGAFIS", "contabilidade": "SIGACTB",
+    "sigacom": "SIGACOM", "sigafat": "SIGAFAT", "sigafin": "SIGAFIN",
+    "sigaest": "SIGAEST", "sigafis": "SIGAFIS", "sigactb": "SIGACTB",
+}
+
+
+def _normalize_modulo_ext(mod: str) -> str:
+    """Normaliza nome de modulo: 'compras' -> 'SIGACOM'."""
+    if not mod:
+        return ""
+    low = mod.strip().lower()
+    if low in _MODULO_NORMALIZE_MAP:
+        return _MODULO_NORMALIZE_MAP[low]
+    if " - " in low:
+        base = low.split(" - ")[0].strip()
+        if base in _MODULO_NORMALIZE_MAP:
+            return _MODULO_NORMALIZE_MAP[base]
+        return base.upper()
+    return mod.upper()
+
+
+_INTEGRATION_PATTERNS = re.compile(r'(WSS|INT|WS[^A-Z]|API|REST)', re.IGNORECASE)
+_ALTERACAO_LABELS = {
+    "obrigatorio": "Tornar obrigatorio", "validacao": "Alterar validacao",
+    "tamanho": "Alterar tamanho", "tipo": "Alterar tipo",
+    "novo_campo": "Novo campo", "excluir_campo": "Excluir campo",
+}
+_RISK_ORDER = {"alto": 0, "medio": 1, "baixo": 2, "info": 3}
+
+
+# ========================================================================
+# ENRIQUECER — Enrichment com LLM para tabela/fonte
+# ========================================================================
+
+@workspace_bp.route("/workspaces/<slug>/explorer/enriquecer", methods=["POST"])
+@require_permission("devworkspace:analyze")
+def explorer_enriquecer(slug):
+    """Enriquece tabela ou fonte com LLM (proposito, tags, classificacao)."""
+    data = request.get_json()
+    tipo = data.get("tipo")
+    chave = data.get("chave")
+    pergunta = data.get("pergunta", "")
+
+    if tipo not in ("tabela", "fonte"):
+        return jsonify({"error": "tipo deve ser 'tabela' ou 'fonte'"}), 400
+    if not chave:
+        return jsonify({"error": "chave e obrigatoria"}), 400
+
+    db = _get_db(slug)
+    try:
+        context = ""
+        if tipo == "tabela":
+            row = db.execute("SELECT codigo, nome FROM tabelas WHERE upper(codigo)=?", (chave.upper(),)).fetchone()
+            if not row:
+                return jsonify({"error": f"Tabela '{chave}' nao encontrada"}), 404
+            campos_rows = db.execute(
+                "SELECT campo, tipo, tamanho, titulo, custom FROM campos WHERE upper(tabela)=? LIMIT 50",
+                (chave.upper(),),
+            ).fetchall()
+            campos_desc = "\n".join(
+                f"  {c[0]} ({c[1]}/{c[2]}) - {c[3]} {'[CUSTOM]' if c[4] else ''}"
+                for c in campos_rows
+            )
+            context = f"Tabela: {row[0]} - {row[1]}\nCampos:\n{campos_desc}"
+        else:
+            row = db.execute(
+                "SELECT arquivo, modulo, funcoes, pontos_entrada, tabelas_ref, lines_of_code FROM fontes WHERE arquivo=?",
+                (chave,),
+            ).fetchone()
+            if not row:
+                return jsonify({"error": f"Fonte '{chave}' nao encontrado"}), 404
+            context = (
+                f"Fonte: {row[0]}\nModulo: {row[1]}\nFuncoes: {row[2]}\n"
+                f"Pontos Entrada: {row[3]}\nTabelas Ref: {row[4]}\nLOC: {row[5]}"
+            )
+
+        prompt = f"Analise o seguinte artefato Protheus.\n{context}\n"
+        if pergunta:
+            prompt += f"\nContexto adicional do usuario: {pergunta}\n"
+        prompt += (
+            '\nResponda APENAS com JSON: {"humano": "descricao", "ia": {"processo": "...", "modulo": "...", '
+            '"tipo_programa": "...", "complexidade": "alta|media|baixa"}, "tags": ["..."]}'
+        )
+
+        try:
+            llm = _get_llm_provider()
+        except Exception as e:
+            return jsonify({"error": f"LLM nao disponivel: {str(e)[:200]}"}), 500
+
+        result_text = _llm_chat_text(llm, [{"role": "user", "content": prompt}])
+        result_text = result_text.strip()
+        if result_text.startswith("```"):
+            result_text = result_text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        try:
+            parsed = json.loads(result_text)
+        except (json.JSONDecodeError, TypeError):
+            m = re.search(r'\{[\s\S]+\}', result_text)
+            parsed = json.loads(m.group()) if m else {"humano": result_text[:300], "ia": {}, "tags": []}
+
+        db.execute(
+            "INSERT OR REPLACE INTO propositos (tipo, chave, proposito, tags) VALUES (?, ?, ?, ?)",
+            (tipo, chave, json.dumps(parsed, ensure_ascii=False), json.dumps(parsed.get("tags", []))),
+        )
+        db.commit()
+        return jsonify({"status": "ok", "chave": chave, "tipo": tipo, "proposito": parsed.get("humano", ""), **parsed})
+    except Exception as e:
+        logger.exception(f"Erro ao enriquecer {tipo}/{chave}: {e}")
+        return jsonify({"error": str(e)[:300]}), 500
+    finally:
+        db.close()
+
+
+# ========================================================================
+# CATALOGAR PES — Auto-catalogo de PEs com LLM
+# ========================================================================
+
+@workspace_bp.route("/workspaces/<slug>/explorer/catalogar-pes", methods=["POST"])
+@require_permission("devworkspace:analyze")
+def explorer_catalogar_pes(slug):
+    """Auto-cataloga PEs do cliente nao catalogados usando LLM."""
+    db = _get_db(slug)
+    try:
+        if not _table_exists(db, "padrao_pes"):
+            db.execute("""CREATE TABLE IF NOT EXISTS padrao_pes (
+                nome TEXT PRIMARY KEY, modulo TEXT, rotina TEXT, onde_chamado TEXT,
+                objetivo TEXT, params_entrada TEXT, params_saida TEXT, link_tdn TEXT)""")
+            db.commit()
+
+        all_client_pes = set()
+        for row in db.execute("SELECT pontos_entrada FROM fontes WHERE pontos_entrada != '[]'").fetchall():
+            for pe in _safe_json(row[0]):
+                all_client_pes.add(pe.strip())
+
+        already = {row[0].upper() for row in db.execute("SELECT nome FROM padrao_pes").fetchall()} if _table_exists(db, "padrao_pes") else set()
+        uncataloged = [pe for pe in sorted(all_client_pes) if pe.upper() not in already]
+
+        if not uncataloged:
+            return jsonify({"status": "ok", "message": "Todos os PEs ja estao catalogados", "total": 0, "catalogados": 0})
+
+        try:
+            llm = _get_llm_provider()
+        except Exception as e:
+            return jsonify({"error": f"LLM nao disponivel: {str(e)[:200]}"}), 500
+
+        BATCH_SIZE, total_cataloged, total_errors = 20, 0, 0
+        for i in range(0, len(uncataloged), BATCH_SIZE):
+            batch = uncataloged[i:i + BATCH_SIZE]
+            pe_context_lines = []
+            for pe in batch:
+                fonte_row = db.execute("SELECT arquivo, modulo, tabelas_ref FROM fontes WHERE pontos_entrada LIKE ?", (f'%"{pe}"%',)).fetchone()
+                ctx = f"- {pe}"
+                if fonte_row:
+                    ctx += f" (fonte: {fonte_row[0]}, modulo: {fonte_row[1]}, tabelas: {(fonte_row[2] or '')[:80]})"
+                pe_context_lines.append(ctx)
+
+            prompt = (
+                "Voce e um especialista TOTVS Protheus. Para cada PE, identifique modulo, rotina, onde chamado, objetivo.\n"
+                "Se NAO souber, escreva 'Desconhecido'.\n\nPEs:\n" + "\n".join(pe_context_lines) + "\n\n"
+                'JSON array: [{"nome":"...","modulo":"...","rotina":"...","onde_chamado":"...","objetivo":"..."}]'
+            )
+            try:
+                result_text = _llm_chat_text(llm, [{"role": "user", "content": prompt}])
+                arr = None
+                try:
+                    arr = json.loads(result_text)
+                except json.JSONDecodeError:
+                    m = re.search(r'\[[\s\S]*\]', result_text)
+                    if m:
+                        arr = json.loads(m.group())
+                if arr and isinstance(arr, list):
+                    for item in arr:
+                        nome = item.get("nome", "").strip()
+                        objetivo = item.get("objetivo", "").strip()
+                        if not nome or "desconhecido" in objetivo.lower():
+                            continue
+                        db.execute(
+                            "INSERT OR REPLACE INTO padrao_pes (nome, modulo, rotina, onde_chamado, objetivo, params_entrada, params_saida, link_tdn) "
+                            "VALUES (?, ?, ?, ?, ?, '', '', '')",
+                            (nome, item.get("modulo", ""), item.get("rotina", ""), item.get("onde_chamado", ""), objetivo),
+                        )
+                        total_cataloged += 1
+                    db.commit()
+            except Exception:
+                total_errors += 1
+
+        return jsonify({"status": "ok", "total_uncataloged": len(uncataloged), "catalogados": total_cataloged, "errors": total_errors})
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]}), 500
+    finally:
+        db.close()
+
+
+# ========================================================================
+# FUNCAO DETAIL + FUNCOES POR ARQUIVO
+# ========================================================================
+
+@workspace_bp.route("/workspaces/<slug>/explorer/funcao/<arquivo>/<funcao>", methods=["GET"])
+@require_permission("devworkspace:view")
+def explorer_funcao_detail(slug, arquivo, funcao):
+    """Retorna detalhe de funcao com docs e codigo do chunk."""
+    db = _get_db(slug)
+    try:
+        if not _table_exists(db, "funcao_docs"):
+            return jsonify({"error": "Tabela funcao_docs nao encontrada"}), 404
+        row = db.execute(
+            "SELECT arquivo, funcao, tipo, assinatura, resumo, tabelas_ref, campos_ref, "
+            "chama, chamada_por, retorno, fonte, updated_at "
+            "FROM funcao_docs WHERE arquivo = ? AND funcao = ?", (arquivo, funcao),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": f"Funcao {funcao} nao encontrada em {arquivo}"}), 404
+        codigo = ""
+        try:
+            chunk_row = db.execute("SELECT content FROM fonte_chunks WHERE arquivo = ? AND funcao = ?", (arquivo, funcao)).fetchone()
+            if chunk_row:
+                codigo = chunk_row[0]
+        except Exception:
+            pass
+        return jsonify({
+            "arquivo": row[0], "funcao": row[1], "tipo": row[2] or "",
+            "assinatura": row[3] or "", "resumo": row[4] or "",
+            "tabelas_ref": _safe_json(row[5]), "campos_ref": _safe_json(row[6]),
+            "chama": _safe_json(row[7]), "chamada_por": _safe_json(row[8]),
+            "retorno": row[9] or "", "fonte": row[10] or "auto",
+            "updated_at": row[11] or "", "codigo": codigo,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]}), 500
+    finally:
+        db.close()
+
+
+@workspace_bp.route("/workspaces/<slug>/explorer/funcoes/<arquivo>", methods=["GET"])
+@require_permission("devworkspace:view")
+def explorer_funcoes_by_file(slug, arquivo):
+    """Retorna todas as funcoes de um arquivo com suas docs."""
+    db = _get_db(slug)
+    try:
+        if not _table_exists(db, "funcao_docs"):
+            return jsonify({"arquivo": arquivo, "funcoes": []})
+        rows = db.execute(
+            "SELECT funcao, tipo, assinatura, resumo, tabelas_ref, campos_ref, chama, chamada_por, retorno, fonte, updated_at "
+            "FROM funcao_docs WHERE arquivo = ? ORDER BY rowid", (arquivo,),
+        ).fetchall()
+        funcoes = [{
+            "funcao": r[0], "tipo": r[1] or "", "assinatura": r[2] or "", "resumo": r[3] or "",
+            "tabelas_ref": _safe_json(r[4]), "campos_ref": _safe_json(r[5]),
+            "chama": _safe_json(r[6]), "chamada_por": _safe_json(r[7]),
+            "retorno": r[8] or "", "fonte": r[9] or "auto", "updated_at": r[10] or "",
+        } for r in rows]
+        return jsonify({"arquivo": arquivo, "funcoes": funcoes})
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]}), 500
+    finally:
+        db.close()
+
+
+# ========================================================================
+# ANALISE DE IMPACTO
+# ========================================================================
+
+@workspace_bp.route("/workspaces/<slug>/explorer/analise-impacto", methods=["POST"])
+@require_permission("devworkspace:analyze")
+def explorer_analise_impacto(slug):
+    """Analisa impacto de alteracao em campo de tabela."""
+    data = request.get_json()
+    tabela = (data.get("tabela") or "").upper()
+    campo = (data.get("campo") or "").upper()
+    alteracao = data.get("alteracao", "obrigatorio")
+    if not tabela or not campo:
+        return jsonify({"error": "tabela e campo sao obrigatorios"}), 400
+
+    db = _get_db(slug)
+    try:
+        campo_row = db.execute(
+            "SELECT campo, tipo, tamanho, titulo, validacao, f3, vlduser "
+            "FROM campos WHERE upper(tabela)=? AND upper(campo)=?", (tabela, campo),
+        ).fetchone()
+        if not campo_row:
+            return jsonify({"error": f"Campo '{campo}' nao encontrado na tabela '{tabela}'"}), 404
+
+        validacao_atual = campo_row[4] or ""
+        campo_info = {
+            "tipo": campo_row[1] or "", "tamanho": campo_row[2] or 0,
+            "titulo": campo_row[3] or "", "validacao_atual": validacao_atual,
+            "obrigatorio_atual": bool("vazio" in validacao_atual.lower() or "naovazio" in validacao_atual.lower().replace(" ", "")),
+            "f3": campo_row[5] or "", "vlduser": campo_row[6] or "",
+        }
+
+        fontes_write, fontes_read = {}, {}
+        for fr in db.execute(
+            "SELECT arquivo, modulo, funcoes, write_tables, tabelas_ref, fields_ref, lines_of_code "
+            "FROM fontes WHERE write_tables IS NOT NULL AND write_tables != '' AND write_tables != '[]'"
+        ).fetchall():
+            writes = [w.upper() for w in _safe_json(fr[3])]
+            if tabela in writes:
+                fontes_write[fr[0]] = {"arquivo": fr[0], "modulo": fr[1] or "", "funcoes": len(_safe_json(fr[2])),
+                    "fields_ref": [f.upper() for f in _safe_json(fr[5])], "loc": fr[6] or 0}
+
+        for fr in db.execute(
+            "SELECT arquivo, modulo, funcoes, write_tables, tabelas_ref, fields_ref, lines_of_code "
+            "FROM fontes WHERE tabelas_ref IS NOT NULL AND tabelas_ref != '' AND tabelas_ref != '[]'"
+        ).fetchall():
+            if fr[0] in fontes_write:
+                continue
+            refs = [t.upper() for t in _safe_json(fr[4])]
+            if tabela in refs and tabela not in [w.upper() for w in _safe_json(fr[3])]:
+                fontes_read[fr[0]] = {"arquivo": fr[0], "modulo": fr[1] or "", "funcoes": len(_safe_json(fr[2])),
+                    "fields_ref": [f.upper() for f in _safe_json(fr[5])], "loc": fr[6] or 0}
+
+        integration_fontes = set()
+        if _table_exists(db, "fonte_chunks"):
+            for arq in fontes_write:
+                if db.execute("SELECT 1 FROM fonte_chunks WHERE arquivo=? AND lower(content) LIKE '%msexecauto%' LIMIT 1", (arq,)).fetchone():
+                    integration_fontes.add(arq)
+        for arq in fontes_write:
+            if _INTEGRATION_PATTERNS.search(arq.replace(".prw", "").replace(".prx", "")):
+                integration_fontes.add(arq)
+
+        propositos_lookup = {}
+        if _table_exists(db, "propositos"):
+            propositos_lookup = {pr[0]: pr[1] or "" for pr in db.execute("SELECT chave, proposito FROM propositos").fetchall()}
+
+        fontes_impactados = []
+        for arq, finfo in fontes_write.items():
+            ref_campo = campo in finfo["fields_ref"]
+            eh_int = arq in integration_fontes
+            if eh_int and (ref_campo or alteracao in ("obrigatorio", "novo_campo", "excluir_campo")):
+                risco, motivo = "alto", f"Integracao que grava {tabela}" + (" e referencia " + campo if ref_campo else "")
+            elif ref_campo:
+                risco, motivo = "medio", f"Grava {tabela} e referencia {campo}"
+            else:
+                risco, motivo = "baixo", f"Grava {tabela} mas nao referencia {campo}"
+            fontes_impactados.append({"arquivo": arq, "risco": risco, "motivo": motivo, "modo": "escrita",
+                "referencia_campo": ref_campo, "eh_integracao": eh_int, "proposito": propositos_lookup.get(arq, ""),
+                "funcoes": finfo["funcoes"], "loc": finfo["loc"]})
+
+        for arq, finfo in fontes_read.items():
+            ref_campo = campo in finfo["fields_ref"]
+            fontes_impactados.append({"arquivo": arq, "risco": "info",
+                "motivo": f"Le {tabela}" + (f" e referencia {campo}" if ref_campo else ""),
+                "modo": "leitura", "referencia_campo": ref_campo, "eh_integracao": False,
+                "proposito": propositos_lookup.get(arq, ""), "funcoes": finfo["funcoes"], "loc": finfo["loc"]})
+
+        fontes_impactados.sort(key=lambda f: (_RISK_ORDER.get(f["risco"], 9), f["arquivo"]))
+
+        gatilhos = [{"campo_origem": g[0] or "", "campo_destino": g[1] or "", "regra": g[2] or "",
+            "condicao": g[3] or "", "tipo": g[4] or "", "sequencia": g[5] or ""}
+            for g in db.execute("SELECT campo_origem, campo_destino, regra, condicao, tipo, sequencia FROM gatilhos WHERE upper(campo_origem)=? OR upper(campo_destino)=?", (campo, campo)).fetchall()]
+
+        f_alto = sum(1 for f in fontes_impactados if f["risco"] == "alto")
+        f_medio = sum(1 for f in fontes_impactados if f["risco"] == "medio")
+        risco_geral = "alto" if f_alto > 0 else ("medio" if f_medio > 3 or len(fontes_write) > 10 else "baixo")
+
+        return jsonify({
+            "tabela": tabela, "campo": campo, "alteracao": alteracao,
+            "alteracao_label": _ALTERACAO_LABELS.get(alteracao, alteracao),
+            "campo_info": campo_info, "risco_geral": risco_geral,
+            "resumo": f"{len(fontes_write)} fontes gravam {tabela}, {f_alto} integracoes em risco",
+            "fontes_impactados": fontes_impactados, "gatilhos_relacionados": gatilhos,
+            "estatisticas": {"total_fontes_escrita": len(fontes_write), "total_fontes_leitura": len(fontes_read),
+                "fontes_risco_alto": f_alto, "fontes_risco_medio": f_medio, "gatilhos_campo": len(gatilhos)},
+        })
+    except Exception as e:
+        logger.exception(f"Erro na analise de impacto: {e}")
+        return jsonify({"error": str(e)[:300]}), 500
+    finally:
+        db.close()
+
+
+# ========================================================================
+# EXPORTAR — Markdown report para tabela/fonte
+# ========================================================================
+
+@workspace_bp.route("/workspaces/<slug>/explorer/exportar", methods=["POST"])
+@require_permission("devworkspace:export")
+def explorer_exportar(slug):
+    """Gera documento markdown estruturado para tabela ou fonte."""
+    data = request.get_json()
+    tipo, chave = data.get("tipo"), data.get("chave")
+    if tipo not in ("tabela", "fonte"):
+        return jsonify({"error": "tipo deve ser 'tabela' ou 'fonte'"}), 400
+    if not chave:
+        return jsonify({"error": "chave e obrigatoria"}), 400
+
+    db = _get_db(slug)
+    try:
+        if tipo == "tabela":
+            codigo = chave.upper()
+            row = db.execute("SELECT codigo, nome FROM tabelas WHERE upper(codigo)=?", (codigo,)).fetchone()
+            if not row:
+                return jsonify({"error": f"Tabela '{chave}' nao encontrada"}), 404
+            dc = _load_diff_counts(db).get(codigo, {"adicionados": 0, "alterados": 0})
+            campos = db.execute("SELECT campo, tipo, tamanho, titulo, custom FROM campos WHERE upper(tabela)=? ORDER BY campo", (codigo,)).fetchall()
+
+            md = f"# {row[0]} — {row[1] or ''}\n\n## Resumo\n\n"
+            md += f"Campos adicionados: {dc['adicionados']}, alterados: {dc['alterados']}, total: {len(campos)}\n\n"
+            custom = [c for c in campos if c[4]]
+            if custom:
+                md += f"## Campos Custom ({len(custom)})\n\n| Campo | Tipo | Tam | Titulo |\n|---|---|---|---|\n"
+                for c in custom:
+                    md += f"| {c[0]} | {c[1] or ''} | {c[2] or ''} | {c[3] or ''} |\n"
+            return jsonify({"markdown": md, "filename": f"{codigo}_report.md"})
+        else:
+            row = db.execute("SELECT arquivo, modulo, funcoes, pontos_entrada, tabelas_ref, write_tables, lines_of_code FROM fontes WHERE arquivo=?", (chave,)).fetchone()
+            if not row:
+                return jsonify({"error": f"Fonte '{chave}' nao encontrado"}), 404
+            md = f"# {row[0]} — {row[1] or ''}\n\n## Info\n\nLOC: {row[6] or 0}\nFuncoes: {row[2]}\nPEs: {row[3]}\nTabelas: {row[4]}\n"
+            return jsonify({"markdown": md, "filename": f"{chave.replace('.prw','')}_report.md"})
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]}), 500
+    finally:
+        db.close()
+
+
+# ========================================================================
+# PADRAO CRUZAMENTO
+# ========================================================================
+
+@workspace_bp.route("/workspaces/<slug>/explorer/padrao-cruzamento/<tipo>/<chave>", methods=["GET"])
+@require_permission("devworkspace:view")
+def explorer_padrao_cruzamento(slug, tipo, chave):
+    """Referencia cruzada com dados padrao Protheus."""
+    if tipo not in ("tabela", "fonte"):
+        return jsonify({"error": "tipo deve ser 'tabela' ou 'fonte'"}), 400
+    db = _get_db(slug)
+    try:
+        if tipo == "tabela":
+            codigo = chave.upper()
+            nome_padrao, existe = "", False
+            if _table_exists(db, "padrao_tabelas"):
+                pt = db.execute("SELECT nome FROM padrao_tabelas WHERE upper(codigo)=?", (codigo,)).fetchone()
+                if pt:
+                    existe, nome_padrao = True, pt[0] or ""
+            if not nome_padrao:
+                tr = db.execute("SELECT nome FROM tabelas WHERE upper(codigo)=?", (codigo,)).fetchone()
+                if tr:
+                    nome_padrao = tr[0] or ""
+            campos_padrao = db.execute("SELECT count(*) FROM padrao_campos WHERE upper(tabela)=?", (codigo,)).fetchone()[0] if _table_exists(db, "padrao_campos") else 0
+            campos_cliente = db.execute("SELECT count(*) FROM campos WHERE upper(tabela)=?", (codigo,)).fetchone()[0]
+            dc = _load_diff_counts(db).get(codigo, {"adicionados": 0, "alterados": 0})
+            return jsonify({"tabela": codigo, "nome_padrao": nome_padrao, "existe_no_padrao": existe,
+                "campos_padrao": campos_padrao, "campos_cliente": campos_cliente,
+                "campos_adicionados": dc["adicionados"], "campos_alterados": dc["alterados"]})
+        else:
+            row = db.execute("SELECT arquivo, modulo, pontos_entrada, tabelas_ref, write_tables FROM fontes WHERE arquivo=?", (chave,)).fetchone()
+            if not row:
+                return jsonify({"error": f"Fonte '{chave}' nao encontrado"}), 404
+            pes = _safe_json(row[2])
+            pes_impl = []
+            if _table_exists(db, "padrao_pes"):
+                for pe in pes:
+                    pr = db.execute("SELECT nome, objetivo, modulo, rotina FROM padrao_pes WHERE upper(nome)=?", (pe.upper(),)).fetchone()
+                    if pr:
+                        pes_impl.append({"nome": pr[0], "objetivo": pr[1] or "", "modulo": pr[2] or "", "rotina": pr[3] or ""})
+                    else:
+                        pes_impl.append({"nome": pe, "objetivo": "(nao catalogado)", "rotina": _pe_to_rotina(pe)})
+            return jsonify({"arquivo": row[0], "pes_implementados": pes_impl,
+                "rotinas_afetadas": [_pe_to_rotina(pe) for pe in pes if _pe_to_rotina(pe)]})
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]}), 500
+    finally:
+        db.close()
+
+
+# ========================================================================
+# MENU DETAIL
+# ========================================================================
+
+@workspace_bp.route("/workspaces/<slug>/explorer/menu/<rotina>", methods=["GET"])
+@require_permission("devworkspace:view")
+def explorer_menu_detail(slug, rotina):
+    """Detalhe de rotina/menu com fontes e tabelas."""
+    db = _get_db(slug)
+    try:
+        rotina_upper = rotina.upper().replace("_MENU", "")
+        client_menus, padrao_menus = {}, {}
+        if _table_exists(db, "menus"):
+            r = db.execute("SELECT nome, menu, modulo FROM menus WHERE upper(rotina)=?", (rotina_upper,)).fetchone()
+            if r:
+                client_menus = {"nome": r[0] or "", "menu": r[1] or "", "modulo": r[2] or ""}
+        if _table_exists(db, "padrao_menus"):
+            r = db.execute("SELECT nome, menu, modulo FROM padrao_menus WHERE upper(rotina)=?", (rotina_upper,)).fetchone()
+            if r:
+                padrao_menus = {"nome": r[0] or "", "menu": r[1] or "", "modulo": r[2] or ""}
+
+        nome = padrao_menus.get("nome") or client_menus.get("nome") or ""
+        modulo = _normalize_modulo_ext(padrao_menus.get("modulo") or client_menus.get("modulo") or "OUTROS")
+        origem = "ambos" if (client_menus and padrao_menus.get("nome")) else ("custom" if client_menus else "padrao")
+
+        fontes_rel = []
+        for arq_row in db.execute("SELECT arquivo, funcoes, pontos_entrada, lines_of_code FROM fontes").fetchall():
+            pes = _safe_json(arq_row[2])
+            user_funcs = _safe_json(arq_row[1]) + pes
+            if any(f.upper() == rotina_upper or _pe_to_rotina(f.upper()) == rotina_upper for f in user_funcs):
+                fontes_rel.append({"arquivo": arq_row[0], "funcoes": len(user_funcs), "loc": arq_row[3] or 0, "pes": pes})
+
+        return jsonify({"rotina": rotina_upper, "nome": nome, "modulo": modulo, "origem": origem,
+            "menu_padrao": padrao_menus.get("menu", ""), "menu_cliente": client_menus.get("menu", ""),
+            "fontes_relacionados": fontes_rel})
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]}), 500
+    finally:
+        db.close()
+
+
+# ========================================================================
+# JOBS + SCHEDULES
+# ========================================================================
+
+@workspace_bp.route("/workspaces/<slug>/explorer/jobs", methods=["GET"])
+@require_permission("devworkspace:view")
+def explorer_jobs(slug):
+    """Jobs agrupados por arquivo_ini."""
+    db = _get_db(slug)
+    try:
+        if not _table_exists(db, "jobs"):
+            return jsonify({"total": 0, "groups": []})
+        rows = db.execute("SELECT arquivo_ini, sessao, rotina, refresh_rate, parametros FROM jobs ORDER BY arquivo_ini, sessao").fetchall()
+        groups = {}
+        for arquivo_ini, sessao, rotina, refresh_rate, parametros in rows:
+            groups.setdefault(arquivo_ini, []).append({
+                "sessao": sessao, "rotina": rotina, "refresh_rate": refresh_rate,
+                "refresh_label": f"{refresh_rate}s" if refresh_rate else "N/A",
+                "parametros": parametros if parametros != "N/A" else "",
+            })
+        return jsonify({"total": len(rows), "groups": [{"arquivo_ini": k, "sessions": v, "count": len(v)} for k, v in sorted(groups.items())]})
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]}), 500
+    finally:
+        db.close()
+
+
+@workspace_bp.route("/workspaces/<slug>/explorer/schedules", methods=["GET"])
+@require_permission("devworkspace:view")
+def explorer_schedules(slug):
+    """Schedules agrupados por status."""
+    db = _get_db(slug)
+    try:
+        if not _table_exists(db, "schedules"):
+            return jsonify({"total": 0, "groups": []})
+        rows = db.execute(
+            "SELECT codigo, rotina, empresa_filial, environment, modulo, status, "
+            "tipo_recorrencia, detalhe_recorrencia, execucoes_dia, intervalo, "
+            "hora_inicio, data_criacao, ultima_execucao, ultima_hora FROM schedules ORDER BY status, rotina"
+        ).fetchall()
+        by_status = {}
+        for r in rows:
+            status = r[5]
+            by_status.setdefault(status, []).append({
+                "codigo": r[0], "rotina": r[1], "empresa_filial": r[2], "environment": r[3],
+                "modulo": r[4], "status": status, "tipo_recorrencia": r[6],
+                "execucoes_dia": r[8], "intervalo": r[9], "hora_inicio": r[10],
+                "data_criacao": r[11], "ultima_execucao": r[12], "ultima_hora": r[13],
+            })
+        result = []
+        for k in ["Ativo", "Inativo"]:
+            if k in by_status:
+                result.append({"status": k, "items": by_status.pop(k), "count": len(by_status.get(k, []))})
+        for k, v in by_status.items():
+            result.append({"status": k, "items": v, "count": len(v)})
+        # Fix count after pop
+        for g in result:
+            g["count"] = len(g["items"])
+        return jsonify({"total": len(rows), "groups": result})
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]}), 500
+    finally:
+        db.close()
+
+
+# ========================================================================
+# GRAFO DE DEPENDENCIAS
+# ========================================================================
+
+@workspace_bp.route("/workspaces/<slug>/explorer/fonte/<arquivo>/grafo", methods=["GET"])
+@require_permission("devworkspace:view")
+def explorer_fonte_grafo(slug, arquivo):
+    """Grafo de vinculos de um fonte."""
+    db = _get_db(slug)
+    try:
+        if not db.execute("SELECT arquivo FROM fontes WHERE arquivo = ?", (arquivo,)).fetchone():
+            return jsonify({"error": f"Fonte '{arquivo}' nao encontrado"}), 404
+        try:
+            from app.services.workspace.graph_traversal import traverse_graph
+        except ImportError:
+            return jsonify({"error": "graph_traversal nao disponivel"}), 500
+        depth = request.args.get("depth", 2, type=int)
+        ctx = traverse_graph(db, arquivo, "fonte", max_depth=min(depth, 3))
+        return jsonify({
+            "arquivo": arquivo,
+            "nodes": ctx.get("nodes", []), "edges": ctx.get("edges", []),
+            "by_type": {k: list(v) if isinstance(v, set) else v for k, v in ctx.get("by_type", {}).items()},
+            "summary": ctx.get("summary", {}),
+            "stats": {"nodes": len(ctx.get("nodes", [])), "edges": len(ctx.get("edges", []))},
+        })
+    except Exception as e:
+        logger.exception(f"Erro ao gerar grafo: {e}")
+        return jsonify({"error": str(e)[:300]}), 500
+    finally:
+        db.close()
+
+
+# ========================================================================
+# ANALISE TECNICA (GET cache + POST gerar com LLM)
+# ========================================================================
+
+@workspace_bp.route("/workspaces/<slug>/explorer/fonte/<arquivo>/analise-tecnica", methods=["GET"])
+@require_permission("devworkspace:view")
+def explorer_get_analise_tecnica(slug, arquivo):
+    """Retorna analise tecnica cacheada."""
+    db = _get_db(slug)
+    try:
+        if not _table_exists(db, "fonte_analise_tecnica"):
+            return jsonify({"arquivo": arquivo, "analise_markdown": None, "analise_json": None, "processos_vinculados": []})
+        row = db.execute("SELECT analise_markdown, analise_json, processos_vinculados, updated_at FROM fonte_analise_tecnica WHERE arquivo = ?", (arquivo,)).fetchone()
+        if not row:
+            return jsonify({"arquivo": arquivo, "analise_markdown": None, "analise_json": None, "processos_vinculados": []})
+        return jsonify({"arquivo": arquivo, "analise_markdown": row[0],
+            "analise_json": json.loads(row[1]) if row[1] else {},
+            "processos_vinculados": json.loads(row[2]) if row[2] else [], "updated_at": row[3]})
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]}), 500
+    finally:
+        db.close()
+
+
+@workspace_bp.route("/workspaces/<slug>/explorer/fonte/<arquivo>/analise-tecnica", methods=["POST"])
+@require_permission("devworkspace:analyze")
+def explorer_gerar_analise_tecnica(slug, arquivo):
+    """Gera analise tecnica com LLM."""
+    db = _get_db(slug)
+    force = request.args.get("force", "false").lower() == "true"
+    try:
+        if not force and _table_exists(db, "fonte_analise_tecnica"):
+            cached = db.execute("SELECT analise_markdown, analise_json, processos_vinculados, updated_at FROM fonte_analise_tecnica WHERE arquivo = ?", (arquivo,)).fetchone()
+            if cached and cached[0]:
+                return jsonify({"arquivo": arquivo, "analise_markdown": cached[0],
+                    "analise_json": json.loads(cached[1]) if cached[1] else {},
+                    "processos_vinculados": json.loads(cached[2]) if cached[2] else [], "updated_at": cached[3]})
+
+        fonte_row = db.execute("SELECT arquivo, modulo, lines_of_code FROM fontes WHERE arquivo = ?", (arquivo,)).fetchone()
+        if not fonte_row:
+            return jsonify({"error": f"Fonte '{arquivo}' nao encontrado"}), 404
+
+        graph_text = ""
+        try:
+            from app.services.workspace.graph_traversal import traverse_graph, format_context_for_llm
+            graph_text = format_context_for_llm(traverse_graph(db, arquivo, "fonte", max_depth=2))
+        except Exception:
+            pass
+
+        func_rows = db.execute("SELECT funcao, tipo, resumo FROM funcao_docs WHERE arquivo = ?", (arquivo,)).fetchall() if _table_exists(db, "funcao_docs") else []
+        func_sum = "\n".join(f"- {r[0]} ({r[1]}): {r[2]}" for r in func_rows if r[2]) or "(sem resumos)"
+
+        try:
+            llm = _get_llm_provider()
+        except Exception as e:
+            return jsonify({"error": f"LLM nao disponivel: {str(e)[:200]}"}), 500
+
+        text = _llm_chat_text(llm, [{"role": "user", "content":
+            f'Analise tecnicamente "{arquivo}" (Modulo: {fonte_row[1]}, LOC: {fonte_row[2]}).\n\n'
+            f'{graph_text}\n\nFuncoes:\n{func_sum}\n\n'
+            'Gere: 1) Markdown com ## Objetivo, ## Funcoes, ## Tabelas, ## Pontos de Atencao, ## Resumo\n'
+            '2) ```json {"complexidade":"alta|media|baixa","tipo_programa":"..."}```'}])
+
+        json_match = re.search(r"```json\s*([\s\S]*?)```", text)
+        analise_json_str = "{}"
+        if json_match:
+            try:
+                analise_json_str = json.dumps(json.loads(json_match.group(1).strip()), ensure_ascii=False)
+            except json.JSONDecodeError:
+                pass
+
+        analise_md = text
+        js = re.search(r"```json", analise_md)
+        if js:
+            analise_md = analise_md[:js.start()].strip()
+
+        from datetime import datetime
+        now = datetime.utcnow().isoformat()
+        db.execute("""CREATE TABLE IF NOT EXISTS fonte_analise_tecnica (
+            arquivo TEXT PRIMARY KEY, analise_markdown TEXT, analise_json TEXT,
+            processos_vinculados TEXT, updated_at TEXT)""")
+        db.execute("INSERT OR REPLACE INTO fonte_analise_tecnica VALUES (?, ?, ?, '[]', ?)",
+            (arquivo, analise_md, analise_json_str, now))
+        db.commit()
+        return jsonify({"arquivo": arquivo, "analise_markdown": analise_md,
+            "analise_json": json.loads(analise_json_str), "processos_vinculados": [], "updated_at": now})
+    except Exception as e:
+        logger.exception(f"Erro ao gerar analise tecnica: {e}")
+        return jsonify({"error": str(e)[:300]}), 500
+    finally:
+        db.close()
+
+
+# ========================================================================
+# PROTHEUSDOC — Preview e injecao
+# ========================================================================
+
+@workspace_bp.route("/workspaces/<slug>/explorer/fonte/<arquivo>/protheusdoc/preview", methods=["GET"])
+@require_permission("devworkspace:view")
+def explorer_protheusdoc_preview(slug, arquivo):
+    """Preview dos blocos ProtheusDoc."""
+    db = _get_db(slug)
+    try:
+        from app.services.workspace.protheusdoc_injector import process_fonte, read_source
+        fonte_row = db.execute("SELECT caminho FROM fontes WHERE arquivo = ?", (arquivo,)).fetchone()
+        if not fonte_row or not fonte_row[0]:
+            return jsonify({"error": f"Caminho do fonte '{arquivo}' nao encontrado"}), 404
+        src_path = Path(fonte_row[0])
+        if not src_path.exists():
+            return jsonify({"error": f"Arquivo nao encontrado: {src_path}"}), 404
+        _, encoding = read_source(src_path)
+        func_resumos, func_details = {}, {}
+        if _table_exists(db, "funcao_docs"):
+            for r in db.execute("SELECT funcao, resumo, tipo, tabelas_ref FROM funcao_docs WHERE arquivo=?", (arquivo,)).fetchall():
+                func_resumos[r[0]] = r[1] or ""
+                func_details[r[0]] = {"tipo": r[2] or "Function", "tabelas_ref": _safe_json(r[3])}
+        result = process_fonte(src_path, func_resumos, func_details, dry_run=True)
+        result["encoding"] = encoding
+        return jsonify(result)
+    except ImportError:
+        return jsonify({"error": "protheusdoc_injector nao disponivel"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]}), 500
+    finally:
+        db.close()
+
+
+@workspace_bp.route("/workspaces/<slug>/explorer/fonte/<arquivo>/protheusdoc", methods=["POST"])
+@require_permission("devworkspace:analyze")
+def explorer_protheusdoc_inject(slug, arquivo):
+    """Injeta blocos ProtheusDoc no fonte."""
+    db = _get_db(slug)
+    try:
+        from app.services.workspace.protheusdoc_injector import process_fonte, read_source
+        fonte_row = db.execute("SELECT caminho FROM fontes WHERE arquivo = ?", (arquivo,)).fetchone()
+        if not fonte_row or not fonte_row[0]:
+            return jsonify({"error": f"Caminho do fonte '{arquivo}' nao encontrado"}), 404
+        src_path = Path(fonte_row[0])
+        if not src_path.exists():
+            return jsonify({"error": f"Arquivo nao encontrado: {src_path}"}), 404
+        _, encoding = read_source(src_path)
+        try:
+            db.execute("ALTER TABLE fontes ADD COLUMN encoding TEXT")
+        except Exception:
+            pass
+        db.execute("UPDATE fontes SET encoding=? WHERE arquivo=?", (encoding, arquivo))
+        db.commit()
+        func_resumos, func_details = {}, {}
+        if _table_exists(db, "funcao_docs"):
+            for r in db.execute("SELECT funcao, resumo, tipo, tabelas_ref FROM funcao_docs WHERE arquivo=?", (arquivo,)).fetchall():
+                func_resumos[r[0]] = r[1] or ""
+                func_details[r[0]] = {"tipo": r[2] or "Function", "tabelas_ref": _safe_json(r[3])}
+        result = process_fonte(src_path, func_resumos, func_details, backup=True, dry_run=False)
+        result["encoding"] = encoding
+        return jsonify(result)
+    except ImportError:
+        return jsonify({"error": "protheusdoc_injector nao disponivel"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]}), 500
+    finally:
+        db.close()
+
+
+# ========================================================================
+# ENCODING — Deteccao e conversao
+# ========================================================================
+
+@workspace_bp.route("/workspaces/<slug>/explorer/fonte/<arquivo>/detect-encoding", methods=["POST"])
+@require_permission("devworkspace:analyze")
+def explorer_detect_encoding(slug, arquivo):
+    """Detecta e salva encoding de um fonte."""
+    db = _get_db(slug)
+    try:
+        from app.services.workspace.protheusdoc_injector import read_source
+        fonte_row = db.execute("SELECT caminho FROM fontes WHERE arquivo = ?", (arquivo,)).fetchone()
+        if not fonte_row or not fonte_row[0]:
+            return jsonify({"error": "Caminho nao encontrado"}), 404
+        src_path = Path(fonte_row[0])
+        if not src_path.exists():
+            return jsonify({"error": "Arquivo nao encontrado"}), 404
+        _, encoding = read_source(src_path)
+        try:
+            db.execute("ALTER TABLE fontes ADD COLUMN encoding TEXT")
+        except Exception:
+            pass
+        db.execute("UPDATE fontes SET encoding=? WHERE arquivo=?", (encoding, arquivo))
+        db.commit()
+        return jsonify({"arquivo": arquivo, "encoding": encoding})
+    except ImportError:
+        return jsonify({"error": "protheusdoc_injector nao disponivel"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]}), 500
+    finally:
+        db.close()
+
+
+@workspace_bp.route("/workspaces/<slug>/explorer/fonte/<arquivo>/convert-cp1252", methods=["POST"])
+@require_permission("devworkspace:edit")
+def explorer_convert_to_cp1252(slug, arquivo):
+    """Converte fonte para cp1252."""
+    db = _get_db(slug)
+    try:
+        from app.services.workspace.protheusdoc_injector import convert_to_cp1252 as do_convert
+        fonte_row = db.execute("SELECT caminho FROM fontes WHERE arquivo = ?", (arquivo,)).fetchone()
+        if not fonte_row or not fonte_row[0]:
+            return jsonify({"error": "Caminho nao encontrado"}), 404
+        src_path = Path(fonte_row[0])
+        if not src_path.exists():
+            return jsonify({"error": "Arquivo nao encontrado"}), 404
+        result = do_convert(src_path, backup=True)
+        if result.get("converted"):
+            try:
+                db.execute("ALTER TABLE fontes ADD COLUMN encoding TEXT")
+            except Exception:
+                pass
+            db.execute("UPDATE fontes SET encoding='cp1252' WHERE arquivo=?", (arquivo,))
+            db.commit()
+        return jsonify(result)
+    except ImportError:
+        return jsonify({"error": "protheusdoc_injector nao disponivel"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]}), 500
+    finally:
+        db.close()
+
+
+@workspace_bp.route("/workspaces/<slug>/explorer/fontes/detect-encodings", methods=["POST"])
+@require_permission("devworkspace:analyze")
+def explorer_detect_all_encodings(slug):
+    """Detecta encoding de TODOS os fontes."""
+    db = _get_db(slug)
+    try:
+        from app.services.workspace.protheusdoc_injector import read_source
+        try:
+            db.execute("ALTER TABLE fontes ADD COLUMN encoding TEXT")
+        except Exception:
+            pass
+        rows = db.execute("SELECT arquivo, caminho FROM fontes").fetchall()
+        stats = {"total": len(rows), "cp1252": 0, "utf-8": 0, "other": 0, "not_found": 0}
+        for r in rows:
+            if not r[1] or not Path(r[1]).exists():
+                stats["not_found"] += 1
+                continue
+            _, enc = read_source(Path(r[1]))
+            db.execute("UPDATE fontes SET encoding=? WHERE arquivo=?", (enc, r[0]))
+            stats["cp1252" if enc == "cp1252" else ("utf-8" if enc == "utf-8" else "other")] += 1
+        db.commit()
+        return jsonify(stats)
+    except ImportError:
+        return jsonify({"error": "protheusdoc_injector nao disponivel"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]}), 500
+    finally:
+        db.close()
+
+
+@workspace_bp.route("/workspaces/<slug>/explorer/fontes/convert-all-cp1252", methods=["POST"])
+@require_permission("devworkspace:edit")
+def explorer_convert_all_cp1252(slug):
+    """Converte TODOS os fontes nao-cp1252 para cp1252."""
+    db = _get_db(slug)
+    try:
+        from app.services.workspace.protheusdoc_injector import read_source, convert_to_cp1252 as do_convert
+        try:
+            db.execute("ALTER TABLE fontes ADD COLUMN encoding TEXT")
+        except Exception:
+            pass
+        rows = db.execute("SELECT arquivo, caminho FROM fontes").fetchall()
+        results = {"total": len(rows), "already_cp1252": 0, "converted": 0, "failed": 0, "not_found": 0}
+        for r in rows:
+            if not r[1] or not Path(r[1]).exists():
+                results["not_found"] += 1
+                continue
+            _, enc = read_source(Path(r[1]))
+            if enc == "cp1252":
+                results["already_cp1252"] += 1
+                db.execute("UPDATE fontes SET encoding='cp1252' WHERE arquivo=?", (r[0],))
+            else:
+                res = do_convert(Path(r[1]), backup=True)
+                if res.get("converted"):
+                    results["converted"] += 1
+                    db.execute("UPDATE fontes SET encoding='cp1252' WHERE arquivo=?", (r[0],))
+                else:
+                    results["failed"] += 1
+        db.commit()
+        return jsonify(results)
+    except ImportError:
+        return jsonify({"error": "protheusdoc_injector nao disponivel"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]}), 500
+    finally:
+        db.close()
+
+
+@workspace_bp.route("/workspaces/<slug>/explorer/fontes/repair-encoding", methods=["POST"])
+@require_permission("devworkspace:edit")
+def explorer_repair_encoding(slug):
+    """Repara fontes com encoding corrompido."""
+    db = _get_db(slug)
+    try:
+        from app.services.workspace.protheusdoc_injector import repair_corrupted_encoding
+        rows = db.execute("SELECT arquivo, caminho FROM fontes").fetchall()
+        results = {"total": len(rows), "repaired": 0, "skipped": 0, "details": []}
+        for r in rows:
+            if not r[1] or not Path(r[1]).exists():
+                continue
+            if b'\xef\xbf\xbd' not in Path(r[1]).read_bytes():
+                results["skipped"] += 1
+                continue
+            res = repair_corrupted_encoding(Path(r[1]), backup=True)
+            if res.get("repaired"):
+                results["repaired"] += 1
+                results["details"].append({"arquivo": r[0], "chars_fixed": res.get("chars_fixed", 0)})
+            else:
+                results["skipped"] += 1
+        return jsonify(results)
+    except ImportError:
+        return jsonify({"error": "protheusdoc_injector nao disponivel"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]}), 500
+    finally:
+        db.close()
+
+
+# ========================================================================
+# DOCUMENTO DO FONTE
+# ========================================================================
+
+@workspace_bp.route("/workspaces/<slug>/explorer/fonte/<arquivo>/documento", methods=["GET"])
+@require_permission("devworkspace:view")
+def explorer_fonte_documento(slug, arquivo):
+    """Gera ou retorna documentacao de um fonte."""
+    ws_path = _get_workspace_path(slug)
+    knowledge_dir = ws_path / "knowledge" / "fontes"
+    knowledge_dir.mkdir(parents=True, exist_ok=True)
+    md_path = knowledge_dir / f"{arquivo}.md"
+    if md_path.exists():
+        return jsonify({"arquivo": arquivo, "content": md_path.read_text(encoding="utf-8"), "cached": True})
+
+    db = _get_db(slug)
+    try:
+        fonte_row = db.execute(
+            "SELECT arquivo, modulo, funcoes, pontos_entrada, tabelas_ref, write_tables, lines_of_code "
+            "FROM fontes WHERE arquivo = ?", (arquivo,),
+        ).fetchone()
+        if not fonte_row:
+            return jsonify({"error": f"Fonte '{arquivo}' nao encontrado"}), 404
+
+        context = f"Arquivo: {fonte_row[0]}\nModulo: {fonte_row[1]}\nFuncoes: {fonte_row[2]}\nPEs: {fonte_row[3]}\nTabelas: {fonte_row[4]}\nLOC: {fonte_row[6]}"
+
+        try:
+            llm = _get_llm_provider()
+        except Exception as e:
+            return jsonify({"error": f"LLM nao disponivel: {str(e)[:200]}"}), 500
+
+        content = _llm_chat_text(llm, [{"role": "user", "content":
+            f"Gere documentacao Markdown para o fonte Protheus:\n\n{context}\n\n"
+            "Secoes: ## Overview, ## Funcoes, ## Tabelas, ## PEs, ## Observacoes. Seja conciso."}])
+        md_path.write_text(content, encoding="utf-8")
+        return jsonify({"arquivo": arquivo, "content": content, "cached": False})
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]}), 500
+    finally:
+        db.close()
+
+
+@workspace_bp.route("/workspaces/<slug>/explorer/fonte/<arquivo>/documento", methods=["DELETE"])
+@require_permission("devworkspace:delete")
+def explorer_fonte_documento_delete(slug, arquivo):
+    """Remove documento cacheado."""
+    ws_path = _get_workspace_path(slug)
+    md_path = ws_path / "knowledge" / "fontes" / f"{arquivo}.md"
+    if md_path.exists():
+        md_path.unlink()
+        return jsonify({"deleted": True})
+    return jsonify({"deleted": False})

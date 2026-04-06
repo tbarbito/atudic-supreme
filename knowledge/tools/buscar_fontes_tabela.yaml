@@ -1,0 +1,11 @@
+id: buscar_fontes_tabela
+name: "Buscar Fontes por Tabela"
+description: "Fontes que leem ou gravam em uma tabela"
+source: "backend/services/analista_tools.py:402"
+when_to_use:
+  - "quais fontes usam essa tabela"
+inputs:
+  tabela: "codigo da tabela"
+  modo: "escrita | leitura | todos (default: escrita)"
+outputs:
+  - "lista de {arquivo, modulo, write_tables, pontos_entrada, loc}"

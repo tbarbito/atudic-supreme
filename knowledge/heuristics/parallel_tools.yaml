@@ -1,0 +1,39 @@
+id: parallel_tools
+name: "Execucao Paralela de Tools Read-Only"
+description: "Tools que so leem dados rodam em paralelo com asyncio.gather (max 5 simultaneas)"
+source: "backend/services/investigation_loop.py"
+
+classification:
+  read_only:
+    - quem_grava
+    - info_tabela
+    - operacoes_escrita
+    - rastrear_condicao
+    - ver_parametro
+    - ver_fonte_cliente
+    - buscar_texto_fonte
+    - buscar_pes_cliente
+    - mapear_processo
+    - buscar_menus
+    - buscar_propositos
+    - analise_impacto
+    - analise_aumento_campo
+    - processos_cliente
+    - jobs_schedules
+    - buscar_fontes_tabela
+    - fonte_padrao
+    - pes_disponiveis
+    - codigo_pe
+    - buscar_funcao_padrao
+  llm_tools:
+    - analisar_fonte
+    - gerar_codigo
+
+behavior:
+  - "Steps consecutivos read-only sao agrupados e executados com asyncio.gather"
+  - "Max 5 tools simultaneas (Semaphore)"
+  - "Steps que usam LLM rodam sequenciais"
+  - "Phase 2 (reactive) sempre sequencial (LLM-driven)"
+  - "Timing info em cada tool result"
+
+impacto: "Investigacoes 2-3x mais rapidas quando plano tem multiplas tools read-only"

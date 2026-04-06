@@ -1,0 +1,24 @@
+id: debug_gatilho
+name: "Debug Gatilho"
+description: "Gatilho nao disparando ou com problema"
+modo: ajuste
+action_type: gatilho
+trigger:
+  keywords: ["gatilho", "trigger", "sx7", "nao dispara", "gatilho nao funciona"]
+steps:
+  - tool: info_tabela
+    reason: "Ver gatilhos cadastrados na tabela"
+  - tool: ver_fonte_cliente
+    reason: "Se gatilho chama funcao, ler o fonte"
+  - tool: buscar_texto_fonte
+    reason: "Buscar a funcao do gatilho no codigo"
+  - tool: fonte_padrao
+    reason: "Comparar com comportamento padrao"
+notes: |
+  Passos para debug de gatilho:
+  1. Verificar se o gatilho esta cadastrado (info_tabela mostra gatilhos)
+  2. Verificar sequencia — gatilhos executam em ordem
+  3. Verificar condicao do gatilho — pode estar impedindo disparo
+  4. Se chama funcao (tipo=UDF), ler o fonte da funcao
+  5. Verificar se outro gatilho ou PE esta sobrescrevendo o valor
+cross_reference_padrao: true

@@ -241,6 +241,8 @@ def obfuscate_python():
             (os.path.join(PROJECT_ROOT, 'ADVPL'), os.path.join(obfuscated_dir, 'ADVPL')),
             # Workspace — bancos padrao Protheus (fontes + dicionario)
             (os.path.join(PROJECT_ROOT, 'db'), os.path.join(obfuscated_dir, 'db')),
+            # Workspace — knowledge base (heuristics, maps, prompts, recipes, tools, tests)
+            (os.path.join(PROJECT_ROOT, 'knowledge'), os.path.join(obfuscated_dir, 'knowledge')),
         ]
 
         for src, dest in dirs_to_copy:
@@ -456,6 +458,14 @@ def create_executable():
         # Workspace — config (pydantic) e vectorstore (chromadb)
         'pydantic', 'pydantic.fields',
         'chromadb',
+        # ExtraiRPO merge deps
+        'litellm', 'litellm.llms', 'litellm.utils', 'litellm.main',
+        'numpy', 'numpy.core', 'numpy.core.multiarray',
+        'openpyxl', 'openpyxl.workbook', 'openpyxl.worksheet', 'openpyxl.utils',
+        'yaml', 'yaml.loader', 'yaml.dumper',
+        # WSGI server Linux (gunicorn+gevent para Docker/SSE)
+        'gunicorn', 'gunicorn.app', 'gunicorn.app.wsgiapp', 'gunicorn.workers',
+        'gevent', 'gevent.monkey', 'gevent.pywsgi',
     ])
 
     app_dir = os.path.join(PROJECT_ROOT, 'app')
@@ -510,6 +520,7 @@ a = Analysis(
         ('{obfuscated_rel}/templates/processos', 'templates/processos'),
         ('{obfuscated_rel}/ADVPL', 'ADVPL'),
         ('{obfuscated_rel}/db', 'db'),
+        ('{obfuscated_rel}/knowledge', 'knowledge'),
     ],
     hiddenimports=[
         {hidden_imports_str}

@@ -1,0 +1,19 @@
+id: verificacao
+name: "Quando Verificar (Anti-Alucinacao)"
+description: "Regras para decidir se roda verificacao draft+verify+reflect"
+source: "backend/services/verification.py:195"
+
+rules:
+  - modo: ajuste
+    verificar: SEMPRE
+    motivo: "Precisao e critica para debugging"
+
+  - modo: melhoria
+    verificar: "quando 3+ resultados de tools OU contexto tem MsExecAuto"
+    motivo: "Risco critico detectado precisa verificacao"
+
+  - modo: duvida
+    verificar: "quando confianca < 0.7"
+    motivo: "Contexto incerto"
+
+custo: "3 chamadas LLM extras (draft + verify + reflect) — modelo gen (barato)"

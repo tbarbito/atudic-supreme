@@ -1,0 +1,21 @@
+id: erro_rotina
+name: "Erro em Rotina"
+description: "Erro, crash ou travamento em rotina"
+modo: ajuste
+action_type: erro
+trigger:
+  keywords: ["erro", "error", "fatal", "crash", "trava", "travando", "quebra", "nao abre", "nao funciona"]
+steps:
+  - tool: buscar_menus
+    reason: "Identificar a rotina pelo nome/tela"
+  - tool: ver_fonte_cliente
+    reason: "Ler o codigo que gera o erro"
+  - tool: rastrear_condicao
+    reason: "Rastrear a condicao que causa o erro"
+  - tool: buscar_pes_cliente
+    reason: "Verificar se ha PE customizado interferindo"
+notes: |
+  Primeiro localizar a rotina, depois ler o codigo.
+  PEs customizados sao causa frequente de erro — sempre verificar.
+  Se o erro e em rotina padrao, comparar com fonte_padrao.
+cross_reference_padrao: true

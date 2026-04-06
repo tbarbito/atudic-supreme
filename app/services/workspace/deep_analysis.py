@@ -104,8 +104,13 @@ def pass0_discovery(db, tabelas: list[str], max_depth: int = 2) -> dict:
     # Convert sets to sorted lists
     result_by_type = {k: sorted(v) for k, v in by_type.items()}
 
+    # Enrich tables with usage data (record_counts)
+    from app.services.workspace.analista_tools import get_uso_tabelas_bulk
+    all_tables = result_by_type.get("tabelas", [])
+    uso_tabelas = get_uso_tabelas_bulk(db, all_tables) if all_tables else {}
+
     # Build graph summary for LLM
-    graph_summary = _build_graph_summary(tabelas, result_by_type, unique_edges)
+    graph_summary = _build_graph_summary(tabelas, result_by_type, unique_edges, uso_tabelas)
 
     # Discover entry points (menus, jobs, schedules)
     entry_points = discover_entry_points(conn, tabelas)
@@ -120,11 +125,28 @@ def pass0_discovery(db, tabelas: list[str], max_depth: int = 2) -> dict:
     }
 
 
-def _build_graph_summary(tabelas: list[str], by_type: dict, edges: list) -> str:
+def _build_graph_summary(tabelas: list[str], by_type: dict, edges: list, uso_tabelas: dict = None) -> str:
     """Build a concise graph summary for LLM consumption."""
     lines = [f"GRAFO DE DEPENDENCIAS — Tabelas raiz: {', '.join(tabelas)}"]
     lines.append(f"Total: {sum(len(v) for v in by_type.values())} nós, {len(edges)} arestas")
     lines.append("")
+
+    # Volumetria real das tabelas (record_counts)
+    if uso_tabelas:
+        ativas = [t for t, u in uso_tabelas.items() if u.get("uso") == "ativo"]
+        residuais = [t for t, u in uso_tabelas.items() if u.get("uso") == "residual"]
+        inexistentes = [t for t, u in uso_tabelas.items() if u.get("uso") == "inexistente"]
+        if ativas:
+            lines.append("Tabelas com USO ATIVO no cliente:")
+            for t in sorted(ativas):
+                lines.append(f"  {t}: {uso_tabelas[t].get('descricao_uso', '')}")
+        if residuais:
+            lines.append("Tabelas com USO RESIDUAL (provável que NÃO usam):")
+            for t in sorted(residuais):
+                lines.append(f"  {t}: {uso_tabelas[t].get('descricao_uso', '')}")
+        if inexistentes:
+            lines.append(f"Tabelas NÃO IMPLANTADAS ({len(inexistentes)}): {', '.join(sorted(inexistentes))}")
+        lines.append("")
 
     # Edge type distribution
     edge_counts = {}
@@ -666,10 +688,17 @@ async def pass2_reduce(llm, nome: str, descricao: str, discovery: dict,
     # Format triggers
     triggers_text = _format_triggers(discovery)
 
+    # Decomposer context (if available)
+    decomposer_text = discovery.get("decomposer_context", "")
+    if decomposer_text:
+        decomposer_section = f"\n\n## CONTEXTO DO DECOMPOSER (Rotinas, PEs e Customizações)\n{decomposer_text[:6000]}\n"
+    else:
+        decomposer_section = ""
+
     prompt = REDUCE_PROMPT.format(
         nome=nome,
         descricao=descricao,
-        graph_summary=discovery["graph_summary"],
+        graph_summary=discovery["graph_summary"] + decomposer_section,
         entry_points_text="\n".join(ep_lines) or "Nenhum ponto de entrada identificado.",
         source_summaries="\n".join(summary_lines),
         critical_analyses="\n".join(critical_lines),
@@ -683,7 +712,8 @@ async def pass2_reduce(llm, nome: str, descricao: str, discovery: dict,
             [{"role": "user", "content": prompt}],
             temperature=0.2,
             use_gen=False,  # Strong model for synthesis
-            timeout=120,
+            timeout=180,
+            max_tokens=8192,  # Evitar truncamento do JSON
         )
         return _parse_json_response(response)
     except Exception as e:
@@ -822,14 +852,143 @@ def _parse_json_response(response: str) -> dict:
     return {"raw_response": text}
 
 
+def _try_parse_raw_analysis(raw: str) -> dict | None:
+    """Tenta parsear JSON truncado de uma análise raw.
+
+    O LLM às vezes retorna JSON truncado (cortado no meio).
+    Tenta reparar fechando estruturas abertas.
+    """
+    text = raw.strip()
+    if text.startswith("```"):
+        text = re.sub(r'^```(?:json)?\s*', '', text)
+        text = re.sub(r'\s*```\s*$', '', text)
+
+    # Tenta direto
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Tenta reparar JSON truncado: fechar arrays e objetos abertos
+    # Contar chars de abertura/fechamento
+    opens = text.count('{') + text.count('[')
+    closes = text.count('}') + text.count(']')
+    if opens > closes:
+        # Adicionar fechamentos faltando
+        suffix = ""
+        stack = []
+        for ch in text:
+            if ch == '{':
+                stack.append('}')
+            elif ch == '[':
+                stack.append(']')
+            elif ch in ('}', ']') and stack:
+                stack.pop()
+        # Fechar strings abertas
+        # Encontrar última vírgula ou valor e truncar ali
+        # Abordagem simples: cortar no último "}" ou "]" completo e fechar o resto
+        last_close = max(text.rfind('}'), text.rfind(']'))
+        if last_close > len(text) // 2:
+            truncated = text[:last_close + 1]
+            # Adicionar fechamentos pendentes
+            suffix = ''.join(reversed(stack[:len(stack)]))
+            try:
+                return json.loads(truncated + suffix)
+            except json.JSONDecodeError:
+                pass
+
+    return None
+
+
+def _passos_to_mermaid(analysis: dict, nome: str = "") -> str:
+    """Gera diagrama Mermaid flowchart TD a partir dos passos estruturados."""
+    passos = analysis.get("passos", [])
+    if not passos:
+        return ""
+
+    lines = ["flowchart TD"]
+
+    # Estilos por ator
+    lines.append("    classDef usuario fill:#e3f2fd,stroke:#1565c0,color:#0d47a1")
+    lines.append("    classDef sistema fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20")
+    lines.append("    classDef pe fill:#fff3e0,stroke:#e65100,color:#bf360c")
+    lines.append("    classDef job fill:#f3e5f5,stroke:#6a1b9a,color:#4a148c")
+    lines.append("    classDef ws fill:#e0f7fa,stroke:#00695c,color:#004d40")
+
+    prev_id = None
+    for p in passos:
+        ordem = p.get("ordem", 0)
+        ator = p.get("ator", "Sistema").lower()
+        acao = p.get("acao", "")
+        # Limpar texto para Mermaid (sem aspas, sem chars especiais)
+        acao_clean = acao.replace('"', "'").replace("(", " ").replace(")", " ")[:60]
+        rotina = p.get("rotina", "") or p.get("arquivo", "")
+
+        node_id = f"P{ordem}"
+        label = f"{acao_clean}"
+        if rotina:
+            label += f"\\n({rotina})"
+
+        # Shape por ator
+        if "usuario" in ator:
+            lines.append(f'    {node_id}["{label}"]:::usuario')
+        elif "job" in ator or "schedule" in ator:
+            lines.append(f'    {node_id}("{label}"):::job')
+        elif "pe" in ator:
+            lines.append(f'    {node_id}[/"{label}"/]:::pe')
+        elif "webservice" in ator or "ws" in ator:
+            lines.append(f'    {node_id}("{label}"):::ws')
+        else:
+            lines.append(f'    {node_id}["{label}"]:::sistema')
+
+        # Conexão com passo anterior
+        if prev_id:
+            condicao = p.get("condicao", "")
+            if condicao and len(condicao) < 30:
+                lines.append(f"    {prev_id} -->|{condicao}| {node_id}")
+            else:
+                lines.append(f"    {prev_id} --> {node_id}")
+
+        prev_id = node_id
+
+    return "\n".join(lines)
+
+
 def _analysis_to_markdown(analysis: dict, nome: str, verification: dict) -> str:
     """Convert structured analysis JSON to readable markdown."""
     lines = [f"# Análise Profunda: {nome}\n"]
+
+    # Se veio raw_response (JSON não parseou), tentar extrair ou usar direto
+    if "raw_response" in analysis and not analysis.get("passos"):
+        raw = analysis["raw_response"]
+        # Tentar parsear o JSON de dentro do raw
+        parsed = _try_parse_raw_analysis(raw)
+        if parsed and parsed.get("passos"):
+            analysis = parsed
+        else:
+            # Usar o raw como markdown direto (melhor que nada)
+            if raw.startswith("```"):
+                # Remover markdown code fence
+                raw = re.sub(r'^```(?:json)?\s*', '', raw)
+                raw = re.sub(r'\s*```\s*$', '', raw)
+            # Tentar parsear uma última vez
+            try:
+                analysis = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                # Último recurso: retornar o raw formatado
+                lines.append(raw[:10000])
+                return "\n".join(lines)
 
     # Executive summary
     resumo = analysis.get("resumo_executivo", "")
     if resumo:
         lines.append(f"> {resumo}\n")
+
+    # Diagrama de fluxo Mermaid (gerado a partir dos passos)
+    mermaid = _passos_to_mermaid(analysis, nome)
+    if mermaid:
+        lines.append("## Diagrama de Fluxo\n")
+        lines.append(f"```mermaid\n{mermaid}\n```\n")
 
     # Steps
     passos = analysis.get("passos", [])
@@ -999,6 +1158,7 @@ async def run_deep_analysis(
     descricao: str = "",
     max_depth: int = 2,
     skip_code_specialist: bool = False,
+    extra_context: str = "",
 ) -> dict:
     """Run the full multi-pass deep analysis pipeline.
 
@@ -1055,6 +1215,9 @@ async def run_deep_analysis(
 
     # Inject enriched parameters into discovery for the reduce prompt
     discovery_for_reduce = dict(discovery)
+    # Inject decomposer context if available
+    if extra_context:
+        discovery_for_reduce["decomposer_context"] = extra_context[:8000]
     analysis_json = await pass2_reduce(
         llm, nome, descricao, discovery_for_reduce,
         map_result["summaries"], critical_analyses,

@@ -1,0 +1,27 @@
+id: quem_grava
+name: "Quem Grava"
+description: "Identifica todos os pontos de escrita em tabela/campo"
+source: "backend/services/analista_tools.py:974"
+when_to_use:
+  - "campo nao esta gravando"
+  - "quem escreve nesse campo"
+  - "de onde vem o valor"
+what_it_checks:
+  - "pontos de escrita por arquivo e funcao"
+  - "escritas condicionais (condicao que controla a gravacao)"
+  - "origem do valor sendo gravado"
+inputs:
+  tabela: "codigo da tabela"
+  campo: "codigo do campo (opcional — sem campo lista todos)"
+input_schema:
+  tabela:
+    type: string
+    required: true
+  campo:
+    type: string
+    required: false
+outputs:
+  - "lista de {arquivo, funcao, condicao, origem_campo}"
+notes: |
+  Quando o resultado mostra escrita condicional, usar rastrear_condicao
+  para descobrir de onde vem a condicao.

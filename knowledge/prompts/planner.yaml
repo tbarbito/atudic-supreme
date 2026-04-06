@@ -1,0 +1,21 @@
+id: planner
+name: "Prompt do Planejador"
+description: "LLM refina plano de investigacao baseado no template"
+source: "backend/services/investigation_planner.py:129"
+
+inputs:
+  message: "pergunta do usuario"
+  modo: "ajuste | melhoria | duvida"
+  resolved_context: "entidades resolvidas"
+  suggested_steps: "template sugerido"
+  tool_descriptions: "tools disponiveis"
+
+output_format:
+  objective: "o que estamos investigando"
+  steps: "lista de {tool, args, reason}"
+  cross_reference_padrao: "bool"
+  reactive_steps: "numero de steps extras permitidos"
+
+max_steps: 8
+model: "gen (barato)"
+temperature: 0.1

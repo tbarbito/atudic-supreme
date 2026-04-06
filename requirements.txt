@@ -85,3 +85,19 @@ flake8==7.3.0
 black==26.1.0
 pylint==4.0.4
 mypy==1.19.1
+
+# =====================================================================
+# ExtraiRPO merge deps
+# =====================================================================
+
+# Multi-provider LLM routing (agente IA — OpenAI, Anthropic, Gemini, etc.)
+litellm>=1.50.0
+
+# Array/math ops (requerido por chromadb/vectorstore)
+numpy<2.0
+
+# Export Excel (relatórios e exports de workspace)
+openpyxl>=3.1.5
+
+# Parsing YAML (configs, prompts, pipelines)
+pyyaml>=6.0.2

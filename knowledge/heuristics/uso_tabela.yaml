@@ -1,0 +1,37 @@
+id: uso_tabela
+name: "Classificacao de Uso de Tabela"
+description: "Classifica uso real de tabela por volumetria no Oracle do cliente"
+source: "backend/services/analista_tools.py:38"
+
+rules:
+  - condition: "tabela nao existe no record_counts"
+    result: inexistente
+    descricao: "tabela NAO existe no banco Oracle — modulo nao implantado"
+
+  - condition: "0 registros"
+    result: inexistente
+    descricao: "tabela existe mas 0 registros — nao utilizada"
+
+  - condition: "1-10 registros + tabela de movimento"
+    result: residual
+    descricao: "provavel que NAO usam"
+
+  - condition: "1-10 registros + tabela de config/cadastro"
+    result: config
+    descricao: "normal ter poucos registros"
+
+  - condition: "11-100 registros + tabela de movimento"
+    result: residual
+    descricao: "uso minimo"
+
+  - condition: "11-100 registros + tabela de config/cadastro"
+    result: ativo
+    descricao: "uso ativo"
+
+  - condition: ">100 registros"
+    result: ativo
+    descricao: "uso ativo"
+
+notes: |
+  Usa heuristica _is_tabela_movimento para distinguir movimento de config.
+  Isso e importante para nao alarmar sobre tabelas que o cliente nao usa.

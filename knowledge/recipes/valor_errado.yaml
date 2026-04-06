@@ -1,0 +1,21 @@
+id: valor_errado
+name: "Valor Errado"
+description: "Campo mostrando valor errado, incorreto ou zerado"
+modo: ajuste
+action_type: valor_errado
+trigger:
+  keywords: ["valor errado", "valor incorreto", "calculando errado", "calculo errado", "mostrando errado", "valor diferente", "valor zerado", "zerando"]
+steps:
+  - tool: quem_grava
+    reason: "Quem grava o campo com valor errado"
+  - tool: rastrear_condicao
+    reason: "De onde vem o valor"
+  - tool: ver_parametro
+    reason: "Verificar parametros que influenciam"
+  - tool: ver_fonte_cliente
+    reason: "Ler o codigo para entender a logica"
+notes: |
+  Investigar a CADEIA de origem do valor:
+  1. Quem grava → de onde vem o valor
+  2. Se vem de parametro, verificar valor atual
+  3. Se vem de formula/expressao, ler o codigo

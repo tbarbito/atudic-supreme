@@ -1,0 +1,12 @@
+id: ver_parametro
+name: "Ver Parametro"
+description: "Consultar parametro SX6"
+source: "backend/services/analista_tools.py:450"
+when_to_use:
+  - "valor de parametro"
+  - "MV_ ou MGF_"
+  - "configuracao do sistema"
+inputs:
+  nome: "nome do parametro (ex: MV_ULTCOT)"
+outputs:
+  - "lista de {variavel, conteudo, descricao, valor_padrao}"

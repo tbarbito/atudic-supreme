@@ -1,0 +1,262 @@
+id: performance
+name: "Regras de Performance ADVPL"
+description: "Checklist de regras para review de codigo ADVPL - otimizacao de performance"
+
+rules:
+  - id: PERF-001
+    name: "SELECT * em Embedded SQL"
+    severity: critical
+    description: "SELECT * busca todas as colunas da tabela, incluindo campos memo e colunas nao utilizadas. Desperdiça memoria e banda de rede."
+    bad_pattern: |
+      BeginSQL Alias cAlias
+          SELECT *
+          FROM %table:SC5% SC5
+          WHERE SC5.%notDel%
+          AND SC5.C5_FILIAL = %xfilial:SC5%
+      EndSQL
+    good_pattern: |
+      BeginSQL Alias cAlias
+          SELECT SC5.C5_NUM, SC5.C5_CLIENTE, SC5.C5_LOJACLI,
+                 SC5.C5_EMISSAO, SC5.C5_CONDPAG, SC5.C5_TOTPED
+          FROM %table:SC5% SC5
+          WHERE SC5.%notDel%
+          AND SC5.C5_FILIAL = %xfilial:SC5%
+      EndSQL
+    detect_regex: "(?i)select\\s+\\*\\s+from"
+    absent_regex: ""
+    explanation: "Tabelas Protheus tem 100+ colunas. Buscar todas quando so precisa de 5-6 multiplica o tempo e uso de memoria por 10x ou mais. Listar colunas tambem documenta quais campos sao usados."
+
+  - id: PERF-002
+    name: "DbSeek dentro de loop - substituir por JOIN"
+    severity: high
+    description: "DbSeek dentro de While/For causa N buscas individuais no indice. Uma unica query com JOIN eh significativamente mais rapida."
+    bad_pattern: |
+      While !Eof() .And. SC6->C6_NUM == cOrder
+          DbSelectArea("SB1")
+          DbSetOrder(1)
+          If DbSeek(xFilial("SB1") + SC6->C6_PRODUTO)
+              aAdd(aItems, {SC6->C6_PRODUTO, SB1->B1_DESC})
+          EndIf
+          DbSelectArea("SC6")
+          DbSkip()
+      EndDo
+    good_pattern: |
+      BeginSQL Alias cAlias
+          SELECT SC6.C6_PRODUTO, SB1.B1_DESC, SC6.C6_QTDVEN
+          FROM %table:SC6% SC6
+          INNER JOIN %table:SB1% SB1
+              ON SB1.B1_FILIAL = %xfilial:SB1%
+              AND SB1.B1_COD = SC6.C6_PRODUTO
+              AND SB1.%notDel%
+          WHERE SC6.%notDel%
+          AND SC6.C6_FILIAL = %xfilial:SC6%
+          AND SC6.C6_NUM = %exp:cOrder%
+      EndSQL
+    detect_regex: "(?i)(while|for)\\b[\\s\\S]*?dbseek\\s*\\("
+    absent_regex: ""
+    explanation: "Com 1.000 itens, sao 1.000 seeks individuais ao SB1. Um JOIN permite ao banco otimizar o acesso e retornar tudo em uma unica viagem."
+
+  - id: PERF-003
+    name: "Concatenacao de string dentro de loop"
+    severity: high
+    description: "Concatenar strings com + ou += dentro de loop cria novo objeto string a cada iteracao. Complexidade O(n^2). Usar array + ArrTokStr."
+    bad_pattern: |
+      Local cCSV := ""
+      While !Eof()
+          cCSV += SA1->A1_COD + ";" + SA1->A1_NOME + CRLF
+          DbSkip()
+      EndDo
+    good_pattern: |
+      Local aLines := {}
+      While !Eof()
+          aAdd(aLines, SA1->A1_COD + ";" + SA1->A1_NOME)
+          DbSkip()
+      EndDo
+      cCSV := ArrTokStr(aLines, CRLF)
+    detect_regex: "(?i)(while|for)\\b[\\s\\S]*?\\+\\=.*\\+.*\\b(crlf|chr\\(13\\))"
+    absent_regex: ""
+    explanation: "Concatenacao em loop tem complexidade O(n^2) porque cada iteracao copia toda a string acumulada. Com 10.000 registros, pode levar minutos. Array + join final eh O(n)."
+
+  - id: PERF-004
+    name: "RecCount() para verificar existencia de registros"
+    severity: medium
+    description: "RecCount() forca scan completo para contar todos os registros. Para checar existencia, usar !Eof() que retorna imediatamente."
+    bad_pattern: |
+      BeginSQL Alias cAlias
+          SELECT C5_NUM FROM %table:SC5% SC5
+          WHERE SC5.%notDel%
+          AND SC5.C5_FILIAL = %xfilial:SC5%
+          AND SC5.C5_CLIENTE = %exp:cCodCli%
+      EndSQL
+      If (cAlias)->(RecCount()) > 0
+          lHas := .T.
+      EndIf
+    good_pattern: |
+      BeginSQL Alias cAlias
+          SELECT TOP 1 C5_NUM FROM %table:SC5% SC5
+          WHERE SC5.%notDel%
+          AND SC5.C5_FILIAL = %xfilial:SC5%
+          AND SC5.C5_CLIENTE = %exp:cCodCli%
+      EndSQL
+      lHas := !(cAlias)->(Eof())
+    detect_regex: "(?i)reccount\\s*\\(\\s*\\)\\s*>\\s*0"
+    absent_regex: ""
+    explanation: "RecCount() pode escanear 50.000 registros so para saber se existe algum. SELECT TOP 1 + !Eof() para na primeira ocorrencia, verificacao praticamente instantanea."
+
+  - id: PERF-005
+    name: "Falta de TCSetField apos query"
+    severity: medium
+    description: "Apos TCQuery ou BeginSQL, colunas de data e numericas vem como caracter. Sem TCSetField, cada acesso precisa de conversao manual (StoD, Val), mais lento e propenso a erro."
+    bad_pattern: |
+      BeginSQL Alias cAlias
+          SELECT E2_VENCTO, E2_VALOR
+          FROM %table:SE2% SE2
+          WHERE SE2.%notDel%
+      EndSQL
+      // E2_VENCTO vem como caracter "20250115"
+      dVencto := StoD((cAlias)->E2_VENCTO)  // conversao manual toda vez
+    good_pattern: |
+      BeginSQL Alias cAlias
+          SELECT E2_VENCTO, E2_VALOR
+          FROM %table:SE2% SE2
+          WHERE SE2.%notDel%
+      EndSQL
+      TCSetField(cAlias, "E2_VENCTO", "D")
+      TCSetField(cAlias, "E2_VALOR", "N", 14, 2)
+      // agora campos ja vem tipados corretamente
+      dVencto := (cAlias)->E2_VENCTO
+    detect_regex: "(?i)(beginsql|tcquery)\\b"
+    absent_regex: "(?i)tcsetfield\\s*\\("
+    explanation: "Sem TCSetField, cada leitura de campo precisa de StoD()/Val() manual. Definir tipos uma vez apos a query eh mais limpo, rapido e menos propenso a bugs."
+
+  - id: PERF-006
+    name: "MaFisAdd() em laco com multiplos itens"
+    severity: critical
+    description: "MaFisAdd() recalcula todos os itens anteriores a cada chamada. Em laco com N itens, performance degrada exponencialmente. Usar MaFisIniLoad()/MaFisEndLoad()."
+    bad_pattern: |
+      For nI := 1 To Len(aItens)
+          MaFisAdd(aItens[nI])   // recalcula tudo a cada iteracao
+      Next nI
+    good_pattern: |
+      For nI := 1 To Len(aItens)
+          MaFisIniLoad(nI)
+          MaFisLoad(aItens[nI])
+          MaFisEndLoad(nI, 2)    // nTipo=2 nao recalcula itens anteriores
+      Next nI
+    detect_regex: "(?i)(for|while)\\b[\\s\\S]*?mafisadd\\s*\\("
+    absent_regex: ""
+    explanation: "MaFisAdd() com 100 itens executa 100+99+98+...+1 = 5.050 calculos. MaFisIniLoad/EndLoad(n,2) executa 100 calculos. Diferenca de 50x em performance."
+
+  - id: PERF-007
+    name: "MaFisEndLoad com nTipo=1 dentro de laco"
+    severity: critical
+    description: "MaFisEndLoad(n, 1) recalcula todos os itens. Dentro de laco, usar sempre MaFisEndLoad(n, 2) que calcula apenas o item atual."
+    bad_pattern: |
+      For nI := 1 To Len(aItens)
+          MaFisIniLoad(nI)
+          MaFisLoad(aItens[nI])
+          MaFisEndLoad(nI, 1)    // nTipo=1 recalcula TUDO a cada iteracao
+      Next nI
+    good_pattern: |
+      For nI := 1 To Len(aItens)
+          MaFisIniLoad(nI)
+          MaFisLoad(aItens[nI])
+          MaFisEndLoad(nI, 2)    // nTipo=2 calcula apenas o item atual
+      Next nI
+    detect_regex: "(?i)(for|while)\\b[\\s\\S]*?mafisendload\\s*\\([^,]+,\\s*1\\s*\\)"
+    absent_regex: ""
+    explanation: "MaFisEndLoad(n,1) refaz calculo de todos os itens ja processados. Em laco, eh O(n^2). Usar nTipo=2 dentro do laco e chamar recalculo geral apenas no final se necessario."
+
+  - id: PERF-008
+    name: "Query sem indice adequado (ORDER BY nao alinhado com indices)"
+    severity: medium
+    description: "Queries com WHERE ou ORDER BY em colunas nao indexadas forcam full table scan. Verificar SIX para alinhar com indices existentes."
+    bad_pattern: |
+      BeginSQL Alias cAlias
+          SELECT C5_NUM, C5_EMISSAO, C5_CLIENTE
+          FROM %table:SC5% SC5
+          WHERE SC5.%notDel%
+          AND SC5.C5_FILIAL = %xfilial:SC5%
+          ORDER BY C5_EMISSAO DESC
+          // C5_EMISSAO sozinho pode nao ter indice
+      EndSQL
+    good_pattern: |
+      BeginSQL Alias cAlias
+          SELECT C5_NUM, C5_EMISSAO, C5_CLIENTE
+          FROM %table:SC5% SC5
+          WHERE SC5.%notDel%
+          AND SC5.C5_FILIAL = %xfilial:SC5%
+          AND SC5.C5_EMISSAO >= %exp:DtoS(dDataIni)%
+          ORDER BY C5_FILIAL, C5_EMISSAO DESC
+          // ORDER BY alinhado com colunas do indice
+      EndSQL
+    detect_regex: "(?i)order\\s+by\\s+\\w+\\s+(asc|desc)"
+    absent_regex: ""
+    explanation: "Query sem indice em tabela com 1 milhao de registros pode levar minutos vs milissegundos com indice. Sempre verificar SIX para alinhar WHERE e ORDER BY com indices disponiveis."
+
+  - id: PERF-009
+    name: "DbGoTop() em laco de processamento"
+    severity: medium
+    description: "DbGoTop() reposiciona no inicio da tabela. Dentro de laco, pode causar loop infinito ou reprocessamento. Usar DbSkip() para avançar."
+    bad_pattern: |
+      DbSelectArea("SA1")
+      DbGoTop()
+      While !Eof()
+          // processa registro
+          DbGoTop()    // volta ao inicio - loop infinito!
+          DbSkip()
+      EndDo
+    good_pattern: |
+      DbSelectArea("SA1")
+      DbGoTop()
+      While !Eof()
+          // processa registro
+          DbSkip()
+      EndDo
+    detect_regex: "(?i)(while|for)\\b[\\s\\S]*?dbgotop\\s*\\("
+    absent_regex: ""
+    explanation: "DbGoTop() dentro de laco reposiciona no primeiro registro, causando reprocessamento ou loop infinito. Usar apenas fora do laco para posicionamento inicial."
+
+  - id: PERF-010
+    name: "Alias de query temporaria nao fechado (DbCloseArea)"
+    severity: high
+    description: "Queries via BeginSQL/TCQuery criam alias temporario que deve ser fechado com DbCloseArea(). Alias abertos consomem memoria e conexoes."
+    bad_pattern: |
+      User Function GetData()
+          Local cAlias := GetNextAlias()
+          BeginSQL Alias cAlias
+              SELECT A1_COD, A1_NOME FROM %table:SA1% SA1
+              WHERE SA1.%notDel%
+          EndSQL
+          // processa dados
+          // FALTA: (cAlias)->(DbCloseArea())
+      Return aData
+    good_pattern: |
+      User Function GetData()
+          Local cAlias := GetNextAlias()
+          BeginSQL Alias cAlias
+              SELECT A1_COD, A1_NOME FROM %table:SA1% SA1
+              WHERE SA1.%notDel%
+          EndSQL
+          // processa dados
+          (cAlias)->(DbCloseArea())
+      Return aData
+    detect_regex: "(?i)(beginsql|tcquery)\\b"
+    absent_regex: "(?i)dbclosearea\\s*\\("
+    explanation: "Cada query aberta consome um alias, memoria e uma conexao ao banco. Em funcoes chamadas repetidamente, aliases nao fechados causam vazamento de recursos ate o crash do thread."
+
+  - id: PERF-011
+    name: "MaColsToFis() sem nItem dentro de For/Next"
+    severity: high
+    description: "MaColsToFis() sem parametro nItem dentro de laco recalcula todos os itens. Sempre passar o numero do item atual."
+    bad_pattern: |
+      For nI := 1 To nItens
+          MaColsToFis()     // sem nItem - recalcula tudo
+      Next nI
+    good_pattern: |
+      For nI := 1 To nItens
+          MaColsToFis(nI)   // com nItem - calcula apenas o item
+      Next nI
+    detect_regex: "(?i)(for|while)\\b[\\s\\S]*?macolstofis\\s*\\(\\s*\\)"
+    absent_regex: ""
+    explanation: "MaColsToFis() sem parametro processa todos os itens. Dentro de laco com N itens, performance degrada de O(n) para O(n^2)."

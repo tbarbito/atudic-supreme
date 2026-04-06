@@ -1,0 +1,11 @@
+id: buscar_jobs
+name: "Buscar Jobs"
+description: "Jobs agendados por rotina"
+source: "backend/services/analista_tools.py:620"
+when_to_use:
+  - "jobs da rotina"
+  - "agendamentos"
+inputs:
+  rotina: "nome da rotina"
+outputs:
+  - "lista de {sessao, rotina, refresh_rate}"

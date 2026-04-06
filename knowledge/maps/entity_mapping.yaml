@@ -1,0 +1,33 @@
+id: entity_mapping
+name: "Mapeamento de Entidades Protheus"
+description: "Nomes de negocio → tabela + campo para resolver args de tools"
+source: "backend/services/investigation_planner.py:142"
+
+entities:
+  - nomes: ["produto", "codigo do produto"]
+    tabela: SB1
+    campo: B1_COD
+  - nomes: ["cliente", "codigo do cliente"]
+    tabela: SA1
+    campo: A1_COD
+  - nomes: ["fornecedor"]
+    tabela: SA2
+    campo: A2_COD
+  - nomes: ["pedido de venda"]
+    tabela: SC5
+    campo: C5_NUM
+  - nomes: ["pedido de compra"]
+    tabela: SC7
+    campo: C7_NUM
+  - nomes: ["nota fiscal entrada"]
+    tabela: SF1
+    campo: F1_DOC
+  - nomes: ["nota fiscal saida"]
+    tabela: SF2
+    campo: F2_DOC
+  - nomes: ["titulo financeiro pagar"]
+    tabela: SE2
+    campo: E2_NUM
+  - nomes: ["titulo financeiro receber"]
+    tabela: SE1
+    campo: E1_NUM

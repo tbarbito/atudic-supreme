@@ -1,0 +1,26 @@
+id: action_keywords
+name: "Keywords de Tipo de Acao"
+description: "Deteccao de tipo de acao na mensagem do usuario para selecao de receita"
+source: "backend/services/investigation_planner.py:100"
+
+action_types:
+  nao_salva:
+    keywords: ["nao salva", "nao grava", "não salva", "não grava", "nao esta gravando", "nao esta salvando", "não está gravando", "não está salvando", "nao gravar"]
+  erro:
+    keywords: ["erro", "error", "fatal", "crash", "trava", "travando", "quebra", "nao abre", "não abre", "nao funciona", "não funciona"]
+  valor_errado:
+    keywords: ["valor errado", "valor incorreto", "calculando errado", "calculo errado", "mostrando errado", "valor diferente", "valor zerado", "zerado", "zerando"]
+  processo:
+    keywords: ["processo", "fluxo", "como funciona", "etapas", "workflow", "ciclo"]
+  tabela:
+    keywords: ["tabela", "campos", "dicionario", "sx3", "estrutura"]
+  pe:
+    keywords: ["ponto de entrada", "pontos de entrada", "pe ", "execblock", "customizar rotina", "hook"]
+  campo:
+    keywords: ["novo campo", "criar campo", "adicionar campo", "alterar campo", "incluir campo", "obrigatorio", "obrigatório", "tornar obrigatorio"]
+  aumento_campo:
+    keywords: ["aumentar", "aumento", "ampliar", "expandir", "tamanho", "posicoes", "posições", "de 15 para", "de 6 para", "para 30", "para 20"]
+  parametro:
+    keywords: ["parametro", "mv_", "mgf_", "ti_", "sy_", "xg_", "tx_", "mf_", "pt_", "criar parametro", "supergetmv", "getmv", "putmv", "getnewpar"]
+  gatilho:
+    keywords: ["gatilho", "trigger", "sx7", "nao dispara"]

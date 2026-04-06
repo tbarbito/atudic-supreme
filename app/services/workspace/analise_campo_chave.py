@@ -131,54 +131,164 @@ def tool_analise_aumento_campo(tabela: str, campo: str, novo_tamanho: int = 0) -
         result["campos_fora_grupo"] = campos_fora
         result["total_campos_fora"] = len(campos_fora)
 
-        # ── 4. Campos custom Z* que referenciam produto por nome ──────
-        # Campos com nome similar mas sem F3 nem grupo — podem ser produto
+        # ── 4. Campos custom Z* que referenciam produto via F3 ──────
+        # ONLY include campos that have F3 pointing to the analyzed table
+        # (previously matched by name "COD"/"PROD" which gave 95% false positives)
         prefixo_campo = campo_nome[3:]  # ex: B1_COD → COD, B1_PRODUTO → PRODUTO
         campos_suspeitos = []
         if len(prefixo_campo) >= 3:
+            # Primary: F3 = tabela (high confidence)
             rows = db.execute(
                 "SELECT tabela, campo, titulo, tamanho, f3, grpsxg FROM campos "
-                "WHERE tabela LIKE 'Z%' AND custom=1 AND tipo='C' "
-                "AND (campo LIKE ? OR campo LIKE ?) "
+                "WHERE custom=1 AND tipo='C' AND f3=? "
                 "AND (grpsxg IS NULL OR grpsxg = '' OR grpsxg != ?)",
-                (f"%{prefixo_campo}%", f"%PROD%", grupo_sxg)
+                (tabela.upper(), grupo_sxg)
             ).fetchall()
             for r in rows:
-                # Filter: only if F3=tabela or name really matches
-                if r[4] == tabela.upper() or any(kw in r[1].upper() for kw in ["PROD", "COD"]):
-                    campos_suspeitos.append({
-                        "tabela": r[0], "campo": r[1], "titulo": r[2],
-                        "tamanho": r[3], "f3": r[4] or "NENHUM",
-                        "grupo": r[5] or "NENHUM",
-                    })
+                campos_suspeitos.append({
+                    "tabela": r[0], "campo": r[1], "titulo": r[2],
+                    "tamanho": r[3], "f3": r[4] or "NENHUM",
+                    "grupo": r[5] or "NENHUM",
+                })
         result["campos_suspeitos_custom"] = campos_suspeitos
 
-        # ── 5. PadR chumbado nos fontes ───────────────────────────────
-        # Search for PadR(variable, HARDCODED_NUMBER) related to this field
+        # ── 5. PadR e Space() chumbado nos fontes ─────────────────────
+        # Search for PadR(variable, SIZE) and Space(SIZE) hardcoded
+        # Must check multiple sizes: current, common intermediate (15, 20, 23), and target
         padr_chumbado = []
-        try:
-            # Search for PadR with the current size hardcoded
-            rows = db.execute(
-                "SELECT DISTINCT arquivo, funcao FROM fonte_chunks "
-                "WHERE content LIKE ? AND (LOWER(content) LIKE ? OR LOWER(content) LIKE ?)",
-                (f"%PadR(%{tamanho_atual})%",
-                 f"%{campo_nome.lower()}%",
-                 f"%{prefixo_campo.lower()}%")
-            ).fetchall()
-            for r in rows:
-                padr_chumbado.append({"arquivo": r[0], "funcao": r[1] or ""})
+        seen_padr = set()
+        novo_tamanho_arg = result.get("novo_tamanho", 0)
+        # Check sizes that would cause problems (anything < target or hardcoded)
+        sizes_to_check = set()
+        sizes_to_check.add(tamanho_atual)
+        if novo_tamanho_arg:
+            sizes_to_check.add(novo_tamanho_arg)
+        # Common intermediate sizes for product codes
+        for common_size in [15, 20, 23, 25, 30]:
+            if common_size != novo_tamanho_arg:
+                sizes_to_check.add(common_size)
 
-            # Also search with space before number: PadR(xxx, 15)
-            rows2 = db.execute(
-                "SELECT DISTINCT arquivo, funcao FROM fonte_chunks "
-                "WHERE content LIKE ? AND (LOWER(content) LIKE ? OR LOWER(content) LIKE ?)",
-                (f"%PadR(%, {tamanho_atual})%",
-                 f"%{campo_nome.lower()}%",
-                 f"%{prefixo_campo.lower()}%")
-            ).fetchall()
-            for r in rows2:
-                if not any(p["arquivo"] == r[0] for p in padr_chumbado):
-                    padr_chumbado.append({"arquivo": r[0], "funcao": r[1] or ""})
+        # Get fontes that reference this table (for broader search)
+        fontes_da_tabela = set()
+        try:
+            for row in db.execute(
+                "SELECT arquivo FROM fontes WHERE tabelas_ref LIKE ? OR write_tables LIKE ?",
+                (f'%"{tabela}"%', f'%"{tabela}"%')
+            ).fetchall():
+                fontes_da_tabela.add(row[0])
+        except Exception:
+            pass
+
+        try:
+            for check_size in sorted(sizes_to_check):
+                all_patterns = []
+                # PadR patterns
+                for p in [f"%PadR(%{check_size})%", f"%PadR(%, {check_size})%",
+                          f"%PADR(%{check_size})%", f"%PADR(%, {check_size})%"]:
+                    all_patterns.append(("PadR", p))
+                # Space patterns
+                for p in [f"%Space({check_size})%", f"%SPACE({check_size})%",
+                          f"%space({check_size})%"]:
+                    all_patterns.append(("Space", p))
+                # SubStr patterns — SubStr(x, 1, SIZE) truncates the value
+                for p in [f"%SubStr(%,{check_size})%", f"%SubStr(%, {check_size})%",
+                          f"%SUBSTR(%,{check_size})%", f"%SUBSTR(%, {check_size})%",
+                          f"%substr(%,{check_size})%", f"%substr(%, {check_size})%"]:
+                    all_patterns.append(("SubStr", p))
+                # Replicate patterns — Replicate(" ", SIZE) builds fixed-size key
+                for p in [f"%Replicate(%{check_size})%", f"%REPLICATE(%{check_size})%",
+                          f"%replicate(%{check_size})%"]:
+                    all_patterns.append(("Replicate", p))
+                # ParamBox with Space(SIZE) — fixed-size input field
+                # Only check sizes that match the field being analyzed
+                if check_size == tamanho_atual:
+                    for p in [f"%aParamBox%Space({check_size})%", f"%aparambox%Space({check_size})%",
+                              f"%aParamBox%SPACE({check_size})%"]:
+                        all_patterns.append(("ParamBox", p))
+
+                # Helper: extract code lines AND determine real confidence per-LINE
+                def _extract_and_classify(arquivo, funcao, search_type, search_size):
+                    """Get lines with the pattern and classify confidence per LINE.
+
+                    Returns: (lines, real_confidence)
+                    - 'alta': the LINE itself mentions the field/table
+                    - 'media': the line has the pattern but doesn't mention the field
+                    """
+                    try:
+                        chunks = db.execute(
+                            "SELECT content FROM fonte_chunks WHERE arquivo=? ORDER BY CASE WHEN funcao=? THEN 0 ELSE 1 END",
+                            (arquivo, funcao)
+                        ).fetchall()
+                        lines = []
+                        line_mentions_field = False
+                        st_lower = search_type.lower()
+                        campo_lower = campo_nome.lower()
+                        prefix_lower = prefixo_campo.lower()
+                        tabela_lower = tabela.lower()
+                        # Aliases for the table (e.g. SB1 -> B1_, "SB1")
+                        table_indicators = [campo_lower, prefix_lower, tabela_lower, f'"{tabela_lower}"']
+
+                        for chunk in chunks:
+                            if not chunk[0]:
+                                continue
+                            for line in chunk[0].split("\n"):
+                                ls = line.strip()
+                                ll = ls.lower()
+                                if st_lower in ll and str(search_size) in ls and len(ls) > 10:
+                                    # Check if THIS LINE mentions the field/table
+                                    if any(ind in ll for ind in table_indicators):
+                                        line_mentions_field = True
+                                    if ls not in lines:
+                                        lines.append(ls[:180])
+                                    if len(lines) >= 3:
+                                        return lines, "alta" if line_mentions_field else "media"
+                        return lines, "alta" if line_mentions_field else "media"
+                    except Exception:
+                        return [], "media"
+
+                for tipo, pattern in all_patterns:
+                    # Pass 1: Search in chunks that mention field/table
+                    rows = db.execute(
+                        "SELECT DISTINCT arquivo, funcao FROM fonte_chunks "
+                        "WHERE content LIKE ? AND (LOWER(content) LIKE ? OR LOWER(content) LIKE ?)",
+                        (pattern, f"%{campo_nome.lower()}%", f"%{prefixo_campo.lower()}%")
+                    ).fetchall()
+                    for r in rows:
+                        key = f"{r[0]}::{r[1]}::{tipo.lower()}::{check_size}"
+                        if key not in seen_padr:
+                            seen_padr.add(key)
+                            code_lines, real_confidence = _extract_and_classify(r[0], r[1] or "", tipo, check_size)
+                            # Only include if we actually found matching lines
+                            if code_lines:
+                                padr_chumbado.append({
+                                    "arquivo": r[0], "funcao": r[1] or "",
+                                    "tipo": tipo, "tamanho": check_size,
+                                    "confianca": real_confidence,
+                                    "trechos": code_lines,
+                                })
+
+                    # Pass 2: Search in fontes that reference the table (medium confidence)
+                    if fontes_da_tabela and check_size in (tamanho_atual, 15, 23):
+                        rows2 = db.execute(
+                            "SELECT DISTINCT arquivo, funcao FROM fonte_chunks "
+                            "WHERE content LIKE ? AND arquivo IN ({})".format(
+                                ",".join(f"'{a}'" for a in list(fontes_da_tabela)[:200])
+                            ),
+                            (pattern,)
+                        ).fetchall()
+                        for r in rows2:
+                            key = f"{r[0]}::{r[1]}::{tipo.lower()}::{check_size}"
+                            if key not in seen_padr:
+                                seen_padr.add(key)
+                                code_lines, _ = _extract_and_classify(r[0], r[1] or "", tipo, check_size)
+                                if not code_lines:
+                                    continue
+                                padr_chumbado.append({
+                                    "arquivo": r[0], "funcao": r[1] or "",
+                                    "tipo": tipo, "tamanho": check_size,
+                                    "confianca": "media",
+                                    "trechos": code_lines,
+                                })
         except Exception:
             pass
         result["padr_chumbado"] = padr_chumbado

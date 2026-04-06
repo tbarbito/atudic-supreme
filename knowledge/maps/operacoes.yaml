@@ -1,0 +1,26 @@
+id: operacoes
+name: "Mapa de Operacoes"
+description: "Tipos de operacao com keywords sinonimas para deteccao"
+source: "backend/services/query_decomposer.py:53"
+
+operacoes:
+  inclusao:
+    keywords: [incluir, inclusão, incluindo, criar, gerar, novo, cadastrar, inserir]
+  exclusao:
+    keywords: [excluir, exclusão, deletar, remover, apagar, cancelar]
+  alteracao:
+    keywords: [alterar, alteração, modificar, mudar, editar, atualizar]
+  validacao:
+    keywords: [validar, validação, bloquear, bloqueio, impedir, travar, obrigar, obrigatório]
+  aprovacao:
+    keywords: [aprovar, aprovação, alçada, liberar, liberação, rejeitar]
+  baixa:
+    keywords: [baixar, baixa, pagar, pagamento, quitar, liquidar]
+  estorno:
+    keywords: [estornar, estorno, reverter, desfazer, cancelar baixa]
+
+special_rules:
+  bloqueio:
+    description: "bloq/impedir/travar ativa TODAS as operacoes de protecao"
+    triggers: [bloq, impedir, travar]
+    activates: [inclusao, exclusao, alteracao, validacao]

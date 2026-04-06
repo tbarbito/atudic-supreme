@@ -1,0 +1,60 @@
+id: summarizers
+name: "Context Summarizers"
+description: "18 summarizers especializados que extraem fatos-chave de cada tool"
+source: "backend/services/context_manager.py"
+summarizers:
+  - tool: quem_grava
+    extracts: "total pontos escrita, condicionais, arquivos, origens"
+  - tool: operacoes_escrita
+    extracts: "total por tipo, fontes, condicionais, campos top"
+  - tool: info_tabela
+    extracts: "nome, total campos, custom, indices"
+  - tool: rastrear_condicao
+    extracts: "definicao variavel, dependencias (param/campo/funcao), blocos alternativos"
+  - tool: mapear_processo
+    extracts: "complexidade, estados, campos companheiros, tabelas satelite"
+  - tool: buscar_pes_cliente
+    extracts: "PEs catalogados com objetivo"
+  - tool: ver_parametro
+    extracts: "valor, padrao, descricao, variacoes filial"
+  - tool: ver_fonte_cliente
+    extracts: "linhas de codigo, raw preservado para verificacao"
+  - tool: buscar_menus
+    extracts: "rotinas com nome e modulo"
+  - tool: buscar_propositos
+    extracts: "fontes com proposito"
+  - tool: processos_cliente
+    extracts: "processos com tipo e criticidade"
+  - tool: jobs_schedules
+    extracts: "jobs e schedules com rotina"
+  - tool: fonte_padrao
+    extracts: "LOC, funcoes, modulo"
+  - tool: pes_disponiveis
+    extracts: "PEs com operacao, retorno, params, comentario"
+  - tool: codigo_pe
+    extracts: "locais de implementacao, codigo raw"
+  - tool: buscar_funcao_padrao
+    extracts: "funcoes com assinatura e arquivo"
+  - tool: analise_aumento_campo
+    extracts: "grupo SXG, campos fora, PadR chumbado, indices, MsExecAuto"
+  - tool: analise_impacto
+    extracts: "fontes escrita, MsExecAuto CRITICO, ExecAutos, integracoes"
+topics:
+  - name: escrita
+    title: "Pontos de Escrita e Condicoes"
+    tools: [quem_grava, operacoes_escrita, rastrear_condicao, analise_impacto]
+  - name: dicionario
+    title: "Dicionario e Parametros"
+    tools: [info_tabela, ver_parametro]
+  - name: padrao
+    title: "Comportamento Padrao Protheus"
+    tools: [fonte_padrao, pes_disponiveis, codigo_pe, buscar_funcao_padrao]
+  - name: customizacao
+    title: "Customizacoes do Cliente"
+    tools: [buscar_pes_cliente, ver_fonte_cliente, buscar_propositos]
+  - name: processo
+    title: "Processos e Rotinas"
+    tools: [mapear_processo, processos_cliente, buscar_menus, jobs_schedules]
+  - name: codigo
+    title: "Analise de Codigo"
+    tools: [analisar_fonte, gerar_codigo]

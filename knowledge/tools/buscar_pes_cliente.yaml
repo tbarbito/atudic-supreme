@@ -1,0 +1,12 @@
+id: buscar_pes_cliente
+name: "Buscar PEs do Cliente"
+description: "PEs implementados pelo cliente para rotina/modulo"
+source: "backend/services/analista_tools.py:381"
+when_to_use:
+  - "o cliente ja tem PE pra isso?"
+  - "customizacoes existentes"
+inputs:
+  rotina: "codigo da rotina (opcional)"
+  modulo: "modulo (opcional)"
+outputs:
+  - "lista de {nome, objetivo, modulo, rotina}"

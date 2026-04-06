@@ -1,0 +1,17 @@
+id: debug_default
+name: "Debug Generico"
+description: "Problema generico — investigacao aberta"
+modo: ajuste
+action_type: default
+trigger:
+  keywords: []
+steps:
+  - tool: buscar_menus
+    reason: "Localizar a rotina"
+  - tool: operacoes_escrita
+    reason: "Mapear escritas na tabela"
+  - tool: ver_fonte_cliente
+    reason: "Ler codigo relevante"
+notes: |
+  Receita generica quando nao ha match especifico.
+  O LLM planner vai refinar baseado no contexto.

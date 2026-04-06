@@ -1,0 +1,20 @@
+id: entender_processo
+name: "Entender Processo"
+description: "Entender como funciona um processo/fluxo"
+modo: duvida
+action_type: processo
+trigger:
+  keywords: ["processo", "fluxo", "como funciona", "etapas", "workflow", "ciclo"]
+steps:
+  - tool: buscar_menus
+    reason: "Identificar rotinas do processo"
+  - tool: processos_cliente
+    reason: "Verificar processos ja detectados"
+  - tool: mapear_processo
+    reason: "Mapa completo do processo"
+  - tool: pes_disponiveis
+    reason: "PEs disponiveis nas rotinas"
+notes: |
+  Mapear o processo completo: estados, campos companheiros, tabelas satelite.
+  Se o processo ja foi detectado, usar o cache.
+cross_reference_padrao: true

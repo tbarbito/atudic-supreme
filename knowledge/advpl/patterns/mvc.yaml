@@ -1,0 +1,353 @@
+id: mvc
+name: "Padrao MVC"
+description: "Modelo-Visao-Controlador para cadastros Protheus (FWFormModel/FWFormView)"
+when_to_use:
+  - "Novo cadastro CRUD"
+  - "Tela com grid master-detail"
+  - "Rotina que precisa de execucao automatica (FWMVCRotAuto)"
+  - "Necessidade de separar regra de negocio da interface"
+  - "Cadastro com validacoes complexas"
+  - "Integracao via batch sem interface"
+
+includes:
+  - '#Include "TOTVS.CH"'
+  - '#Include "FWMVCDef.ch"'
+
+operation_constants:
+  MODEL_OPERATION_VIEW: 1
+  MODEL_OPERATION_INSERT: 3
+  MODEL_OPERATION_UPDATE: 4
+  MODEL_OPERATION_DELETE: 5
+  MODEL_OPERATION_PRINT: 8
+  MODEL_OPERATION_COPY: 9
+
+field_property_constants:
+  MODEL_FIELD_WHEN: "Condicao de edicao (code block)"
+  MODEL_FIELD_INIT: "Valor inicial (code block)"
+  MODEL_FIELD_VALID: "Validacao (code block)"
+  MODEL_FIELD_OBRIGAT: "Campo obrigatorio (logical)"
+
+fwformstruct_modes:
+  1: "Model structure (regras de negocio)"
+  2: "View structure (interface visual)"
+
+template: |
+  #Include "TOTVS.CH"
+  #Include "FWMVCDef.ch"
+
+  /*/{Protheus.doc} MODEXEMPLO
+  Cadastro customizado com MVC
+  @type User Function
+  @author Autor
+  @since 01/01/2026
+  @version 1.0
+  /*/
+  User Function MODEXEMPLO()
+      Local oBrowse := Nil
+
+      oBrowse := FWMBrowse():New()
+      oBrowse:SetAlias("ZA1")
+      oBrowse:SetDescription("Cadastro de Exemplo")
+      oBrowse:AddLegend("ZA1_STATUS == '1'", "GREEN", "Ativo")
+      oBrowse:AddLegend("ZA1_STATUS == '2'", "RED",   "Inativo")
+      oBrowse:Activate()
+
+  Return Nil
+
+  Static Function MenuDef()
+      Local aRotina := {}
+
+      ADD OPTION aRotina TITLE "Visualizar" ACTION "VIEWDEF.MODEXEMPLO" OPERATION MODEL_OPERATION_VIEW   ACCESS 0
+      ADD OPTION aRotina TITLE "Incluir"    ACTION "VIEWDEF.MODEXEMPLO" OPERATION MODEL_OPERATION_INSERT ACCESS 0
+      ADD OPTION aRotina TITLE "Alterar"    ACTION "VIEWDEF.MODEXEMPLO" OPERATION MODEL_OPERATION_UPDATE ACCESS 0
+      ADD OPTION aRotina TITLE "Excluir"    ACTION "VIEWDEF.MODEXEMPLO" OPERATION MODEL_OPERATION_DELETE ACCESS 0
+      ADD OPTION aRotina TITLE "Imprimir"   ACTION "VIEWDEF.MODEXEMPLO" OPERATION MODEL_OPERATION_PRINT  ACCESS 0
+      ADD OPTION aRotina TITLE "Copiar"     ACTION "VIEWDEF.MODEXEMPLO" OPERATION MODEL_OPERATION_COPY   ACCESS 0
+
+  Return aRotina
+
+  Static Function ModelDef()
+      Local oModel  := Nil
+      Local oStZA1  := FWFormStruct(1, "ZA1")
+      Local oStZA2  := FWFormStruct(1, "ZA2")
+
+      // Remover campos desnecessarios
+      // oStZA1:RemoveField("ZA1_ZORDER")
+
+      // Tornar campo obrigatorio
+      oStZA1:SetProperty("ZA1_DESC", MODEL_FIELD_OBRIGAT, .T.)
+
+      // Valor inicial
+      oStZA1:SetProperty("ZA1_STATUS", MODEL_FIELD_INIT, {|| "1"})
+
+      // Trigger: preencher descricao do produto automaticamente
+      oStZA2:AddTrigger( ;
+          "ZA2_PROD",    ;
+          "ZA2_DESC",    ;
+          {|| .T.},      ;
+          {|| Posicione("SB1", 1, xFilial("SB1") + M->ZA2_PROD, "B1_DESC")} ;
+      )
+
+      oModel := MPFormModel():New("MODEXEMPLO", ;
+          {|oMdl| fPreValid(oMdl)}, ;
+          {|oMdl| fPosValid(oMdl)}, ;
+          {|oMdl| fCommit(oMdl)},   ;
+          {|oMdl| fCancel(oMdl)}    ;
+      )
+      oModel:SetDescription("Cadastro de Exemplo")
+
+      // Master - Cabecalho
+      oModel:AddFields("ZA1MASTER", /*cOwner*/, oStZA1)
+      oModel:SetPrimaryKey({"ZA1_FILIAL", "ZA1_NUM"})
+
+      // Detail - Grid de itens
+      oModel:AddGrid("ZA2DETAIL", "ZA1MASTER", oStZA2, ;
+          /*bLinePre*/, ;
+          {|oGridMdl, nLine| fLinePost(oGridMdl, nLine)} ;
+      )
+
+      oModel:SetRelation("ZA2DETAIL", ;
+          {{"ZA2_FILIAL", "xFilial('ZA2')"}, {"ZA2_NUM", "ZA1_NUM"}}, ;
+          ZA2->(IndexKey(1)) ;
+      )
+      oModel:GetModel("ZA2DETAIL"):SetUniqueLine({"ZA2_ITEM"})
+
+  Return oModel
+
+  Static Function fPreValid(oModel)
+      Local lRet    := .T.
+      Local oMaster := oModel:GetModel("ZA1MASTER")
+
+      If Empty(oMaster:GetValue("ZA1_DESC"))
+          Help(Nil, Nil, "PREVAL", Nil, "Descricao e obrigatoria.", 1, 0)
+          lRet := .F.
+      EndIf
+
+  Return lRet
+
+  Static Function fPosValid(oModel)
+      Local lRet  := .T.
+      Local oGrid := oModel:GetModel("ZA2DETAIL")
+      Local nI    := 0
+      Local lHas  := .F.
+
+      For nI := 1 To oGrid:Length()
+          oGrid:GoLine(nI)
+          If !oGrid:IsDeleted()
+              lHas := .T.
+              Exit
+          EndIf
+      Next nI
+
+      If !lHas
+          Help(Nil, Nil, "POSVAL", Nil, "Inclua pelo menos um item.", 1, 0)
+          lRet := .F.
+      EndIf
+
+  Return lRet
+
+  Static Function fCommit(oModel)
+      FWFormCommit(oModel)
+  Return Nil
+
+  Static Function fCancel(oModel)
+      FWFormCancel(oModel)
+  Return Nil
+
+  Static Function fLinePost(oGridModel, nLine)
+      Local lRet   := .T.
+      Local nQuant := oGridModel:GetValue("ZA2_QUANT")
+
+      If nQuant <= 0
+          Help(Nil, Nil, "LINEPOST", Nil, "Quantidade deve ser maior que zero.", 1, 0)
+          lRet := .F.
+      EndIf
+
+  Return lRet
+
+  Static Function ViewDef()
+      Local oView  := Nil
+      Local oModel := FWLoadModel("MODEXEMPLO")
+      Local oStZA1 := FWFormStruct(2, "ZA1")
+      Local oStZA2 := FWFormStruct(2, "ZA2")
+
+      oView := FWFormView():New()
+      oView:SetModel(oModel)
+
+      oView:AddField("VIEW_ZA1", oStZA1, "ZA1MASTER")
+      oView:AddGrid("VIEW_ZA2", oStZA2, "ZA2DETAIL")
+
+      oView:CreateHorizontalBox("BOXCAB", 35)
+      oView:CreateHorizontalBox("BOXITEM", 65)
+
+      oView:SetOwnerView("VIEW_ZA1", "BOXCAB")
+      oView:SetOwnerView("VIEW_ZA2", "BOXITEM")
+
+      oView:EnableTitleView("VIEW_ZA1", "Cabecalho")
+      oView:EnableTitleView("VIEW_ZA2", "Itens")
+
+  Return oView
+
+sections:
+  - name: "MenuDef"
+    description: "Define botoes e acoes do browse. Retorna array de MENUDEF_STR."
+    key_points:
+      - "Cada ADD OPTION define um botao com titulo, acao (VIEWDEF.NOME), operacao e nivel de acesso"
+      - "ACTION referencia VIEWDEF.NomeDaFuncao — deve bater com nome da User Function principal"
+      - "ACCESS 0 = sem restricao de acesso"
+    code: |
+      Static Function MenuDef()
+          Local aRotina := {}
+          ADD OPTION aRotina TITLE "Visualizar" ACTION "VIEWDEF.MODEXEMPLO" OPERATION MODEL_OPERATION_VIEW   ACCESS 0
+          ADD OPTION aRotina TITLE "Incluir"    ACTION "VIEWDEF.MODEXEMPLO" OPERATION MODEL_OPERATION_INSERT ACCESS 0
+          ADD OPTION aRotina TITLE "Alterar"    ACTION "VIEWDEF.MODEXEMPLO" OPERATION MODEL_OPERATION_UPDATE ACCESS 0
+          ADD OPTION aRotina TITLE "Excluir"    ACTION "VIEWDEF.MODEXEMPLO" OPERATION MODEL_OPERATION_DELETE ACCESS 0
+      Return aRotina
+
+  - name: "ModelDef"
+    description: "Define regras de negocio, tabelas, campos, relacionamentos e validacoes."
+    key_points:
+      - "FWFormStruct(1, 'ALIAS') cria estrutura do modelo a partir do SX3"
+      - "AddFields para master (cabecalho), AddGrid para detail (grid)"
+      - "SetRelation define o vinculo master-detail"
+      - "SetUniqueLine define chave unica da linha no grid"
+      - "SetPrimaryKey define chave primaria do master"
+      - "Pre/Pos validation blocks controlam fluxo de gravacao"
+    parameters:
+      AddFields: "cId, cOwner, oStruct, bPreValid, bPosValid, bLoad"
+      AddGrid: "cId, cOwner, oStruct, bLinePre, bLinePost, bPreValid, bPosValid, bLoad"
+    code: |
+      Static Function ModelDef()
+          Local oModel := Nil
+          Local oStZA1 := FWFormStruct(1, "ZA1")
+
+          oModel := MPFormModel():New("MODEXEMPLO", ;
+              {|oMdl| PreValid(oMdl)}, ;
+              {|oMdl| PosValid(oMdl)}, ;
+              {|oMdl| Commit(oMdl)},   ;
+              {|oMdl| Cancel(oMdl)}    ;
+          )
+          oModel:SetDescription("Descricao do modelo")
+          oModel:AddFields("ZA1MASTER", /*cOwner*/, oStZA1)
+          oModel:SetPrimaryKey({"ZA1_FILIAL", "ZA1_NUM"})
+
+      Return oModel
+
+  - name: "ViewDef"
+    description: "Define interface visual. Referencia o Model e organiza campos em boxes."
+    key_points:
+      - "FWFormStruct(2, 'ALIAS') cria estrutura da View"
+      - "AddField para painel de campos, AddGrid para grade"
+      - "CreateHorizontalBox/CreateVerticalBox define layout (% da tela)"
+      - "SetOwnerView vincula componente visual ao box"
+      - "EnableTitleView exibe barra de titulo"
+    code: |
+      Static Function ViewDef()
+          Local oView  := Nil
+          Local oModel := FWLoadModel("MODEXEMPLO")
+          Local oStZA1 := FWFormStruct(2, "ZA1")
+
+          oView := FWFormView():New()
+          oView:SetModel(oModel)
+          oView:AddField("VIEW_ZA1", oStZA1, "ZA1MASTER")
+          oView:CreateHorizontalBox("BOXCAB", 100)
+          oView:SetOwnerView("VIEW_ZA1", "BOXCAB")
+          oView:EnableTitleView("VIEW_ZA1", "Dados")
+
+      Return oView
+
+  - name: "FWMVCRotAuto"
+    description: "Execucao programatica do MVC sem interface (batch, integracoes)."
+    key_points:
+      - "Permite inclusao, alteracao e exclusao automatica"
+      - "Parametros: {cModelId, aFieldValues} para master, {cGridId, aGridLines} para detail"
+      - "Cada campo: {cFieldName, xValue, cLookupKey}"
+      - "Usar lMsErroAuto e MostraErro() para tratar erros"
+    code: |
+      User Function IncAuto()
+          Local aHeader := {}
+          Local aItems  := {}
+          Local aLine   := {}
+          Local lRet    := .F.
+
+          aAdd(aHeader, {"ZA1_NUM", "000001", Nil})
+          aAdd(aHeader, {"ZA1_DESC", "Teste", Nil})
+
+          aLine := {}
+          aAdd(aLine, {"ZA2_ITEM", "01",    Nil})
+          aAdd(aLine, {"ZA2_PROD", "000001", Nil})
+          aAdd(aLine, {"ZA2_QUANT", 10,      Nil})
+          aAdd(aItems, aLine)
+
+          lRet := FWMVCRotAuto(Nil, "MODEXEMPLO", MODEL_OPERATION_INSERT, {;
+              {"ZA1MASTER", aHeader}, ;
+              {"ZA2DETAIL", aItems}   ;
+          })
+
+          If !lRet
+              AutoGrLog("Erro na inclusao")
+              MostraErro()
+          EndIf
+
+      Return lRet
+
+  - name: "FWFormStruct Customizacao"
+    description: "Manipulacao de estruturas de campo do SX3."
+    key_points:
+      - "RemoveField remove campo da estrutura"
+      - "SetProperty altera propriedades (obrigatorio, validacao, valor inicial, condicao de edicao)"
+      - "AddTrigger adiciona gatilho entre campos"
+    code: |
+      Local oStSA1 := FWFormStruct(1, "SA1")
+
+      oStSA1:RemoveField("A1_ZORDER")
+      oStSA1:SetProperty("A1_NOME", MODEL_FIELD_OBRIGAT, .T.)
+      oStSA1:SetProperty("A1_LOJA", MODEL_FIELD_INIT, {|| "01"})
+      oStSA1:SetProperty("A1_COD", MODEL_FIELD_WHEN, {|| FWModeInsert()})
+
+      oStSA1:AddTrigger( ;
+          "A1_CEP", "A1_MUN", {|| .T.}, ;
+          {|| Posicione("SYR", 1, xFilial("SYR") + M->A1_CEP, "YR_MUN")} ;
+      )
+
+  - name: "FWExecView"
+    description: "Abre janela MVC programaticamente para visualizar/editar registros."
+    key_points:
+      - "Posicionar no registro antes de chamar para View/Update/Delete"
+      - "Usar SetFunName para garantir que o framework encontre MenuDef/ModelDef/ViewDef"
+      - "aEnableButtons (14 posicoes) controla visibilidade de botoes"
+    code: |
+      User Function zViewReg()
+          Local aArea   := GetArea()
+          Local cFunBkp := FunName()
+
+          DbSelectArea("ZA1")
+          DbSetOrder(1)
+          If DbSeek(xFilial("ZA1") + "000001")
+              SetFunName("MODEXEMPLO")
+              FWExecView("Visualizar", "MODEXEMPLO", MODEL_OPERATION_VIEW)
+              SetFunName(cFunBkp)
+          EndIf
+
+          RestArea(aArea)
+      Return Nil
+
+best_practices:
+  - "Sempre usar FWFormStruct para criar estruturas a partir do SX3"
+  - "Nunca acessar banco direto na ViewDef — toda logica no ModelDef"
+  - "Sempre chamar FWFormCommit/FWFormCancel nos blocks de commit/cancel"
+  - "Usar SetPrimaryKey no master e SetUniqueLine no grid"
+  - "Validar grid com IsDeleted() ao iterar linhas"
+  - "Para execucao batch, usar FWMVCRotAuto em vez de manipular modelo diretamente"
+  - "Sempre declarar Static Function para MenuDef, ModelDef e ViewDef"
+  - "Cada PRW so pode ter uma de cada: MenuDef, ModelDef, ViewDef"
+
+common_mistakes:
+  - mistake: "Usar FWFormStruct(1) na ViewDef"
+    fix: "ViewDef usa FWFormStruct(2, 'ALIAS') — modo 2 e para View, modo 1 para Model"
+  - mistake: "Esquecer SetRelation no grid"
+    fix: "Sempre definir SetRelation com os campos de vinculo entre master e detail"
+  - mistake: "Nao chamar FWFormCommit no block de commit"
+    fix: "O block de commit DEVE chamar FWFormCommit(oModel) para gravacao padrao"
+  - mistake: "ACTION no MenuDef nao bate com nome da funcao"
+    fix: "ACTION deve ser VIEWDEF.NOMEDAFUNCAO — deve ser identico ao nome da User Function"

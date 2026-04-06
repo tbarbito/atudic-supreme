@@ -1,0 +1,25 @@
+id: rastrear_condicao
+name: "Rastrear Condicao"
+description: "Backward trace — descobre de onde vem uma variavel de condicao"
+source: "backend/services/analista_tools.py:1600"
+when_to_use:
+  - "escrita condicional encontrada"
+  - "preciso saber por que a condicao e verdadeira/falsa"
+  - "de onde vem o valor da variavel"
+what_it_checks:
+  - "definicao da variavel no codigo"
+  - "dependencias: parametros, campos, funcoes"
+  - "blocos alternativos (IF/ELSE)"
+  - "sub-funcoes chamadas"
+inputs:
+  arquivo: "nome do arquivo fonte"
+  funcao: "nome da funcao"
+  variavel: "nome da variavel a rastrear"
+outputs:
+  definicao_encontrada: "bool"
+  expressao: "como a variavel e definida"
+  dependencias: "lista de {tipo, nome, valor}"
+  blocos_alternativos: "caminhos alternativos"
+notes: |
+  Usar DEPOIS de quem_grava quando encontrar escrita condicional.
+  As dependencias podem ser: parametro (SX6), campo_tabela, funcao.

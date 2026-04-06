@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-"""Origem: ExtraiRPO (Joni) — Parser de codigo-fonte ADVPL/TLPP."""
-
 import re
 import bisect
 import hashlib
@@ -300,48 +297,127 @@ def _extract_fields_ref(content: str) -> list[str]:
 def _extract_params(content: str) -> dict:
     """Extract SX6 parameters and SX1 groups from function code.
 
-    Returns: {"sx6": [{"var": "MV_XXX", "default": "valor"}], "sx1": ["GRP"]}
+    Detects ALL known Protheus parameter access patterns:
+    - SuperGetMV("PARAM", lDefault, "cDefault")
+    - GetMV("PARAM") / GetMV("PARAM", "default")
+    - GetNewPar("PARAM", "default")
+    - GetMVDef("PARAM", "default")
+    - FWMVPar("PARAM")
+    - PutMV("PARAM", value)
+    - PutMvFil("PARAM", value)
+    - Variable-based: cParam := "MV_X" ... GetMV(cParam)
+
+    SX1 question group detection:
+    - Pergunte("GROUP")
+    - FWGetSX1("GROUP")
+    - Variable-based: cPerg := "GROUP" ... Pergunte(cPerg)
+    - Any variable: cXxx := "GROUP" ... Pergunte(cXxx)
+
+    Returns: {"sx6": [{"var": "MV_XXX", "default": "valor", "mode": "read|write"}], "sx1": ["GRP"]}
     """
-    sx6 = {}
+    sx6 = {}  # var -> {"default": str, "mode": "read"|"write"}
     sx1 = set()
 
-    # SuperGetMV("MV_XXX", default_lógico, "default_valor")
+    # ── SX6 PARAMETER READ PATTERNS ──
+
+    # SuperGetMV("PARAM", lDefault, "cDefault")
     for m in re.finditer(
         r'SuperGetMV\s*\(\s*["\'](\w+)["\']\s*(?:,\s*[^,]*\s*,\s*(["\'][^"\']*["\']|[\w.]+))?',
         content, re.IGNORECASE
     ):
         var = m.group(1).upper()
         default = (m.group(2) or "").strip("\"'") if m.group(2) else ""
-        sx6[var] = default
+        sx6[var] = {"default": default, "mode": "read"}
 
-    # GetMV("MV_XXX") / GetNewPar("MV_XXX", default)
+    # GetMV("PARAM") / GetMV("PARAM", "default")
+    # GetNewPar("PARAM", "default")
+    # GetMVDef("PARAM", "default")
     for m in re.finditer(
-        r'(?:GetMV|GetNewPar)\s*\(\s*["\'](\w+)["\']\s*(?:,\s*(["\'][^"\']*["\']|[\w.]+))?',
+        r'(?:GetMV|GetNewPar|GetMVDef)\s*\(\s*["\'](\w+)["\']\s*(?:,\s*(["\'][^"\']*["\']|[\w.]+))?',
         content, re.IGNORECASE
     ):
         var = m.group(1).upper()
         if var not in sx6:
             default = (m.group(2) or "").strip("\"'") if m.group(2) else ""
-            sx6[var] = default
+            sx6[var] = {"default": default, "mode": "read"}
 
-    # FWMVPar("MV_XXX")
+    # FWMVPar("PARAM")
     for m in re.finditer(r'FWMVPar\s*\(\s*["\'](\w+)["\']', content, re.IGNORECASE):
         var = m.group(1).upper()
         if var not in sx6:
-            sx6[var] = ""
+            sx6[var] = {"default": "", "mode": "read"}
 
-    # Pergunte("GRP") / FWGetSX1("GRP")
-    for m in re.finditer(r'(?:Pergunte|FWGetSX1)\s*\(\s*["\'](\w+)["\']', content, re.IGNORECASE):
+    # ── SX6 PARAMETER WRITE PATTERNS ──
+
+    # PutMV("PARAM", value) / PutMvFil("PARAM", value)
+    for m in re.finditer(
+        r'(?:PutMV|PutMvFil)\s*\(\s*["\'](\w+)["\']\s*,\s*([^)]+)',
+        content, re.IGNORECASE
+    ):
+        var = m.group(1).upper()
+        value = m.group(2).strip().strip("\"'")[:50]
+        if var in sx6:
+            sx6[var]["mode"] = "read_write"
+        else:
+            sx6[var] = {"default": value, "mode": "write"}
+
+    # ── VARIABLE-BASED PARAMETER ACCESS ──
+    # Detect: cParam := "MV_X" ... SuperGetMV(cParam) or GetMV(cParam)
+    # Common variable names for parameters
+    param_var_names = set()
+    for m in re.finditer(
+        r'(?:SuperGetMV|GetMV|GetNewPar|GetMVDef|PutMV|PutMvFil|FWMVPar)\s*\(\s*([a-zA-Z_]\w*)\s*[,)]',
+        content, re.IGNORECASE
+    ):
+        varname = m.group(1)
+        # Skip if it's a quoted string (already handled above)
+        if varname.startswith(("'", '"')):
+            continue
+        # Skip common non-variable patterns
+        if varname.upper() in ("NIL", "TRUE", "FALSE"):
+            continue
+        param_var_names.add(varname)
+
+    # For each variable, find its assignment
+    for varname in param_var_names:
+        for m in re.finditer(
+            rf'\b{re.escape(varname)}\s*:=\s*["\'](\w+)["\']',
+            content, re.IGNORECASE
+        ):
+            var = m.group(1).upper()
+            if var not in sx6 and len(var) >= 3 and "_" in var:
+                sx6[var] = {"default": "", "mode": "read"}
+
+    # ── SX1 QUESTION GROUP PATTERNS ──
+
+    # Pergunte("GRP") / FWGetSX1("GRP") — literal string
+    for m in re.finditer(
+        r'(?:Pergunte|FWGetSX1)\s*\(\s*["\'](\w+)["\']',
+        content, re.IGNORECASE
+    ):
         sx1.add(m.group(1).upper())
 
-    # Pergunte(cPerg) pattern — variable-based (very common in Protheus)
-    # Detect: cPerg := "GRUPO" ... Pergunte(cPerg)
-    if re.search(r'(?:Pergunte|FWGetSX1)\s*\(\s*cPerg', content, re.IGNORECASE):
-        for m in re.finditer(r'\bcPerg\s*:=\s*["\'](\w+)["\']', content, re.IGNORECASE):
+    # Variable-based: cPerg := "GROUP" ... Pergunte(cPerg)
+    # Detect ANY variable used in Pergunte/FWGetSX1 calls
+    perg_var_names = set()
+    for m in re.finditer(
+        r'(?:Pergunte|FWGetSX1)\s*\(\s*([a-zA-Z_]\w*)\s*[,)]',
+        content, re.IGNORECASE
+    ):
+        varname = m.group(1)
+        if not varname.startswith(("'", '"')) and varname.upper() not in ("NIL", "TRUE", "FALSE"):
+            perg_var_names.add(varname)
+
+    # Find assignments for each variable
+    for varname in perg_var_names:
+        for m in re.finditer(
+            rf'\b{re.escape(varname)}\s*:=\s*["\'](\w+)["\']',
+            content, re.IGNORECASE
+        ):
             sx1.add(m.group(1).upper())
 
     result = {
-        "sx6": [{"var": k, "default": v} for k, v in sorted(sx6.items())],
+        "sx6": [{"var": k, "default": v["default"], "mode": v["mode"]} for k, v in sorted(sx6.items())],
         "sx1": sorted(sx1),
     }
     return result

@@ -1,0 +1,12 @@
+id: buscar_menus
+name: "Buscar Menus"
+description: "Buscar rotinas nos menus do cliente por keywords"
+source: "backend/services/analista_tools.py:900"
+when_to_use:
+  - "localizar rotina pelo nome"
+  - "qual rotina faz X"
+  - "encontrar tela"
+inputs:
+  termo: "termo de busca"
+outputs:
+  - "lista de {rotina, nome, modulo}"

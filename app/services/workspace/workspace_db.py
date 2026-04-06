@@ -460,6 +460,135 @@ CREATE TABLE IF NOT EXISTS mapa_modulos (
     tabelas     TEXT NOT NULL DEFAULT '[]',
     rotinas     TEXT NOT NULL DEFAULT '[]'
 );
+
+-- Hierarquia de processos (pai/filho)
+CREATE TABLE IF NOT EXISTS processo_hierarquia (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    processo_pai_id     INTEGER NOT NULL REFERENCES processos_detectados(id),
+    processo_filho_id   INTEGER NOT NULL REFERENCES processos_detectados(id),
+    ordem               INTEGER DEFAULT 0,
+    tipo_relacao        TEXT DEFAULT 'sub_processo',
+    created_at          TEXT DEFAULT (datetime('now')),
+    UNIQUE(processo_pai_id, processo_filho_id)
+);
+CREATE INDEX IF NOT EXISTS idx_hier_pai ON processo_hierarquia(processo_pai_id);
+CREATE INDEX IF NOT EXISTS idx_hier_filho ON processo_hierarquia(processo_filho_id);
+
+-- Conexoes entre processos via tabela-ponte
+CREATE TABLE IF NOT EXISTS processo_conexoes (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    processo_origem_id  INTEGER NOT NULL REFERENCES processos_detectados(id),
+    processo_destino_id INTEGER NOT NULL REFERENCES processos_detectados(id),
+    tabela_ponte        TEXT NOT NULL,
+    rotina_ponte        TEXT DEFAULT '',
+    descricao           TEXT DEFAULT '',
+    created_at          TEXT DEFAULT (datetime('now')),
+    UNIQUE(processo_origem_id, processo_destino_id, tabela_ponte)
+);
+CREATE INDEX IF NOT EXISTS idx_conn_origem ON processo_conexoes(processo_origem_id);
+CREATE INDEX IF NOT EXISTS idx_conn_destino ON processo_conexoes(processo_destino_id);
+
+-- Componentes reutilizaveis de processos
+CREATE TABLE IF NOT EXISTS processo_componentes (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome            TEXT NOT NULL,
+    tipo            TEXT DEFAULT 'generico',
+    descricao       TEXT DEFAULT '',
+    tabelas         TEXT DEFAULT '[]',
+    fontes          TEXT DEFAULT '[]',
+    resumo_1linha   TEXT DEFAULT '',
+    resumo_paragrafo TEXT DEFAULT '',
+    analise_markdown TEXT,
+    analise_json    TEXT,
+    analise_hash    TEXT DEFAULT '',
+    analise_updated_at TEXT,
+    created_at      TEXT DEFAULT (datetime('now')),
+    updated_at      TEXT DEFAULT (datetime('now'))
+);
+
+-- Relacao N:N componente <-> processo
+CREATE TABLE IF NOT EXISTS processo_componente_uso (
+    componente_id   INTEGER NOT NULL REFERENCES processo_componentes(id),
+    processo_id     INTEGER NOT NULL REFERENCES processos_detectados(id),
+    contexto        TEXT DEFAULT '',
+    PRIMARY KEY (componente_id, processo_id)
+);
+CREATE INDEX IF NOT EXISTS idx_comp_uso_proc ON processo_componente_uso(processo_id);
+
+-- Acervo de fontes — metadados agregados (contagens numericas)
+CREATE TABLE IF NOT EXISTS acervo_fontes (
+    arquivo     TEXT PRIMARY KEY,
+    caminho     TEXT,
+    tipo        TEXT,
+    modulo      TEXT,
+    total_funcoes INTEGER DEFAULT 0,
+    total_user_funcs INTEGER DEFAULT 0,
+    total_pes INTEGER DEFAULT 0,
+    total_tabelas_leitura INTEGER DEFAULT 0,
+    total_tabelas_escrita INTEGER DEFAULT 0,
+    total_chamadas_u INTEGER DEFAULT 0,
+    funcoes_json TEXT,
+    classificacao TEXT,
+    complexidade TEXT,
+    linhas_codigo INTEGER DEFAULT 0,
+    hash        TEXT
+);
+
+-- Padrao (standard) consultas SXB para diff
+CREATE TABLE IF NOT EXISTS padrao_consultas (
+    tabela      TEXT,
+    tipo        TEXT,
+    sequencia   TEXT,
+    coluna      TEXT,
+    descricao   TEXT,
+    conteudo    TEXT,
+    PRIMARY KEY (tabela, sequencia, coluna)
+);
+
+-- Padrao (standard) pastas SXA para diff
+CREATE TABLE IF NOT EXISTS padrao_pastas (
+    tabela      TEXT,
+    ordem       TEXT,
+    descricao   TEXT,
+    proprietario TEXT,
+    PRIMARY KEY (tabela, ordem)
+);
+
+-- Padrao (standard) relacionamentos SX9 para diff
+CREATE TABLE IF NOT EXISTS padrao_relacionamentos (
+    tabela_origem TEXT,
+    identificador TEXT,
+    tabela_destino TEXT,
+    expressao   TEXT,
+    expressao_dest TEXT,
+    proprietario TEXT,
+    PRIMARY KEY (tabela_origem, identificador, tabela_destino)
+);
+
+-- Padrao (standard) menus — rotinas por modulo
+CREATE TABLE IF NOT EXISTS padrao_menus (
+    modulo   TEXT,
+    rotina   TEXT,
+    nome     TEXT,
+    menu     TEXT,
+    ordem    INTEGER,
+    PRIMARY KEY (modulo, rotina)
+);
+CREATE INDEX IF NOT EXISTS idx_padrao_menus_rotina ON padrao_menus(rotina);
+
+-- Padrao (standard) Pontos de Entrada catalogados (TDN)
+CREATE TABLE IF NOT EXISTS padrao_pes (
+    nome        TEXT PRIMARY KEY,
+    modulo      TEXT DEFAULT '',
+    rotina      TEXT DEFAULT '',
+    onde_chamado TEXT DEFAULT '',
+    objetivo    TEXT DEFAULT '',
+    params_entrada TEXT DEFAULT '',
+    params_saida TEXT DEFAULT '',
+    link_tdn    TEXT DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_padrao_pes_modulo ON padrao_pes(modulo);
+CREATE INDEX IF NOT EXISTS idx_padrao_pes_rotina ON padrao_pes(rotina);
 """
 
 # Dados padrao do Protheus — seed automatico
@@ -527,9 +656,128 @@ class Database:
                 registros   INTEGER DEFAULT 0,
                 updated_at  TEXT DEFAULT (datetime('now'))
             )""",
+            # --- 10 tabelas ExtraiRPO (migração workspace existente) ---
+            """CREATE TABLE IF NOT EXISTS processo_hierarquia (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                processo_pai_id     INTEGER NOT NULL REFERENCES processos_detectados(id),
+                processo_filho_id   INTEGER NOT NULL REFERENCES processos_detectados(id),
+                ordem               INTEGER DEFAULT 0,
+                tipo_relacao        TEXT DEFAULT 'sub_processo',
+                created_at          TEXT DEFAULT (datetime('now')),
+                UNIQUE(processo_pai_id, processo_filho_id)
+            )""",
+            """CREATE TABLE IF NOT EXISTS processo_conexoes (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                processo_origem_id  INTEGER NOT NULL REFERENCES processos_detectados(id),
+                processo_destino_id INTEGER NOT NULL REFERENCES processos_detectados(id),
+                tabela_ponte        TEXT NOT NULL,
+                rotina_ponte        TEXT DEFAULT '',
+                descricao           TEXT DEFAULT '',
+                created_at          TEXT DEFAULT (datetime('now')),
+                UNIQUE(processo_origem_id, processo_destino_id, tabela_ponte)
+            )""",
+            """CREATE TABLE IF NOT EXISTS processo_componentes (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome            TEXT NOT NULL,
+                tipo            TEXT DEFAULT 'generico',
+                descricao       TEXT DEFAULT '',
+                tabelas         TEXT DEFAULT '[]',
+                fontes          TEXT DEFAULT '[]',
+                resumo_1linha   TEXT DEFAULT '',
+                resumo_paragrafo TEXT DEFAULT '',
+                analise_markdown TEXT,
+                analise_json    TEXT,
+                analise_hash    TEXT DEFAULT '',
+                analise_updated_at TEXT,
+                created_at      TEXT DEFAULT (datetime('now')),
+                updated_at      TEXT DEFAULT (datetime('now'))
+            )""",
+            """CREATE TABLE IF NOT EXISTS processo_componente_uso (
+                componente_id   INTEGER NOT NULL REFERENCES processo_componentes(id),
+                processo_id     INTEGER NOT NULL REFERENCES processos_detectados(id),
+                contexto        TEXT DEFAULT '',
+                PRIMARY KEY (componente_id, processo_id)
+            )""",
+            """CREATE TABLE IF NOT EXISTS acervo_fontes (
+                arquivo     TEXT PRIMARY KEY,
+                caminho     TEXT,
+                tipo        TEXT,
+                modulo      TEXT,
+                total_funcoes INTEGER DEFAULT 0,
+                total_user_funcs INTEGER DEFAULT 0,
+                total_pes INTEGER DEFAULT 0,
+                total_tabelas_leitura INTEGER DEFAULT 0,
+                total_tabelas_escrita INTEGER DEFAULT 0,
+                total_chamadas_u INTEGER DEFAULT 0,
+                funcoes_json TEXT,
+                classificacao TEXT,
+                complexidade TEXT,
+                linhas_codigo INTEGER DEFAULT 0,
+                hash        TEXT
+            )""",
+            """CREATE TABLE IF NOT EXISTS padrao_consultas (
+                tabela      TEXT,
+                tipo        TEXT,
+                sequencia   TEXT,
+                coluna      TEXT,
+                descricao   TEXT,
+                conteudo    TEXT,
+                PRIMARY KEY (tabela, sequencia, coluna)
+            )""",
+            """CREATE TABLE IF NOT EXISTS padrao_pastas (
+                tabela      TEXT,
+                ordem       TEXT,
+                descricao   TEXT,
+                proprietario TEXT,
+                PRIMARY KEY (tabela, ordem)
+            )""",
+            """CREATE TABLE IF NOT EXISTS padrao_relacionamentos (
+                tabela_origem TEXT,
+                identificador TEXT,
+                tabela_destino TEXT,
+                expressao   TEXT,
+                expressao_dest TEXT,
+                proprietario TEXT,
+                PRIMARY KEY (tabela_origem, identificador, tabela_destino)
+            )""",
+            """CREATE TABLE IF NOT EXISTS padrao_menus (
+                modulo   TEXT,
+                rotina   TEXT,
+                nome     TEXT,
+                menu     TEXT,
+                ordem    INTEGER,
+                PRIMARY KEY (modulo, rotina)
+            )""",
+            """CREATE TABLE IF NOT EXISTS padrao_pes (
+                nome        TEXT PRIMARY KEY,
+                modulo      TEXT DEFAULT '',
+                rotina      TEXT DEFAULT '',
+                onde_chamado TEXT DEFAULT '',
+                objetivo    TEXT DEFAULT '',
+                params_entrada TEXT DEFAULT '',
+                params_saida TEXT DEFAULT '',
+                link_tdn    TEXT DEFAULT ''
+            )""",
         ]:
             try:
                 self._conn.execute(tbl_ddl)
+                self._conn.commit()
+            except Exception:
+                pass
+
+        # Indices das tabelas novas (idempotente — CREATE INDEX IF NOT EXISTS)
+        for idx_ddl in [
+            "CREATE INDEX IF NOT EXISTS idx_hier_pai ON processo_hierarquia(processo_pai_id)",
+            "CREATE INDEX IF NOT EXISTS idx_hier_filho ON processo_hierarquia(processo_filho_id)",
+            "CREATE INDEX IF NOT EXISTS idx_conn_origem ON processo_conexoes(processo_origem_id)",
+            "CREATE INDEX IF NOT EXISTS idx_conn_destino ON processo_conexoes(processo_destino_id)",
+            "CREATE INDEX IF NOT EXISTS idx_comp_uso_proc ON processo_componente_uso(processo_id)",
+            "CREATE INDEX IF NOT EXISTS idx_padrao_menus_rotina ON padrao_menus(rotina)",
+            "CREATE INDEX IF NOT EXISTS idx_padrao_pes_modulo ON padrao_pes(modulo)",
+            "CREATE INDEX IF NOT EXISTS idx_padrao_pes_rotina ON padrao_pes(rotina)",
+        ]:
+            try:
+                self._conn.execute(idx_ddl)
                 self._conn.commit()
             except Exception:
                 pass

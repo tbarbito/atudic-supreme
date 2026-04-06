@@ -1,0 +1,17 @@
+id: entender_pe
+name: "Entender PE"
+description: "Entender pontos de entrada disponiveis"
+modo: duvida
+action_type: pe
+trigger:
+  keywords: ["ponto de entrada", "pe ", "execblock", "customizar rotina", "hook"]
+steps:
+  - tool: pes_disponiveis
+    reason: "PEs disponiveis na rotina padrao"
+  - tool: codigo_pe
+    reason: "Codigo fonte onde o PE e chamado"
+  - tool: buscar_pes_cliente
+    reason: "Se o cliente ja implementou"
+notes: |
+  Sempre mostrar: nome do PE, operacao, parametros (PARAMIXB), tipo de retorno.
+  Comparar o que esta disponivel no padrao vs o que o cliente ja implementou.

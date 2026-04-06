@@ -1,0 +1,11 @@
+id: processos_cliente
+name: "Processos do Cliente"
+description: "Listar processos de negocio ja detectados"
+source: "backend/services/analista_tools.py:1800"
+when_to_use:
+  - "quais processos existem"
+  - "processos da tabela X"
+inputs:
+  tabelas: "lista de tabelas para filtrar (opcional)"
+outputs:
+  processos: "lista de {nome, tipo, criticidade, descricao}"

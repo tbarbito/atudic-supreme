@@ -1,0 +1,21 @@
+id: decomposicao
+name: "Quando Decompor Processo"
+description: "Regras para decidir se um processo precisa ser decomposto em sub-processos"
+source: "backend/services/processo_decomposer.py"
+
+rules:
+  - condicao: "mais de 25 fontes"
+    acao: decompor
+  - condicao: "mais de 5 tabelas de escrita"
+    acao: decompor
+  - condicao: "contem tabelas transversais (SCR, SAL, ZAD)"
+    acao: "separar componente de aprovacao"
+  - condicao: "contem prefixos de integracao (WSR, INTEG, API, REST, EDI)"
+    acao: "separar componente de integracao"
+
+tabelas_transversais:
+  SCR: "Aprovacao por Alcada"
+  SAL: "Grupos de Aprovacao"
+  ZAD: "Grade de Aprovacao"
+
+prefixos_integracao: [WSR, INTEG, API, REST, EDI, MGFWSC]

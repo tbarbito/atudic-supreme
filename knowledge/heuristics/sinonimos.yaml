@@ -1,0 +1,12 @@
+id: sinonimos
+name: "Expansao de Sinonimos"
+description: "Sinonimos para resolucao semantica — expandir busca quando termo nao encontra"
+source: "backend/services/semantic_resolver.py:46"
+
+expansions:
+  - grupo: [bloqueio, liberacao, aprovacao]
+  - grupo: [rateio, distribuicao]
+  - grupo: [estorno, cancelamento, devolucao]
+  - grupo: [integracao, interface, edi]
+
+stopwords: [tem, uma, que, de, para, por, com, nao, dos, das, nos, nas, seu, sua]

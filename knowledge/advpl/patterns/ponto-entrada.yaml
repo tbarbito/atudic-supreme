@@ -1,0 +1,283 @@
+id: ponto-entrada
+name: "Padrao Ponto de Entrada"
+description: "Entry points (hooks) em rotinas padrao Protheus — customizacao sem alterar fontes originais"
+when_to_use:
+  - "Validar operacoes de inclusao/alteracao/exclusao"
+  - "Adicionar botoes customizados em telas padrao"
+  - "Executar logica pos-gravacao (integracoes, notificacoes)"
+  - "Bloquear operacoes com base em regras do cliente"
+  - "Adicionar opcoes de menu em rotinas padrao"
+  - "Customizar dados do SPED ou livros fiscais"
+
+includes:
+  - '#Include "TOTVS.CH"'
+
+how_it_works:
+  description: "Rotinas padrao usam ExistBlock/ExecBlock para chamar PEs"
+  standard_code_pattern: |
+    // Dentro da rotina padrao:
+    If ExistBlock("MT100LOK")
+        lRet := ExecBlock("MT100LOK", .F., .F., {cTipo, cNota})
+    EndIf
+
+    // Ou padrao curto-circuito:
+    lRet := !ExistBlock("MT101OK") .OR. ExecBlock("MT101OK", .F., .F.)
+  paramixb:
+    description: "Variavel Private que recebe parametros do ExecBlock"
+    access: "PARAMIXB[1], PARAMIXB[2], etc."
+    safety: |
+      // SEMPRE verificar antes de acessar:
+      If PARAMIXB <> NIL .And. ValType(PARAMIXB) == "A" .And. Len(PARAMIXB) >= 2
+          Local xParam2 := PARAMIXB[2]
+      EndIf
+
+template: |
+  #Include "TOTVS.CH"
+
+  /*/{Protheus.doc} NOME_DO_PE
+  Descricao do ponto de entrada
+  @type User Function
+  @author Autor
+  @since 01/01/2026
+  @version 1.0
+  @param PARAMIXB, Array, Parametros do PE
+  @return xRet, Tipo, Descricao do retorno
+  @see https://tdn.totvs.com/display/public/PROT/NOME_DO_PE
+  /*/
+  User Function NOME_DO_PE()
+      Local lRet  := .T.
+      Local aArea := GetArea()
+
+      // Logica customizada
+      // ...
+
+      RestArea(aArea)
+  Return lRet
+
+return_types:
+  logical:
+    description: "Validacoes — .T. permite, .F. bloqueia"
+    examples: ["MT100LOK", "MT120LOK", "MA410LOK", "MT250LOK"]
+  nil:
+    description: "Pos-gravacao — sem retorno esperado"
+    examples: ["SF2100I", "A120GRVC", "FA080INC", "A650GRVS"]
+  array:
+    description: "Menus e botoes — array com definicoes"
+    examples: ["A103MENU", "MA410BUT", "FA080BUT", "FA050BUT"]
+  character:
+    description: "Modificacao de dados — retorna string modificada"
+    examples: ["SPEDCONTRIB"]
+
+sections:
+  - name: "PE de Validacao (LOK)"
+    description: "Validar antes de confirmar operacao. Retorna .T./.F."
+    code: |
+      User Function MT120LOK()
+          Local lRet  := .T.
+          Local cOper := PARAMIXB[1]   // "I" incluir, "A" alterar, "E" excluir
+
+          If cOper == "I"
+              // Valida fornecedor bloqueado
+              If Posicione("SA2", 1, xFilial("SA2") + M->C7_FORNECE + M->C7_LOJA, "A2_MSBLQL") == "1"
+                  MsgAlert("Fornecedor bloqueado. Pedido nao permitido.")
+                  lRet := .F.
+              EndIf
+          EndIf
+
+      Return lRet
+
+  - name: "PE de Pos-Gravacao (GRV/100I)"
+    description: "Executar apos gravacao do registro. Retorna Nil."
+    code: |
+      User Function SF2100I()
+          Local cNota    := PARAMIXB[1]   // F2_DOC
+          Local cSerie   := PARAMIXB[2]   // F2_SERIE
+          Local cCliente := PARAMIXB[3]   // F2_CLIENTE
+          Local cLoja    := PARAMIXB[4]   // F2_LOJA
+          Local aArea    := GetArea()
+
+          Conout("NF incluida: " + cNota + "/" + cSerie)
+          // Disparar integracao, notificacao, etc.
+
+          RestArea(aArea)
+      Return Nil
+
+  - name: "PE de Menu/Botoes (MENU/BUT)"
+    description: "Adicionar botoes ou opcoes de menu customizados. Retorna Array."
+    code: |
+      // Botoes na toolbar
+      User Function MA410BUT()
+          Local aButtons := {}
+          aAdd(aButtons, {1, {|| u_ConsEstoq()}, "Consulta Estoque", "MAGIC_BMP"})
+          aAdd(aButtons, {1, {|| u_HistCliente()}, "Historico Cliente", "LUPA"})
+      Return aButtons
+
+      // Menu adicional
+      User Function A103MENU()
+          Local aMenu := {}
+          aAdd(aMenu, {"Relatorio Custom", "u_RelFat()", 0, 6})
+          aAdd(aMenu, {"Enviar Email NF",  "u_EnvEmail()", 0, 7})
+      Return aMenu
+
+  - name: "PE de Cancelamento (CAN)"
+    description: "Validar antes de cancelar operacao. Retorna .T./.F."
+    code: |
+      User Function MT120CAN()
+          Local lRet   := .T.
+          Local cNumPC := PARAMIXB[1]
+
+          DbSelectArea("SD1")
+          DbSetOrder(1)
+          If DbSeek(xFilial("SD1") + cNumPC)
+              MsgAlert("Pedido com NFs vinculadas. Cancelamento bloqueado.")
+              lRet := .F.
+          EndIf
+      Return lRet
+
+  - name: "PE MVC (Nome do Fonte)"
+    description: "Em rotinas MVC, o PE tem o nome do fonte e recebe IDs especificos."
+    paramixb_mvc:
+      1: "oModel — Objeto do modelo de dados"
+      2: "cIdHook — ID do hook (MODELPOS, FORMLINEPOS, etc.)"
+      3: "cIdSub — ID da entidade (submodelo) no Model"
+    hook_ids:
+      MODELPRE: "Antes da validacao total do Model"
+      MODELPOS: "Apos validacao total do Model"
+      FORMCOMMITTTSPRE: "Antes da gravacao (Begin Transaction)"
+      FORMCOMMITTTSPOS: "Apos gravacao (End Transaction)"
+      FORMLINEPRE: "Antes da validacao de linha do grid"
+      FORMLINEPOS: "Apos validacao de linha do grid"
+      MODELCOMMITNTTS: "Apos commit fora da transacao"
+      BUTTONBAR: "Adicionar botoes na barra"
+      FORMCANCEL: "Ao cancelar"
+    code: |
+      // PE MVC — nome identico ao fonte da rotina
+      User Function MATA410()
+          Local oModel  := PARAMIXB[1]
+          Local cIdHook := PARAMIXB[2]
+          Local cIdSub  := PARAMIXB[3]
+          Local lRet    := .T.
+
+          Do Case
+              Case cIdHook == "MODELPOS"
+                  // Validacao apos preenchimento do modelo
+                  Local oMaster := oModel:GetModel("SC5MASTER")
+                  If Empty(oMaster:GetValue("C5_TRANSP"))
+                      Help(Nil, Nil, "PE", Nil, "Transportadora obrigatoria.", 1, 0)
+                      lRet := .F.
+                  EndIf
+
+              Case cIdHook == "FORMCOMMITTTSPOS"
+                  // Apos gravacao — integrar
+                  Conout("Pedido gravado via MVC")
+
+              Case cIdHook == "BUTTONBAR"
+                  // Adicionar botao
+                  lRet := {{"Consulta", {|| u_ConsEst()}, "Consulta Estoque"}}
+
+          EndCase
+
+      Return lRet
+
+common_pes_by_module:
+  compras:
+    - name: "MT120LOK"
+      desc: "Validacao do pedido de compra"
+      params: "[1] cOper (I/A/E)"
+      return: "Logical"
+    - name: "MT120CAN"
+      desc: "Cancelamento do pedido de compra"
+      params: "[1] cNumPC"
+      return: "Logical"
+    - name: "A120GRVC"
+      desc: "Pos-gravacao do pedido de compra"
+      params: "[1] cOper, [2] cNumPC"
+      return: "Nil"
+
+  faturamento:
+    - name: "MT100LOK"
+      desc: "Validacao da nota fiscal de saida"
+      params: "[1] cTipo (N/D/B), [2] cNota"
+      return: "Logical"
+    - name: "SF2100I"
+      desc: "Pos-inclusao da NF de saida"
+      params: "[1] F2_DOC, [2] F2_SERIE, [3] F2_CLIENTE, [4] F2_LOJA"
+      return: "Nil"
+    - name: "A103MENU"
+      desc: "Menu adicional no faturamento"
+      params: "Nenhum"
+      return: "Array de menus"
+    - name: "MA410LOK"
+      desc: "Validacao do pedido de venda"
+      params: "[1] cOper"
+      return: "Logical"
+    - name: "MA410BUT"
+      desc: "Botoes no pedido de venda"
+      params: "Nenhum"
+      return: "Array de botoes"
+
+  financeiro:
+    - name: "FA080BUT"
+      desc: "Botoes no contas a pagar"
+      params: "Nenhum"
+      return: "Array de botoes"
+    - name: "FA080INC"
+      desc: "Pos-inclusao titulo contas a pagar"
+      params: "[1] E2_PREFIXO, [2] E2_NUM, [3] E2_PARCELA, [4] E2_TIPO"
+      return: "Nil"
+    - name: "FA050BUT"
+      desc: "Botoes no contas a receber"
+      params: "Nenhum"
+      return: "Array de botoes"
+
+  estoque:
+    - name: "MT250LOK"
+      desc: "Validacao de movimentacao de estoque"
+      params: "[1] D3_TM, [2] D3_COD"
+      return: "Logical"
+    - name: "A650GRVS"
+      desc: "Pos-gravacao da solicitacao de compra"
+      params: "[1] C1_NUM, [2] cOper (I/A)"
+      return: "Nil"
+
+  fiscal:
+    - name: "SPEDCONTRIB"
+      desc: "Customizacao SPED Contribuicoes"
+      params: "[1] cReg, [2] cLinha, [3] nSeq"
+      return: "Character (linha modificada)"
+    - name: "MT930LOK"
+      desc: "Validacao do livro fiscal"
+      params: "[1] cTipo, [2] dDtIni, [3] dDtFim"
+      return: "Logical"
+
+best_practices:
+  - "SEMPRE consultar TDN antes de implementar qualquer PE"
+  - "SEMPRE verificar Len(PARAMIXB) antes de acessar posicoes"
+  - "SEMPRE salvar/restaurar areas com GetArea()/RestArea()"
+  - "Evitar processamento pesado — PEs rodam sincronamente"
+  - "Retornar o tipo EXATO esperado pelo PE — tipo errado causa crash"
+  - "Documentar PARAMIXB no cabecalho Protheus.doc"
+  - "Usar Conout para logging de debug"
+  - "Testar com TODAS as operacoes (inclusao, alteracao, exclusao, visualizacao)"
+  - "Nome do PE = nome EXATO documentado no TDN (maximo 10 caracteres)"
+  - "IsInCallStack pode validar se o PE esta sendo chamado pela rotina esperada"
+
+guard_pattern: |
+  // Proteger execucao apenas quando chamado da rotina correta
+  User Function MT100LOK()
+      Local lRet := .T.
+
+      If !IsInCallStack("MATA100")
+          Return .T.  // Nao executar se chamado de outra rotina
+      EndIf
+
+      // Logica do PE aqui...
+  Return lRet
+
+discovery_methods:
+  - method: "TDN"
+    description: "Buscar no tdn.totvs.com pelo nome da rotina (ex: MATA410)"
+  - method: "Debugger"
+    description: "Procurar por ExistBlock/ExecBlock no fonte padrao"
+  - method: "Pesquisa no RPO"
+    description: "Buscar string 'ExistBlock(' nos fontes compilados"

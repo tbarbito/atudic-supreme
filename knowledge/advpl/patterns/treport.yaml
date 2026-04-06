@@ -1,0 +1,221 @@
+id: treport
+name: "Padrao TReport"
+description: "Framework de relatorios Protheus — TReport, TRSection, TRCell, TRBreak, TRFunction"
+when_to_use:
+  - "Relatorio de listagem com filtros"
+  - "Relatorio com agrupamento e totalizadores"
+  - "Relatorio master-detail"
+  - "Relatorio PDF para impressao"
+  - "Exportacao para planilha"
+  - "Relatorio com parametros SX1 ou ParamBox"
+
+includes:
+  - '#Include "TOTVS.CH"'
+
+classes:
+  TReport: "Container do relatorio — paginas, orientacao, fonte, dialogo"
+  TRSection: "Secao de dados — celulas, quebras, totalizadores"
+  TRCell: "Celula (coluna) pertencente a uma secao"
+  TRBreak: "Regra de quebra para agrupamento de dados"
+  TRFunction: "Totalizador — SUM, COUNT, MAX, MIN, AVERAGE"
+
+aggregate_functions:
+  SUM: "Soma de valores"
+  COUNT: "Contagem de registros"
+  MAX: "Valor maximo"
+  MIN: "Valor minimo"
+  AVERAGE: "Media"
+  ONPRINT: "Valor corrente no momento da impressao"
+  TIMESUM: "Soma de horas"
+  TIMEAVERAGE: "Media de horas"
+
+template: |
+  #Include "TOTVS.CH"
+
+  /*/{Protheus.doc} zRelProd
+  Relatorio de Produtos por Grupo com TReport
+  @type User Function
+  @author Autor
+  @since 01/01/2026
+  @version 1.0
+  /*/
+  User Function zRelProd()
+      Local aArea   := GetArea()
+      Local aPergs  := {}
+      Local oReport := Nil
+      Local cProdDe  := Space(TamSX3("B1_COD")[1])
+      Local cProdAte := StrTran(cProdDe, " ", "Z")
+      Local cTipoDe  := Space(TamSX3("B1_TIPO")[1])
+      Local cTipoAte := StrTran(cTipoDe, " ", "Z")
+
+      // Parametros de filtro via ParamBox
+      aAdd(aPergs, {1, "Produto De",  cProdDe,  "", ".T.", "SB1", ".T.", 80, .F.})
+      aAdd(aPergs, {1, "Produto Ate", cProdAte, "", ".T.", "SB1", ".T.", 80, .T.})
+      aAdd(aPergs, {1, "Tipo De",     cTipoDe,  "", ".T.", "02",  ".T.", 40, .F.})
+      aAdd(aPergs, {1, "Tipo Ate",    cTipoAte, "", ".T.", "02",  ".T.", 40, .T.})
+
+      If ParamBox(aPergs, "Informe os parametros", , , , , , , , , .F., .F.)
+          oReport := fReportDef()
+          oReport:PrintDialog()
+      EndIf
+
+      RestArea(aArea)
+  Return Nil
+
+  Static Function fReportDef()
+      Local oReport  := Nil
+      Local oSection := Nil
+      Local oBreak   := Nil
+
+      oReport := TReport():New("zRelProd", "Relatorio de Produtos por Grupo", Nil, ;
+          {|oReport| fRepPrint(oReport)})
+      oReport:SetTotalInLine(.F.)
+      oReport:SetPortrait()
+      oReport:SetLineHeight(50)
+      oReport:nFontBody  := 10
+      oReport:lParamPage := .F.
+
+      // Secao de dados
+      oSection := TRSection():New(oReport, "Produtos", {"QRY_REP"})
+      oSection:SetTotalInLine(.F.)
+
+      // Colunas
+      TRCell():New(oSection, "B1_COD",  "QRY_REP", "Codigo",    , 15, , , "LEFT",  , "LEFT")
+      TRCell():New(oSection, "B1_DESC", "QRY_REP", "Descricao", , 30, , , "LEFT",  , "LEFT")
+      TRCell():New(oSection, "B1_TIPO", "QRY_REP", "Tipo",      , 05, , , "LEFT",  , "LEFT")
+      TRCell():New(oSection, "B1_UM",   "QRY_REP", "Un. Med.",  , 05, , , "LEFT",  , "LEFT")
+      TRCell():New(oSection, "B1_PRV1", "QRY_REP", "Preco",     "@E 999,999.99", 12, , , "RIGHT", , "RIGHT")
+
+      // Quebra por tipo de produto
+      oBreak := TRBreak():New(oSection, oSection:Cell("B1_TIPO"), ;
+          {|| "Total do Tipo: " + AllTrim((oSection:Cell("B1_TIPO")):cBuffer)}, .F.)
+
+      // Totalizador por quebra
+      TRFunction():New(oSection:Cell("B1_COD"), Nil, "COUNT", oBreak, "Qtd Produtos", "@E 999,999")
+
+      // Totalizador geral (final do relatorio)
+      TRFunction():New(oSection:Cell("B1_PRV1"), Nil, "SUM", Nil, "Total Geral", "@E 999,999,999.99", Nil, .F., .T.)
+
+  Return oReport
+
+  Static Function fRepPrint(oReport)
+      Local cQuery   := ""
+      Local cAlias   := GetNextAlias()
+      Local oSection := oReport:Section(1)
+
+      cQuery := "SELECT B1_COD, B1_DESC, B1_TIPO, B1_UM, B1_PRV1 "
+      cQuery += "FROM " + RetSqlName("SB1") + " SB1 "
+      cQuery += "WHERE SB1.D_E_L_E_T_ = ' ' "
+      cQuery += "AND B1_FILIAL = '" + xFilial("SB1") + "' "
+      cQuery += "AND B1_COD  >= '" + MV_PAR01 + "' "
+      cQuery += "AND B1_COD  <= '" + MV_PAR02 + "' "
+      cQuery += "AND B1_TIPO >= '" + MV_PAR03 + "' "
+      cQuery += "AND B1_TIPO <= '" + MV_PAR04 + "' "
+      cQuery += "ORDER BY B1_TIPO, B1_COD "
+
+      TCQuery cQuery New Alias (cAlias)
+
+      oSection:BeginQuery()
+      While !(cAlias)->(Eof())
+          oSection:PrintLine()
+          (cAlias)->(DbSkip())
+      EndWh
+      oSection:EndQuery()
+
+      (cAlias)->(DbCloseArea())
+  Return Nil
+
+sections:
+  - name: "TReport (Container)"
+    description: "Cria o container do relatorio"
+    constructor: "TReport():New(cName, cTitle, cPergunte, bAction, cDescription, lLandscape)"
+    methods:
+      - "SetTitle(cTitle) — define titulo"
+      - "SetLandscape() / SetPortrait() — orientacao"
+      - "SetTotalInLine(.T./.F.) — totalizadores em linha ou coluna"
+      - "SetLineHeight(nHeight) — altura da linha"
+      - "PrintDialog() — abre dialogo de impressao"
+      - "Print() — imprime sem dialogo"
+    properties:
+      - "nFontBody — tamanho da fonte"
+      - "lParamPage — exibir pagina de parametros"
+
+  - name: "TRSection (Secao de Dados)"
+    description: "Define uma secao com dados, celulas e quebras"
+    constructor: "TRSection():New(oParent, cName, aAliases, nOrder, cTitle, lLandscape, lDisable)"
+    methods:
+      - "SetQuery(cAlias, cQuery) — define query SQL como fonte de dados"
+      - "SetFilter(cFilter, cIndexKey) — filtra secao"
+      - "PrintLine() — imprime linha corrente"
+      - "Print() — imprime secao automaticamente"
+      - "Cell(cName) — retorna objeto TRCell pelo nome"
+      - "BeginQuery() / EndQuery() — delimita loop manual"
+    subsection: "TRSection filha de outra TRSection = master-detail"
+
+  - name: "TRCell (Coluna)"
+    description: "Define uma coluna dentro de uma secao"
+    constructor: "TRCell():New(oSection, cName, cAlias, cTitle, cPicture, nSize, lPixel, bBlock, cAlign, lLineBreak, cHeaderAlign)"
+    custom_cell: |
+      // Celula com code block customizado
+      TRCell():New(oSection, "SITUACAO", "QRY", "Situacao", , 15, , ;
+          {|| IIf(QRY->B1_MSBLQL == "1", "Bloqueado", "Ativo")}, "LEFT")
+
+  - name: "TRBreak (Quebra/Agrupamento)"
+    description: "Define regra de quebra para agrupar dados"
+    constructor: "TRBreak():New(oSection, uBreak, uTitle, lTotalInLine, cName, lPageBreak)"
+    notes:
+      - "uBreak pode ser Cell ou code block"
+      - "uTitle pode ser string ou code block para titulo dinamico"
+      - "lPageBreak = .T. forca quebra de pagina no grupo"
+
+  - name: "TRFunction (Totalizador)"
+    description: "Funcao de totalizacao vinculada a cell e/ou break"
+    constructor: "TRFunction():New(oCell, cId, cFunction, oBreak, cTitle, cPicture, cFormula, lEndSection, lEndReport, lEndPage)"
+    examples: |
+      // Soma por quebra
+      TRFunction():New(oSection:Cell("B1_PRV1"), Nil, "SUM", oBreak, "Subtotal", "@E 999,999.99")
+
+      // Contagem por quebra
+      TRFunction():New(oSection:Cell("B1_COD"), Nil, "COUNT", oBreak, "Qtd", "@E 999,999")
+
+      // Total geral (sem break, final do relatorio)
+      TRFunction():New(oSection:Cell("B1_PRV1"), Nil, "SUM", Nil, "Total Geral", "@E 999,999.99", Nil, .F., .T.)
+
+  - name: "SetQuery (Automatico)"
+    description: "Deixar TReport iterar automaticamente pela query"
+    code: |
+      oSection := TRSection():New(oReport, "Produtos", {"TMP"})
+      oSection:SetQuery("TMP", cQuery)
+      // TReport cuida do loop automaticamente
+      // bAction do TReport: {|oReport| oReport:Section(1):Print()}
+
+  - name: "Master-Detail"
+    description: "Relatorio com secao pai e secao filha"
+    code: |
+      // Secao master
+      oSecMaster := TRSection():New(oReport, "Pedidos", {"SC7"})
+      TRCell():New(oSecMaster, "C7_NUM",    "SC7", "Numero",  , 10, , , "LEFT")
+      TRCell():New(oSecMaster, "C7_EMISSAO","SC7", "Emissao", , 10, , , "LEFT")
+
+      // Secao detail (filha da master)
+      oSecDetail := TRSection():New(oSecMaster, "Itens", {"SC7"})
+      TRCell():New(oSecDetail, "C7_PRODUTO","SC7", "Produto", , 15, , , "LEFT")
+      TRCell():New(oSecDetail, "C7_TOTAL",  "SC7", "Total",   "@E 999,999.99", 12, , , "RIGHT")
+
+      TRFunction():New(oSecDetail:Cell("C7_TOTAL"), Nil, "SUM", Nil, "Total Pedido", "@E 999,999.99")
+
+sx1_integration:
+  description: "Usar grupo de perguntas SX1 em vez de ParamBox"
+  code: |
+    // Passar grupo SX1 no constructor — usuario preenche na tela de parametros
+    oReport := TReport():New("REL001", "Relatorio", "REL001", {|oReport| fPrint(oReport)})
+    // MV_PAR01, MV_PAR02, etc. ficam disponiveis na funcao de impressao
+
+best_practices:
+  - "Sempre usar TCQuery com RetSqlName() para queries"
+  - "Sempre incluir D_E_L_E_T_ = ' ' nas queries"
+  - "Sempre fechar alias temporario com DbCloseArea()"
+  - "Usar BeginQuery/EndQuery para controle manual do loop"
+  - "Usar SetQuery para loop automatico (mais simples)"
+  - "ORDER BY na query deve corresponder aos campos de quebra"
+  - "Liberar areas com RestArea ao final"

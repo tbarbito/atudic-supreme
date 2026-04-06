@@ -1,0 +1,307 @@
+# ============================================================================
+# CAPABILITIES.yaml — Mapa completo do raciocinio do Analista Protheus
+# ============================================================================
+# Este arquivo e o indice central de TUDO que o agente sabe fazer.
+# Abra aqui para entender o sistema. Cada item aponta para seu arquivo detalhado.
+#
+# Atualizar este arquivo sempre que criar/alterar tools, receitas ou mapas.
+# ============================================================================
+
+# --- Tools: funcoes Python que executam analise real nos dados do cliente ---
+tools:
+  # -- Analise de impacto --
+  - id: analise_impacto
+    file: tools/analise_impacto.yaml
+    source: backend/services/analista_tools.py:182
+    summary: "Impacto completo de alteracao em campo/tabela (escrita, MsExecAuto, gatilhos, integracoes)"
+
+  - id: analise_aumento_campo
+    file: tools/analise_aumento_campo.yaml
+    source: backend/services/analise_campo_chave.py:43
+    summary: "Aumento de campo chave SXG (grupo, PadR chumbado, indices, MsExecAuto)"
+
+  # -- Rastreamento de escrita --
+  - id: quem_grava
+    file: tools/quem_grava.yaml
+    source: backend/services/analista_tools.py:974
+    summary: "Quem grava em tabela/campo — pontos de escrita com origens e condicoes"
+
+  - id: operacoes_escrita
+    file: tools/operacoes_escrita.yaml
+    source: backend/services/analista_tools.py:1039
+    summary: "Resumo de todas operacoes de escrita na tabela (por tipo, fontes, condicionais)"
+
+  - id: rastrear_condicao
+    file: tools/rastrear_condicao.yaml
+    source: backend/services/analista_tools.py:1600
+    summary: "Backward trace: de onde vem uma variavel de condicao no codigo"
+
+  # -- Informacao de dicionario --
+  - id: info_tabela
+    file: tools/info_tabela.yaml
+    source: backend/services/analista_tools.py:1500
+    summary: "Metadata da tabela (campos, indices, custom, uso real)"
+
+  - id: ver_parametro
+    file: tools/ver_parametro.yaml
+    source: backend/services/analista_tools.py:450
+    summary: "Consultar parametro SX6 (valor atual, descricao, variacoes por filial)"
+
+  - id: buscar_perguntas
+    file: tools/buscar_perguntas.yaml
+    source: backend/services/analista_tools.py:566
+    summary: "Buscar grupos de perguntas SX1 por codigo ou termo"
+
+  - id: buscar_tabela_generica
+    file: tools/buscar_tabela_generica.yaml
+    source: backend/services/analista_tools.py:596
+    summary: "Buscar tabelas genericas SX5 (combos)"
+
+  # -- Busca e descoberta --
+  - id: buscar_menus
+    file: tools/buscar_menus.yaml
+    source: backend/services/analista_tools.py:900
+    summary: "Buscar rotinas nos menus do cliente por keywords"
+
+  - id: buscar_propositos
+    file: tools/buscar_propositos.yaml
+    source: backend/services/analista_tools.py:1000
+    summary: "Buscar fontes por proposito/descricao (resumos gerados por IA)"
+
+  - id: buscar_pes_cliente
+    file: tools/buscar_pes_cliente.yaml
+    source: backend/services/analista_tools.py:381
+    summary: "PEs implementados pelo cliente para rotina/modulo"
+
+  - id: buscar_fontes_tabela
+    file: tools/buscar_fontes_tabela.yaml
+    source: backend/services/analista_tools.py:402
+    summary: "Fontes que leem/gravam na tabela (modo: escrita, leitura, todos)"
+
+  - id: buscar_jobs
+    file: tools/buscar_jobs.yaml
+    source: backend/services/analista_tools.py:620
+    summary: "Jobs agendados por rotina"
+
+  - id: buscar_schedules
+    file: tools/buscar_schedules.yaml
+    source: backend/services/analista_tools.py:653
+    summary: "Schedules por rotina/status/codigo"
+
+  # -- Codigo fonte --
+  - id: ver_fonte_cliente
+    file: tools/ver_fonte_cliente.yaml
+    source: backend/services/analista_tools.py:2000
+    summary: "Ler codigo real de fonte do cliente (arquivo + funcao)"
+
+  - id: buscar_texto_fonte
+    file: tools/buscar_texto_fonte.yaml
+    source: backend/services/analista_tools.py
+    summary: "Buscar texto/tag/variavel dentro de um fonte especifico"
+
+  # -- Processos --
+  - id: mapear_processo
+    file: tools/mapear_processo.yaml
+    source: backend/services/analista_tools.py:1700
+    summary: "Mapa completo do processo (estados, campos companheiros, tabelas satelite)"
+
+  - id: processos_cliente
+    file: tools/processos_cliente.yaml
+    source: backend/services/analista_tools.py:1800
+    summary: "Listar processos de negocio detectados no cliente"
+
+  # -- Padrao Protheus --
+  - id: fonte_padrao
+    file: tools/fonte_padrao.yaml
+    source: backend/services/padrao_tools.py
+    summary: "Metadata + funcoes de fonte PADRAO Protheus"
+
+  - id: pes_disponiveis
+    file: tools/pes_disponiveis.yaml
+    source: backend/services/padrao_tools.py
+    summary: "PEs disponiveis na rotina PADRAO (ExecBlocks reais)"
+
+  - id: codigo_pe
+    file: tools/codigo_pe.yaml
+    source: backend/services/padrao_tools.py
+    summary: "Codigo fonte onde PE e chamado no PADRAO"
+
+  - id: buscar_funcao_padrao
+    file: tools/buscar_funcao_padrao.yaml
+    source: backend/services/padrao_tools.py
+    summary: "Buscar funcao no padrao (assinatura, arquivo)"
+
+  # -- Especialistas LLM --
+  - id: analisar_fonte
+    file: tools/analisar_fonte.yaml
+    source: backend/services/code_specialist.py
+    summary: "Analisar codigo ADVPL para diagnosticar problema (usa LLM)"
+
+  - id: gerar_codigo
+    file: tools/gerar_codigo.yaml
+    source: backend/services/code_specialist.py
+    summary: "Gerar codigo ADVPL novo — PE, User Function, MVC (usa LLM)"
+
+# --- Receitas: planos de investigacao por tipo de cenario ---
+recipes:
+  - id: campo_obrigatorio
+    file: recipes/campo_obrigatorio.yaml
+    summary: "Campo mudando de opcional para obrigatorio"
+
+  - id: campo_nao_grava
+    file: recipes/campo_nao_grava.yaml
+    summary: "Campo nao esta gravando/salvando"
+
+  - id: aumento_campo
+    file: recipes/aumento_campo.yaml
+    summary: "Aumentar tamanho de campo chave (SXG)"
+
+  - id: erro_rotina
+    file: recipes/erro_rotina.yaml
+    summary: "Erro, crash ou travamento em rotina"
+
+  - id: valor_errado
+    file: recipes/valor_errado.yaml
+    summary: "Campo mostrando valor errado/zerado"
+
+  - id: entender_processo
+    file: recipes/entender_processo.yaml
+    summary: "Entender como funciona um processo/fluxo"
+
+  - id: entender_tabela
+    file: recipes/entender_tabela.yaml
+    summary: "Entender estrutura e uso de uma tabela"
+
+  - id: entender_pe
+    file: recipes/entender_pe.yaml
+    summary: "Entender pontos de entrada disponiveis"
+
+  - id: criar_pe
+    file: recipes/criar_pe.yaml
+    summary: "Criar ou customizar ponto de entrada"
+
+  - id: criar_campo
+    file: recipes/criar_campo.yaml
+    summary: "Criar novo campo em tabela existente"
+
+  - id: criar_parametro
+    file: recipes/criar_parametro.yaml
+    summary: "Criar novo parametro SX6"
+
+  - id: debug_gatilho
+    file: recipes/debug_gatilho.yaml
+    summary: "Gatilho nao disparando ou com problema"
+
+  - id: debug_default
+    file: recipes/debug_default.yaml
+    summary: "Problema generico — investigacao aberta"
+
+# --- Mapas: dados de referencia Protheus ---
+maps:
+  - id: rotinas
+    file: maps/rotinas.yaml
+    summary: "50+ rotinas padrao com prefixos, tabela principal e modulo"
+
+  - id: conceitos
+    file: maps/conceitos.yaml
+    summary: "17 conceitos de negocio mapeados para rotinas e tabelas"
+
+  - id: operacoes
+    file: maps/operacoes.yaml
+    summary: "7 tipos de operacao com keywords sinonimas"
+
+  - id: action_keywords
+    file: maps/action_keywords.yaml
+    summary: "9 tipos de acao detectados por keywords na mensagem"
+
+  - id: entity_mapping
+    file: maps/entity_mapping.yaml
+    summary: "Mapeamento produto/cliente/fornecedor → tabela + campo"
+
+  - id: table_routine_map
+    file: maps/table_routine_map.yaml
+    summary: "Tabela → rotinas padrao (para detectar MsExecAuto)"
+
+# --- Prompts: templates de LLM por funcao ---
+prompts:
+  - id: system_duvida
+    file: prompts/system_duvida.yaml
+    summary: "System prompt modo duvida (entender ambiente)"
+
+  - id: system_melhoria
+    file: prompts/system_melhoria.yaml
+    summary: "System prompt modo melhoria (criar/alterar)"
+
+  - id: system_ajuste
+    file: prompts/system_ajuste.yaml
+    summary: "System prompt modo ajuste (debug)"
+
+  - id: classify
+    file: prompts/classify.yaml
+    summary: "Classificar pergunta → modulos, tabelas, tipo_analise"
+
+  - id: planner
+    file: prompts/planner.yaml
+    summary: "Prompt do planejador de investigacao"
+
+  - id: verification
+    file: prompts/verification.yaml
+    summary: "Draft + Verify + Reflect — anti-alucinacao"
+
+  - id: code_specialist
+    file: prompts/code_specialist.yaml
+    summary: "3 modos: diagnosticar, gerar, ajustar codigo ADVPL"
+
+  - id: analise_pai
+    file: prompts/analise_pai.yaml
+    summary: "Resumo + Mermaid do processo pai quando decomposto em sub-processos"
+
+# --- Heuristicas: regras e logica de decisao embutida ---
+heuristics:
+  - id: uso_tabela
+    file: heuristics/uso_tabela.yaml
+    summary: "Classificacao de uso real de tabela por volumetria (ativo, residual, config, inexistente)"
+
+  - id: tabela_movimento
+    file: heuristics/tabela_movimento.yaml
+    summary: "Detecta tabela de movimento vs configuracao/cadastro"
+
+  - id: ambiguidade
+    file: heuristics/ambiguidade.yaml
+    summary: "Quando pedir clarificacao (multiplos campos, keywords ambiguas)"
+
+  - id: verificacao
+    file: heuristics/verificacao.yaml
+    summary: "Quando rodar verificacao anti-alucinacao (modo, qtd tools, confianca)"
+
+  - id: decomposicao
+    file: heuristics/decomposicao.yaml
+    summary: "Quando decompor processo (max fontes, tabelas transversais, integracoes)"
+
+  - id: sinonimos
+    file: heuristics/sinonimos.yaml
+    summary: "Expansao de sinonimos para resolucao semantica"
+
+  - id: grafo_pe_enriquecido
+    file: heuristics/grafo_pe_enriquecido.yaml
+    summary: "PEs no grafo mostram funcoes do padrao que chamam o ExecBlock"
+
+  - id: tool_error_feedback
+    file: heuristics/tool_error_feedback.yaml
+    summary: "Erros de tools retornam como feedback pro LLM adaptar estrategia"
+
+  - id: parallel_tools
+    file: heuristics/parallel_tools.yaml
+    summary: "Tools read-only rodam em paralelo (max 5, asyncio.gather)"
+
+# --- Summarizers: como cada tool tem seu resultado resumido ---
+summarizers:
+  - id: context_manager
+    file: tools/_summarizers.yaml
+    summary: "18 summarizers especializados + 6 topicos de organizacao"
+
+# --- Testes: cenarios de validacao por cliente ---
+tests:
+  - id: shared
+    file: tests/_shared/tests.yaml
+    summary: "Testes universais que valem para todos os clientes"

@@ -1,0 +1,15 @@
+id: pes_disponiveis
+name: "PEs Disponiveis"
+description: "Pontos de entrada disponiveis na rotina PADRAO"
+source: "backend/services/padrao_tools.py"
+when_to_use:
+  - "quais PEs tem nessa rotina"
+  - "onde posso customizar"
+  - "ExecBlocks da rotina"
+inputs:
+  rotina: "codigo da rotina (ex: MATA410)"
+outputs:
+  - "lista de {nome_pe, operacao, parametros, tipo_retorno, contexto, comentario}"
+notes: |
+  Estes sao os PEs REAIS extraidos do codigo padrao, nao documentacao.
+  Incluem parametros (PARAMIXB), tipo de retorno e contexto de chamada.

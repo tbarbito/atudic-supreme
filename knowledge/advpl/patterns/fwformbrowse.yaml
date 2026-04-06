@@ -1,0 +1,264 @@
+id: fwformbrowse
+name: "Padrao FWFormBrowse / FWMBrowse"
+description: "Browse grid com form integrado, legendas, filtros, botoes e MVC"
+when_to_use:
+  - "Tela de listagem/browse para cadastro MVC"
+  - "Browse com legendas coloridas por status"
+  - "Browse com filtro padrao"
+  - "Browse com botoes customizados"
+  - "Visualizacao/edicao de registro via FWExecView"
+  - "Acesso programatico ao modelo via FWLoadModel"
+
+includes:
+  - '#Include "TOTVS.CH"'
+  - '#Include "FWMVCDef.ch"'
+  - '#Include "FWBROWSE.CH"'
+
+sections:
+  - name: "FWMBrowse (Browse MVC Padrao)"
+    description: "Browse simples baseado em metadados SX3/SIX"
+    key_points:
+      - "SetAlias define tabela principal"
+      - "SetDescription define titulo"
+      - "AddLegend adiciona legendas coloridas"
+      - "SetFilterDefault define filtro padrao"
+      - "DisableDetails desabilita painel de detalhe"
+      - "Activate exibe o browse"
+    template: |
+      User Function zCadProd()
+          Local oBrowse := Nil
+
+          oBrowse := FWMBrowse():New()
+          oBrowse:SetAlias("SB1")
+          oBrowse:SetDescription("Cadastro de Produtos")
+
+          // Legendas de cor
+          oBrowse:AddLegend("B1_MSBLQL == '2'", "GREEN", "Ativo")
+          oBrowse:AddLegend("B1_MSBLQL == '1'", "RED",   "Bloqueado")
+
+          // Filtro padrao
+          oBrowse:SetFilterDefault("B1_TIPO == 'PA'")
+
+          oBrowse:Activate()
+      Return Nil
+
+  - name: "FWMBrowse Metodos"
+    description: "Metodos disponiveis no FWMBrowse"
+    methods:
+      - name: "New()"
+        desc: "Construtor"
+      - name: "SetAlias(cAlias)"
+        desc: "Define alias principal"
+      - name: "SetDescription(cDesc)"
+        desc: "Titulo do browse"
+      - name: "SetFilterDefault(cFilter)"
+        desc: "Filtro padrao (expressao ADVPL)"
+      - name: "AddLegend(cExpr, cColor, cDesc)"
+        desc: "Legenda colorida"
+        colors: ["GREEN", "RED", "YELLOW", "BLUE", "ORANGE", "BROWN", "BLACK", "PINK", "WHITE", "GRAY"]
+      - name: "DisableDetails()"
+        desc: "Desabilita painel de detalhes"
+      - name: "Activate()"
+        desc: "Ativa/exibe o browse"
+
+  - name: "FWFormBrowse (Browse com Form)"
+    description: "Browse com formulario integrado e botoes laterais"
+    template: |
+      #Include "TOTVS.CH"
+      #Include "FWBROWSE.CH"
+
+      User Function zFormBrw()
+          Local oBrowse := Nil
+          Local oDlg    := Nil
+
+          DbSelectArea("SA1")
+          DbSetOrder(1)
+
+          DEFINE MSDIALOG oDlg FROM 0,0 TO 600,800 PIXEL
+
+              DEFINE FWFORMBROWSE oBrowse DATA TABLE ALIAS "SA1" OF oDlg
+              oBrowse:Activate()
+
+          ACTIVATE MSDIALOG oDlg CENTERED
+      Return Nil
+
+  - name: "FWExecView (Abrir View MVC)"
+    description: "Abre janela MVC para visualizar/incluir/alterar/excluir"
+    syntax: "FWExecView(cTitle, cProgram, nOperation, oDlg, bCloseOnOK, bOk, nPercReducao, aEnableButtons, bCancel)"
+    operations:
+      1: "Visualizar (MODEL_OPERATION_VIEW)"
+      3: "Incluir (MODEL_OPERATION_INSERT)"
+      4: "Alterar (MODEL_OPERATION_UPDATE)"
+      5: "Excluir (MODEL_OPERATION_DELETE)"
+    buttons_array:
+      description: "aEnableButtons — array de 14 posicoes {lEnabled, cCustomTitle}"
+      positions:
+        1: "Copy"
+        2: "Cut"
+        3: "Paste"
+        4: "Calculator"
+        5: "Spool"
+        6: "Print"
+        7: "Confirm"
+        8: "Cancel"
+        9: "WalkThrough"
+        10: "Environment"
+        11: "Mashup"
+        12: "Help"
+        13: "HTML Form"
+        14: "ECM"
+    examples:
+      view: |
+        User Function zViewCli()
+            Local aArea   := GetArea()
+            Local cFunBkp := FunName()
+
+            DbSelectArea("SA1")
+            DbSetOrder(1)
+            If DbSeek(xFilial("SA1") + "000001" + "01")
+                SetFunName("zCadCli")
+                FWExecView("Visualizar Cliente", "zCadCli", MODEL_OPERATION_VIEW)
+                SetFunName(cFunBkp)
+            EndIf
+
+            RestArea(aArea)
+        Return Nil
+      insert_custom_buttons: |
+        User Function zIncCli()
+            Local aButtons := {}
+            Local nI       := 0
+
+            For nI := 1 To 14
+                aAdd(aButtons, {.T., Nil})
+            Next nI
+
+            aButtons[1] := {.F., Nil}  // Desabilita Copy
+            aButtons[2] := {.F., Nil}  // Desabilita Cut
+            aButtons[3] := {.F., Nil}  // Desabilita Paste
+            aButtons[7] := {.T., "Salvar"}
+            aButtons[8] := {.T., "Cancelar"}
+
+            FWExecView("Incluir Cliente", "zCadCli", MODEL_OPERATION_INSERT, ;
+                Nil, {|| .T.}, Nil, Nil, aButtons)
+        Return Nil
+      reduced_window: |
+        // Janela com 30% de reducao
+        FWExecView("Detalhes", "ZPRODMVC", MODEL_OPERATION_VIEW, Nil, {|| .T.}, Nil, 30)
+
+  - name: "FWFormStruct (Estrutura SX3)"
+    description: "Cria estruturas de modelo/view a partir do dicionario SX3"
+    modes:
+      1: "Model — regras de negocio"
+      2: "View — interface visual"
+    methods:
+      - "RemoveField(cFieldName) — remove campo"
+      - "SetProperty(cField, nProperty, xValue) — altera propriedade"
+      - "AddField(cFieldName, ...) — adiciona campo"
+      - "AddTrigger(cOrigin, cDest, bWhen, bExec) — adiciona gatilho"
+    properties:
+      MODEL_FIELD_WHEN: "Condicao de edicao (code block)"
+      MODEL_FIELD_INIT: "Valor inicial (code block)"
+      MODEL_FIELD_VALID: "Validacao (code block)"
+      MODEL_FIELD_OBRIGAT: "Campo obrigatorio (logical)"
+    code: |
+      Local oStSA1 := FWFormStruct(1, "SA1")
+
+      oStSA1:RemoveField("A1_ZORDER")
+      oStSA1:SetProperty("A1_NOME", MODEL_FIELD_OBRIGAT, .T.)
+      oStSA1:SetProperty("A1_LOJA", MODEL_FIELD_INIT, {|| "01"})
+      oStSA1:SetProperty("A1_COD", MODEL_FIELD_WHEN, {|| FWModeInsert()})
+
+  - name: "FWLoadModel (Acesso Programatico)"
+    description: "Carregar e manipular modelo MVC sem interface"
+    code: |
+      User Function zLoadProd()
+          Local oModel  := FWLoadModel("ZPRODMVC")
+          Local oMaster := Nil
+          Local lRet    := .F.
+
+          oModel:SetOperation(MODEL_OPERATION_INSERT)
+          oModel:Activate()
+
+          oMaster := oModel:GetModel("SB1MASTER")
+          oMaster:SetValue("B1_COD",  "TST001")
+          oMaster:SetValue("B1_DESC", "Produto Teste")
+          oMaster:SetValue("B1_TIPO", "PA")
+          oMaster:SetValue("B1_UM",   "UN")
+
+          If oModel:VldData()
+              oModel:CommitData()
+              lRet := .T.
+          EndIf
+
+          oModel:DeActivate()
+      Return lRet
+
+complete_crud_template: |
+  #Include "TOTVS.CH"
+  #Include "FWMVCDef.ch"
+
+  User Function zProdMVC()
+      Local oBrowse := FWMBrowse():New()
+
+      oBrowse:SetAlias("SB1")
+      oBrowse:SetDescription("Cadastro de Produtos")
+      oBrowse:AddLegend("B1_MSBLQL == '2'", "GREEN", "Ativo")
+      oBrowse:AddLegend("B1_MSBLQL == '1'", "RED",   "Bloqueado")
+      oBrowse:Activate()
+  Return Nil
+
+  Static Function MenuDef()
+      Local aRotina := {}
+      ADD OPTION aRotina TITLE "Visualizar" ACTION "VIEWDEF.ZPRODMVC" OPERATION MODEL_OPERATION_VIEW   ACCESS 0
+      ADD OPTION aRotina TITLE "Incluir"    ACTION "VIEWDEF.ZPRODMVC" OPERATION MODEL_OPERATION_INSERT ACCESS 0
+      ADD OPTION aRotina TITLE "Alterar"    ACTION "VIEWDEF.ZPRODMVC" OPERATION MODEL_OPERATION_UPDATE ACCESS 0
+      ADD OPTION aRotina TITLE "Excluir"    ACTION "VIEWDEF.ZPRODMVC" OPERATION MODEL_OPERATION_DELETE ACCESS 0
+      ADD OPTION aRotina TITLE "Copiar"     ACTION "VIEWDEF.ZPRODMVC" OPERATION MODEL_OPERATION_COPY   ACCESS 0
+  Return aRotina
+
+  Static Function ModelDef()
+      Local oModel := Nil
+      Local oStSB1 := FWFormStruct(1, "SB1")
+
+      oStSB1:SetProperty("B1_DESC", MODEL_FIELD_OBRIGAT, .T.)
+      oStSB1:SetProperty("B1_UM",   MODEL_FIELD_OBRIGAT, .T.)
+      oStSB1:SetProperty("B1_TIPO", MODEL_FIELD_INIT, {|| "PA"})
+      oStSB1:SetProperty("B1_UM",   MODEL_FIELD_INIT, {|| "UN"})
+
+      oModel := MPFormModel():New("ZPRODMVC", ;
+          {|oMdl| PreValidProd(oMdl)}, , ;
+          {|oMdl| FWFormCommit(oMdl)}, ;
+          {|oMdl| FWFormCancel(oMdl)} ;
+      )
+      oModel:SetDescription("Cadastro de Produtos")
+      oModel:AddFields("SB1MASTER", /*cOwner*/, oStSB1)
+      oModel:SetPrimaryKey({"B1_FILIAL", "B1_COD"})
+  Return oModel
+
+  Static Function PreValidProd(oModel)
+      Local lRet := .T.
+      If Empty(oModel:GetModel("SB1MASTER"):GetValue("B1_DESC"))
+          Help(Nil, Nil, "PRODVAL", Nil, "Descricao obrigatoria.", 1, 0)
+          lRet := .F.
+      EndIf
+  Return lRet
+
+  Static Function ViewDef()
+      Local oView  := FWFormView():New()
+      Local oModel := FWLoadModel("ZPRODMVC")
+      Local oStSB1 := FWFormStruct(2, "SB1")
+
+      oView:SetModel(oModel)
+      oView:AddField("VIEW_SB1", oStSB1, "SB1MASTER")
+      oView:CreateHorizontalBox("BOXPROD", 100)
+      oView:SetOwnerView("VIEW_SB1", "BOXPROD")
+      oView:EnableTitleView("VIEW_SB1", "Dados do Produto")
+  Return oView
+
+best_practices:
+  - "Sempre posicionar no registro antes de chamar FWExecView para View/Update/Delete"
+  - "Usar SetFunName antes de FWExecView para que o framework encontre MenuDef/ModelDef/ViewDef"
+  - "Restaurar FunName apos FWExecView"
+  - "AddLegend: expressao deve retornar .T./.F. e cores sao strings predefinidas"
+  - "SetFilterDefault aceita expressao ADVPL (nao SQL)"
+  - "FWLoadModel permite usar modelo sem interface — ideal para testes e integracoes"

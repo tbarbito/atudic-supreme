@@ -1416,7 +1416,7 @@ async function showPermissionOverridesModal({ userId }) {
         manage: 'Gerenciar', chat: 'Conversar', tools: 'Executar Tools',
         search: 'Buscar', ingest: 'Ingerir', compare: 'Comparar',
         equalize: 'Equalizar', analyze: 'Analisar', query: 'Executar Query',
-        acknowledge: 'Reconhecer Alertas', test: 'Testar',
+        acknowledge: 'Reconhecer Alertas', test: 'Testar', export: 'Exportar',
         edit_protected: 'Editar Protegidos'
     };
 

@@ -1,0 +1,18 @@
+id: mapear_processo
+name: "Mapear Processo"
+description: "Mapa completo de um processo de negocio"
+source: "backend/services/analista_tools.py:1700"
+when_to_use:
+  - "como funciona o processo"
+  - "qual o fluxo"
+  - "quais estados/etapas"
+inputs:
+  tabela: "tabela principal do processo"
+  campo: "campo de status (opcional)"
+outputs:
+  processo: "info geral (total pontos escrita, fontes, estados)"
+  estados: "lista de {valor, significado}"
+  campos_companheiros: "campos relacionados ao status"
+  tabelas_satelite: "tabelas auxiliares"
+  fontes_no_fluxo: "fontes participantes"
+  complexidade: "baixa/media/alta"

@@ -1,0 +1,11 @@
+id: buscar_propositos
+name: "Buscar Propositos"
+description: "Buscar fontes por proposito/descricao gerada por IA"
+source: "backend/services/analista_tools.py:1000"
+when_to_use:
+  - "fontes relacionados a um assunto"
+  - "quem faz X no sistema"
+inputs:
+  termo: "termo de busca"
+outputs:
+  - "lista de {arquivo, modulo, proposito}"

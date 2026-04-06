@@ -1,0 +1,134 @@
+id: rotinas
+name: "Mapa de Rotinas Padrao"
+description: "Rotinas padrao Protheus com prefixos, tabela principal e modulo"
+source: "backend/services/query_decomposer.py:19"
+
+rotinas:
+  # Financeiro
+  FINA050:
+    prefixos: [FA050, F050]
+    tabela: SE2
+    modulo: financeiro
+    nome: "Contas a Pagar"
+  FINA040:
+    prefixos: [FA040, F040]
+    tabela: SE1
+    modulo: financeiro
+    nome: "Contas a Receber"
+  FINA080:
+    prefixos: [FA080, F080]
+    tabela: SE5
+    modulo: financeiro
+    nome: "Baixas a Pagar"
+  FINA070:
+    prefixos: [FA070, F070]
+    tabela: SE5
+    modulo: financeiro
+    nome: "Baixas a Receber"
+  FINA750:
+    prefixos: [FA750, F750]
+    tabela: SE2
+    modulo: financeiro
+    nome: "Contas a Pagar (filial)"
+
+  # Compras
+  MATA120:
+    prefixos: [MT120, MA120]
+    tabela: SC7
+    modulo: compras
+    nome: "Pedido de Compras"
+  MATA121:
+    prefixos: [MT121, MA121]
+    tabela: SC7
+    modulo: compras
+    nome: "Pedido de Compras (Adiantamento)"
+  MATA110:
+    prefixos: [MT110, MA110]
+    tabela: SC1
+    modulo: compras
+    nome: "Solicitacao de Compras"
+  MATA103:
+    prefixos: [A103, MT103, MA103]
+    tabela: SF1
+    modulo: compras
+    nome: "Documento de Entrada"
+  MATA140:
+    prefixos: [MT140, MA140]
+    tabela: SC7
+    modulo: compras
+    nome: "Cotacao de Precos"
+  MATA094:
+    prefixos: [MT094, MA094, MTA094]
+    tabela: SCR
+    modulo: compras
+    nome: "Aprovacao de Compras"
+
+  # Faturamento/Vendas
+  MATA410:
+    prefixos: [MT410, MA410]
+    tabela: SC5
+    modulo: faturamento
+    nome: "Pedido de Venda"
+  MATA460:
+    prefixos: [MT460, MA460]
+    tabela: SF2
+    modulo: faturamento
+    nome: "Nota Fiscal Saida"
+  MATA010:
+    prefixos: [A010, MT010, MA010]
+    tabela: SA1
+    modulo: faturamento
+    nome: "Cadastro de Clientes"
+  MATA030:
+    prefixos: [A030, MT030, MA030]
+    tabela: SA1
+    modulo: faturamento
+    nome: "Cadastro de Clientes (Alt)"
+
+  # Estoque
+  MATA250:
+    prefixos: [MT250, MA250]
+    tabela: SD3
+    modulo: estoque
+    nome: "Movimentacao Interna"
+  MATA261:
+    prefixos: [A261, MT261]
+    tabela: SB1
+    modulo: estoque
+    nome: "Cadastro de Produtos"
+
+  # Fiscal
+  MATA950:
+    prefixos: [MT950, MA950]
+    tabela: SF3
+    modulo: fiscal
+    nome: "Livros Fiscais"
+
+  # Contabilidade
+  CTBA102:
+    prefixos: [CT102, CTB102]
+    tabela: CT2
+    modulo: contabilidade
+    nome: "Lancamento Contabil"
+
+  # Ativo Fixo
+  ATFA010:
+    prefixos: [AF010, ATF010]
+    tabela: SN1
+    modulo: ativo
+    nome: "Cadastro Ativo Fixo"
+  ATFA012:
+    prefixos: [AF012, ATF012]
+    tabela: SN1
+    modulo: ativo
+    nome: "Classificacao Ativo Imobilizado"
+  ATFA240:
+    prefixos: [AF240, ATF240]
+    tabela: SN1
+    modulo: ativo
+    nome: "Classificacao Ativo (Individual/Lote)"
+  ATFA040:
+    prefixos: [AF040, ATF040]
+    tabela: SE2
+    modulo: ativo
+    nome: "Baixas de Adiantamento"

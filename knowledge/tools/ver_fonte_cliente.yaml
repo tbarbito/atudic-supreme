@@ -1,0 +1,13 @@
+id: ver_fonte_cliente
+name: "Ver Fonte Cliente"
+description: "Ler codigo real de fonte do cliente"
+source: "backend/services/analista_tools.py:2000"
+when_to_use:
+  - "preciso ver o codigo"
+  - "ler a funcao"
+inputs:
+  arquivo: "nome do arquivo fonte"
+  funcao: "nome da funcao (opcional)"
+outputs:
+  encontrado: "bool"
+  content: "codigo fonte real"

@@ -8,17 +8,7 @@ import json
 from pathlib import Path
 from app.services.workspace.padrao_database import PadraoDB
 
-def _resolve_padrao_db_path() -> Path:
-    """Resolve path do padrao.db (fontes padrao Protheus)."""
-    import sys
-    if getattr(sys, 'frozen', False):
-        base = Path(sys.executable).parent
-    else:
-        base = Path(__file__).parent.parent.parent.parent  # raiz do projeto
-    return base / "db" / "padrao.db"
-
-
-PADRAO_DB_PATH = _resolve_padrao_db_path()
+PADRAO_DB_PATH = Path("workspace") / "padrao" / "db" / "padrao.db"
 
 
 def _get_padrao_db() -> PadraoDB:

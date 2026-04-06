@@ -7,6 +7,7 @@ When the LLM has enough information, it signals 'pronto' to exit.
 """
 import json
 import asyncio
+import time
 from typing import AsyncGenerator
 
 from app.services.workspace import analista_tools as at
@@ -15,6 +16,23 @@ from app.services.workspace.context_manager import summarize_tool_result, build_
 
 MAX_STEPS = 5
 MAX_PLANNED_STEPS = 8
+MAX_PARALLEL = 5  # max concurrent read-only tools (avoid overwhelming the DB)
+
+# ── Tool safety classification ────────────────────────────────────────────
+
+# Tools safe to run in parallel (read-only, no side effects)
+READ_ONLY_TOOLS = {
+    "quem_grava", "info_tabela", "operacoes_escrita", "rastrear_condicao",
+    "ver_parametro", "ver_fonte_cliente", "buscar_texto_fonte",
+    "buscar_pes_cliente", "mapear_processo", "buscar_menus",
+    "buscar_propositos", "analise_impacto", "analise_aumento_campo",
+    "processos_cliente", "jobs_schedules", "buscar_fontes_tabela",
+    # Padrão tools (read-only by nature)
+    "fonte_padrao", "pes_disponiveis", "codigo_pe", "buscar_funcao_padrao",
+}
+
+# Tools that use LLM calls — can run parallel but limited concurrency
+LLM_TOOLS = {"analisar_fonte", "gerar_codigo"}
 
 # ── Tool registry ──────────────────────────────────────────────────────────
 
@@ -169,6 +187,16 @@ def _execute_tool(tool_name: str, args: dict, llm=None) -> dict:
     if tool_name not in TOOL_MAP:
         return {"erro": f"Ferramenta '{tool_name}' nao encontrada"}
 
+    from app.services.workspace.tool_validator import validate_tool_args, fix_common_arg_issues
+
+    # Auto-fix common issues
+    args = fix_common_arg_issues(tool_name, args)
+
+    # Validate
+    is_valid, error_msg = validate_tool_args(tool_name, args)
+    if not is_valid:
+        return {"erro": f"Args invalidos para {tool_name}: {error_msg}"}
+
     try:
         # Inject LLM for code specialist tools
         if tool_name in ("analisar_fonte", "gerar_codigo") and llm:
@@ -179,12 +207,113 @@ def _execute_tool(tool_name: str, args: dict, llm=None) -> dict:
         return {"erro": f"Erro ao executar {tool_name}: {str(e)[:200]}"}
 
 
+def _is_error_result(result: dict) -> bool:
+    """Check if a tool result represents an error."""
+    return isinstance(result, dict) and "erro" in result
+
+
 def _truncate_result(result: dict, max_chars: int = 2000) -> str:
-    """Serialize and truncate a tool result for context accumulation."""
+    """Serialize and truncate a tool result for context accumulation.
+
+    Error results are never truncated — they are small and critical
+    for the LLM to adapt its strategy.
+    """
     text = json.dumps(result, ensure_ascii=False, default=str)
+    if _is_error_result(result):
+        return text
     if len(text) > max_chars:
         text = text[:max_chars] + "... [truncado]"
     return text
+
+
+def _group_steps_by_parallelism(valid_steps: list) -> list:
+    """Group consecutive read-only steps for parallel execution.
+
+    Returns a list of groups, where each group is a list of (orig_idx, step) tuples.
+    Consecutive read-only steps form a single group (parallelizable).
+    Non-read-only steps each get their own single-item group (sequential).
+    """
+    if not valid_steps:
+        return []
+
+    groups = []
+    current_group = []
+
+    for idx, step in valid_steps:
+        tool_name = step.get("tool", "")
+        is_parallel_safe = tool_name in READ_ONLY_TOOLS
+
+        if is_parallel_safe:
+            current_group.append((idx, step))
+        else:
+            # Flush any accumulated read-only group
+            if current_group:
+                groups.append(current_group)
+                current_group = []
+            # Non-read-only step gets its own group
+            groups.append([(idx, step)])
+
+    # Flush remaining read-only group
+    if current_group:
+        groups.append(current_group)
+
+    return groups
+
+
+def _process_tool_result(
+    tool_name: str,
+    tool_args: dict,
+    result: dict,
+    summaries: list,
+    artifact_registry,
+    prefix: str = "",
+    elapsed: float = 0.0,
+) -> list:
+    """Process a single tool result: check errors, extract artifacts, summarize.
+
+    Returns a list of event dicts to yield.
+    """
+    events = []
+    elapsed_str = f" ({elapsed:.1f}s)" if elapsed > 0 else ""
+
+    # Check for tool errors
+    if _is_error_result(result):
+        error_msg = result.get("erro", "Erro desconhecido")
+        summary = summarize_tool_result(tool_name, tool_args, result)
+        summaries.append(summary)
+        events.append({
+            "type": "status",
+            "step": f"{prefix} Erro em {tool_name}: {error_msg[:150]}",
+            "error": True,
+        })
+        events.append({
+            "type": "tool_result",
+            "tool": tool_name,
+            "args": tool_args,
+            "summary": f"ERRO: {error_msg[:300]}",
+            "error": True,
+        })
+        return events
+
+    # Extract artifacts from raw result (before summarization)
+    if artifact_registry is not None:
+        try:
+            from app.services.workspace.artifact_registry import extract_artifacts
+            extract_artifacts(tool_name, tool_args, result, artifact_registry)
+        except Exception:
+            pass
+
+    # Summarize
+    summary = summarize_tool_result(tool_name, tool_args, result)
+    summaries.append(summary)
+
+    events.append({
+        "type": "tool_result",
+        "tool": tool_name,
+        "args": tool_args,
+        "summary": summary.get("summary", "")[:300] + elapsed_str,
+    })
+    return events
 
 
 async def run_investigation(
@@ -250,6 +379,27 @@ async def run_investigation(
         # Execute tool
         result = await asyncio.to_thread(_execute_tool, tool_name, tool_args, llm)
 
+        # Check for tool errors — feed them back so the LLM can adapt
+        if _is_error_result(result):
+            error_msg = result.get("erro", "Erro desconhecido")
+            # Summarize the error so it shows in accumulated context
+            summary = summarize_tool_result(tool_name, tool_args, result)
+            summaries.append(summary)
+            yield {
+                "type": "status",
+                "step": f"Erro em {tool_name}: {error_msg[:150]}",
+                "error": True,
+            }
+            yield {
+                "type": "tool_result",
+                "tool": tool_name,
+                "args": tool_args,
+                "summary": f"ERRO: {error_msg[:300]}",
+                "error": True,
+            }
+            # Continue — the LLM will see the error and can try different args or tool
+            continue
+
         # Summarize result using context_manager
         summary = summarize_tool_result(tool_name, tool_args, result)
         summaries.append(summary)
@@ -271,6 +421,7 @@ async def run_planned_investigation(
     plan: dict,
     initial_context: str,
     modo: str = "ajuste",
+    artifact_registry=None,
 ) -> AsyncGenerator[dict, None]:
     """Run investigation following a structured plan, then allow reactive steps.
 
@@ -278,40 +429,89 @@ async def run_planned_investigation(
     Phase 2: Allow reactive_steps where LLM can request additional tools
 
     Yields same SSE events as run_investigation for compatibility.
+    If artifact_registry is provided, extracts typed artifacts from raw results.
     """
     summaries = []
     planned_steps = plan.get("steps", [])
     reactive_allowed = plan.get("reactive_steps", 2)
 
-    # ── Phase 1: Execute planned steps ────────────────────────────────────
+    # ── Phase 1: Execute planned steps (with parallel grouping) ─────────
+    # Filter valid steps first, keeping original indices for status messages
+    valid_steps = []
     for i, step in enumerate(planned_steps):
         tool_name = step.get("tool", "")
-        tool_args = step.get("args", {})
-        reason = step.get("reason", "")
-
         if tool_name == "pronto" or not tool_name:
             continue
         if tool_name not in TOOL_MAP:
             continue
+        valid_steps.append((i, step))
 
-        # Status update
-        desc = TOOL_DESCRIPTIONS.get(tool_name, {}).get("desc", tool_name)
-        args_summary = ", ".join(f"{k}={v}" for k, v in tool_args.items()) if tool_args else ""
-        yield {"type": "status", "step": f"[{i+1}/{len(planned_steps)}] {desc} ({args_summary})..."}
+    # Group consecutive read-only steps for parallel execution
+    groups = _group_steps_by_parallelism(valid_steps)
 
-        # Execute tool
-        result = await asyncio.to_thread(_execute_tool, tool_name, tool_args, llm)
+    for group in groups:
+        if len(group) == 1:
+            # Single step — execute sequentially (original behavior)
+            orig_idx, step = group[0]
+            tool_name = step["tool"]
+            tool_args = step.get("args", {})
 
-        # Summarize
-        summary = summarize_tool_result(tool_name, tool_args, result)
-        summaries.append(summary)
+            desc = TOOL_DESCRIPTIONS.get(tool_name, {}).get("desc", tool_name)
+            args_summary = ", ".join(f"{k}={v}" for k, v in tool_args.items()) if tool_args else ""
+            yield {"type": "status", "step": f"[{orig_idx+1}/{len(planned_steps)}] {desc} ({args_summary})..."}
 
-        yield {
-            "type": "tool_result",
-            "tool": tool_name,
-            "args": tool_args,
-            "summary": summary.get("summary", "")[:300],
-        }
+            t0 = time.monotonic()
+            result = await asyncio.to_thread(_execute_tool, tool_name, tool_args, llm)
+            elapsed = time.monotonic() - t0
+
+            for evt in _process_tool_result(
+                tool_name, tool_args, result, summaries, artifact_registry,
+                prefix=f"[{orig_idx+1}/{len(planned_steps)}]", elapsed=elapsed,
+            ):
+                yield evt
+        else:
+            # Parallel group — run all read-only tools concurrently
+            tool_names_in_group = [s["tool"] for _, s in group]
+            yield {
+                "type": "status",
+                "step": f"[{group[0][0]+1}-{group[-1][0]+1}/{len(planned_steps)}] "
+                        f"Running {len(group)} tools in parallel: {', '.join(tool_names_in_group)}...",
+            }
+
+            semaphore = asyncio.Semaphore(MAX_PARALLEL)
+
+            async def _run_one(orig_idx: int, step: dict) -> tuple:
+                """Execute a single tool under semaphore control."""
+                tn = step["tool"]
+                ta = step.get("args", {})
+                async with semaphore:
+                    t0 = time.monotonic()
+                    res = await asyncio.to_thread(_execute_tool, tn, ta, llm)
+                    elapsed = time.monotonic() - t0
+                return (orig_idx, tn, ta, res, elapsed)
+
+            tasks = [_run_one(idx, s) for idx, s in group]
+            t0_group = time.monotonic()
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            group_elapsed = time.monotonic() - t0_group
+
+            # Process results in original order
+            for res_item in results:
+                if isinstance(res_item, Exception):
+                    # Shouldn't happen since _execute_tool catches errors, but be safe
+                    continue
+                orig_idx, tool_name, tool_args, result, elapsed = res_item
+
+                for evt in _process_tool_result(
+                    tool_name, tool_args, result, summaries, artifact_registry,
+                    prefix=f"[{orig_idx+1}/{len(planned_steps)}]", elapsed=elapsed,
+                ):
+                    yield evt
+
+            yield {
+                "type": "status",
+                "step": f"Parallel group completed: {len(group)} tools in {group_elapsed:.1f}s",
+            }
 
     # ── Phase 2: Reactive steps (LLM-driven, based on findings) ───────────
     if reactive_allowed > 0 and summaries:
@@ -356,6 +556,26 @@ async def run_planned_investigation(
             yield {"type": "status", "step": f"[extra] {desc} ({args_summary})..."}
 
             result = await asyncio.to_thread(_execute_tool, tool_name, tool_args, llm)
+
+            # Check for tool errors in reactive phase
+            if _is_error_result(result):
+                error_msg = result.get("erro", "Erro desconhecido")
+                summary = summarize_tool_result(tool_name, tool_args, result)
+                summaries.append(summary)
+                yield {
+                    "type": "status",
+                    "step": f"[extra] Erro em {tool_name}: {error_msg[:150]}",
+                    "error": True,
+                }
+                yield {
+                    "type": "tool_result",
+                    "tool": tool_name,
+                    "args": tool_args,
+                    "summary": f"ERRO: {error_msg[:300]}",
+                    "error": True,
+                }
+                continue
+
             summary = summarize_tool_result(tool_name, tool_args, result)
             summaries.append(summary)
 

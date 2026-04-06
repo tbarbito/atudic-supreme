@@ -1,0 +1,272 @@
+id: best-practices
+name: "Regras de Boas Praticas ADVPL"
+description: "Checklist de regras para review de codigo ADVPL - boas praticas obrigatorias"
+
+rules:
+  - id: BP-001
+    name: "RecLock sem MsUnlock correspondente"
+    severity: critical
+    description: "Todo RecLock deve ter MsUnlock correspondente em todos os caminhos de codigo. Registro fica travado se MsUnlock for esquecido."
+    bad_pattern: |
+      RecLock("SA1", .F.)
+        SA1->A1_NOME := "Novo Nome"
+      // falta MsUnlock - registro permanece travado!
+      Return
+    good_pattern: |
+      If RecLock("SA1", .F.)
+          SA1->A1_NOME := "Novo Nome"
+          MsUnlock()
+      EndIf
+    detect_regex: "(?i)reclock\\s*\\("
+    absent_regex: "(?i)msunlock\\s*\\("
+    explanation: "RecLock sem MsUnlock bloqueia o registro para todos os outros usuarios e threads, causando deadlocks e telas travadas em ambiente de producao."
+
+  - id: BP-002
+    name: "GetArea/RestArea obrigatorio em funcoes que acessam banco"
+    severity: critical
+    description: "Toda funcao que altera WorkArea (DbSelectArea, DbSetOrder, DbSeek, DbGoTo) deve salvar e restaurar contexto com GetArea/RestArea."
+    bad_pattern: |
+      User Function GetClientName(cCodCli)
+          Local cNome := ""
+          DbSelectArea("SA1")
+          DbSetOrder(1)
+          If DbSeek(xFilial("SA1") + cCodCli)
+              cNome := SA1->A1_NOME
+          EndIf
+      Return cNome
+    good_pattern: |
+      User Function GetClientName(cCodCli)
+          Local cNome   := ""
+          Local aAreaSA1 := SA1->(GetArea())
+          DbSelectArea("SA1")
+          DbSetOrder(1)
+          If DbSeek(xFilial("SA1") + cCodCli)
+              cNome := SA1->A1_NOME
+          EndIf
+          RestArea(aAreaSA1)
+      Return cNome
+    detect_regex: "(?i)(dbselectarea|dbsetorder|dbseek|dbgoto)\\s*\\("
+    absent_regex: "(?i)getarea\\s*\\(|restarea\\s*\\("
+    explanation: "Sem GetArea/RestArea, a funcao altera silenciosamente a posicao do registro da funcao chamadora, causando leituras incorretas e bugs dificeis de rastrear."
+
+  - id: BP-003
+    name: "Declaracao Local fora do cabecalho da funcao"
+    severity: high
+    description: "Todas as declaracoes Local DEVEM estar no topo da funcao, antes de qualquer codigo executavel. Declarar Local dentro de If/While/For causa erro de compilacao ou comportamento indefinido."
+    bad_pattern: |
+      User Function ProcessData()
+          Local aArea := GetArea()
+          DbSelectArea("SA1")
+          If DbSeek(xFilial("SA1") + "000001")
+              Local cNome := SA1->A1_NOME   // ERRADO: Local dentro de If
+          EndIf
+          RestArea(aArea)
+      Return
+    good_pattern: |
+      User Function ProcessData()
+          Local aArea := GetArea()
+          Local cNome := ""
+          DbSelectArea("SA1")
+          If DbSeek(xFilial("SA1") + "000001")
+              cNome := SA1->A1_NOME
+          EndIf
+          RestArea(aArea)
+      Return
+    detect_regex: "(?i)^\\s*(if|while|for|do case|begin)\\b[\\s\\S]*?\\blocal\\s+"
+    absent_regex: ""
+    explanation: "ADVPL/TLPP exige declaracoes no cabecalho. Declarar Local apos codigo executavel viola a especificacao da linguagem e pode gerar erros silenciosos."
+
+  - id: BP-004
+    name: "Uso de Private/Public quando Local bastaria"
+    severity: medium
+    description: "Variaveis devem ser Local salvo necessidade especifica de escopo mais amplo. Private/Public poluem a pilha de chamadas e podem ser sobrescritas por funcoes chamadas."
+    bad_pattern: |
+      User Function CalcTotal()
+          Private nTotal  := 0
+          Private cCodCli := "000001"
+          Private nIdx    := 0
+          For nIdx := 1 To 10
+              nTotal += GetValue(nIdx)
+          Next nIdx
+      Return nTotal
+    good_pattern: |
+      User Function CalcTotal()
+          Local nTotal  := 0
+          Local cCodCli := "000001"
+          Local nIdx    := 0
+          For nIdx := 1 To 10
+              nTotal += GetValue(nIdx)
+          Next nIdx
+      Return nTotal
+    detect_regex: "(?i)^\\s*private\\s+[cnldaobx]\\w+"
+    absent_regex: ""
+    explanation: "Private eh visivel em todas as funcoes chamadas pela declarante. Uma funcao chamada pode ler ou sobrescrever a variavel acidentalmente, gerando bugs dificeis de rastrear."
+
+  - id: BP-005
+    name: "Shadowing de variaveis de sistema reservadas"
+    severity: critical
+    description: "Nunca declarar Local/Static com nomes reservados do framework: cFilial, cFilAnt, cEmpAnt, nModulo, cUsuario. Isso sobrescreve o contexto do Protheus."
+    bad_pattern: |
+      User Function MyJob()
+          Local cFilial := "01"   // ERRADO: sombra variavel de sistema
+          RpcSetEnv("99", cFilial)
+      Return
+    good_pattern: |
+      User Function MyJob()
+          Local cCodFil := "01"   // nome seguro, diferente da variavel de sistema
+          RpcSetEnv("99", cCodFil)
+      Return
+    detect_regex: "(?i)\\blocal\\s+(cfilial|cfilant|cempant|nmodulo|cusuario)\\b"
+    absent_regex: ""
+    explanation: "Variavel Local com mesmo nome de Private do sistema sombra o contexto de empresa/filial. xFilial() e funcoes FW* retornam valores incorretos, causando falhas silenciosas em ambiente multi-filial."
+
+  - id: BP-006
+    name: "#Include Protheus.ch ao inves de TOTVS.CH"
+    severity: medium
+    description: "O include Protheus.ch esta obsoleto. Usar #Include TOTVS.CH que eh o padrao atual e inclui todas as definicoes necessarias."
+    bad_pattern: |
+      #Include "Protheus.ch"
+    good_pattern: |
+      #Include "TOTVS.CH"
+    detect_regex: '(?i)#include\s+["\u0027]protheus\.ch["\u0027]'
+    absent_regex: ""
+    explanation: "Protheus.ch eh legado e pode nao conter todas as definicoes atuais. TOTVS.CH eh o include oficial suportado e agrega todos os headers necessarios."
+
+  - id: BP-007
+    name: "Falta de Begin Sequence/Recover em operacoes criticas"
+    severity: medium
+    description: "Operacoes criticas (RecLock, MsExecAuto, HttpGet/Post, operacoes de arquivo) devem estar em Begin Sequence/Recover para tratamento gracioso de erros."
+    bad_pattern: |
+      User Function ProcessOrder(cOrder)
+          RecLock("SC5", .F.)
+          SC5->C5_LIBEROK := "S"
+          MsUnlock()
+          // se RecLock falhar, funcao crasha sem tratamento
+      Return .T.
+    good_pattern: |
+      User Function ProcessOrder(cOrder)
+          Local lRet   := .T.
+          Local oError
+          Begin Sequence
+              If RecLock("SC5", .F.)
+                  SC5->C5_LIBEROK := "S"
+                  MsUnlock()
+              Else
+                  lRet := .F.
+                  ConOut("[ProcessOrder] Falha ao travar SC5: " + cOrder)
+              EndIf
+          Recover Using oError
+              lRet := .F.
+              ConOut("[ProcessOrder] Erro: " + oError:Description)
+          End Sequence
+      Return lRet
+    detect_regex: "(?i)(reclock|msexecauto|httpget|httppost|ft_fuse)\\s*\\("
+    absent_regex: "(?i)begin\\s+sequence"
+    explanation: "Sem tratamento de erros, falhas em operacoes de banco ou externas crasham a thread inteira, deixando registros travados e dados inconsistentes."
+
+  - id: BP-008
+    name: "Notacao hungara ausente em variaveis"
+    severity: low
+    description: "Variaveis devem seguir notacao hungara ADVPL: c (caracter), n (numerico), l (logico), d (data), a (array), o (objeto), b (bloco de codigo), x (indefinido)."
+    bad_pattern: |
+      Local total     := 0
+      Local clientName := ""
+      Local flag       := .T.
+      Local items      := {}
+    good_pattern: |
+      Local nTotal      := 0
+      Local cClientName := ""
+      Local lFlag       := .T.
+      Local aItems      := {}
+    detect_regex: "(?i)\\blocal\\s+(?![cnldaobxu]\\w)([a-z]{2,})\\s*:?="
+    absent_regex: ""
+    explanation: "Notacao hungara torna o codigo auto-documentado. Ao ler nTotal, qualquer desenvolvedor sabe que eh numerico. Reduz bugs de tipo e acelera code review."
+
+  - id: BP-009
+    name: "Begin Transaction ausente em gravacoes multi-tabela"
+    severity: high
+    description: "Gravacoes em multiplas tabelas devem usar Begin Transaction/End Transaction para garantir atomicidade. Sem transacao, falha no meio deixa dados inconsistentes."
+    bad_pattern: |
+      // Grava cabecalho
+      RecLock("SC5", .T.)
+          SC5->C5_NUM := cPedNum
+      MsUnlock()
+      // Grava itens - se falhar aqui, cabecalho ja foi gravado
+      RecLock("SC6", .T.)
+          SC6->C6_NUM := cPedNum
+      MsUnlock()
+    good_pattern: |
+      Begin Transaction
+          RecLock("SC5", .T.)
+              SC5->C5_NUM := cPedNum
+          MsUnlock()
+          RecLock("SC6", .T.)
+              SC6->C6_NUM := cPedNum
+          MsUnlock()
+          If lErro
+              DisarmTransaction()
+          EndIf
+      End Transaction
+    detect_regex: "(?i)reclock.*\\n.*reclock"
+    absent_regex: "(?i)begin\\s+transaction"
+    explanation: "Sem transacao, uma falha apos gravar o cabecalho mas antes dos itens deixa o banco em estado inconsistente. Begin Transaction garante tudo-ou-nada."
+
+  - id: BP-010
+    name: "xFilial ausente em chaves de busca"
+    severity: high
+    description: "Toda chave de busca com DbSeek deve usar xFilial() para compor a filial correta. Buscar sem xFilial encontra registros de outra filial."
+    bad_pattern: |
+      DbSelectArea("SA1")
+      DbSetOrder(1)
+      DbSeek(cCodCli)   // falta xFilial - pode achar registro de outra filial
+    good_pattern: |
+      DbSelectArea("SA1")
+      DbSetOrder(1)
+      DbSeek(xFilial("SA1") + cCodCli)
+    detect_regex: "(?i)dbseek\\s*\\(\\s*[cn]\\w+\\s*\\)"
+    absent_regex: "(?i)xfilial\\s*\\("
+    explanation: "xFilial() retorna a filial correta conforme modo de compartilhamento da tabela. Sem ele, busca pode posicionar em registro de filial diferente, corrompendo dados."
+
+  - id: BP-011
+    name: "Funcao sem documentacao Protheus.doc"
+    severity: low
+    description: "Toda User Function e Static Function deve ter header Protheus.doc com descricao, autor, data, parametros e retorno."
+    bad_pattern: |
+      User Function CalcDiscount(nPrice, nPercent)
+          Local nDiscount := nPrice * (nPercent / 100)
+      Return nDiscount
+    good_pattern: |
+      /*/{Protheus.doc} CalcDiscount
+      Calcula valor de desconto baseado no preco e percentual.
+      @type  User Function
+      @author Nome do Desenvolvedor
+      @since 01/01/2025
+      @param nPrice, Numeric, Preco original
+      @param nPercent, Numeric, Percentual de desconto (0-100)
+      @return Numeric, Valor do desconto calculado
+      /*/
+      User Function CalcDiscount(nPrice, nPercent)
+          Local nDiscount := nPrice * (nPercent / 100)
+      Return nDiscount
+    detect_regex: "(?i)(user\\s+function|static\\s+function)\\s+\\w+"
+    absent_regex: "(?i)protheus\\.doc"
+    explanation: "Header Protheus.doc habilita tooltips no IDE, geracao automatica de documentacao e ajuda outros desenvolvedores a entender o contrato da funcao sem ler a implementacao."
+
+  - id: BP-012
+    name: "Retorno de RecLock nao verificado"
+    severity: high
+    description: "RecLock retorna .T./.F. indicando se conseguiu travar o registro. Usar sem verificar o retorno pode gravar em registro errado se o lock falhou."
+    bad_pattern: |
+      RecLock("SA1", .F.)
+          SA1->A1_NOME := "Novo Nome"
+      MsUnlock()
+    good_pattern: |
+      If RecLock("SA1", .F.)
+          SA1->A1_NOME := "Novo Nome"
+          MsUnlock()
+      Else
+          ConOut("Falha ao travar registro SA1")
+      EndIf
+    detect_regex: "(?i)^\\s*reclock\\s*\\("
+    absent_regex: "(?i)if\\s+reclock"
+    explanation: "Se RecLock falha (registro ja travado por outro usuario), a gravacao acontece em posicao incorreta ou nao acontece. Sempre verificar o retorno para tratar a falha."

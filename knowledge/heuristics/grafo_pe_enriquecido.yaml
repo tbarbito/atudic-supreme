@@ -1,0 +1,19 @@
+id: grafo_pe_enriquecido
+name: "Enriquecimento de PEs no Grafo"
+description: "Quando um PE e visualizado no grafo, busca no padrao.db quais funcoes chamam o ExecBlock"
+source: "backend/routers/explorer.py:4436"
+added_in: "fde17d5"
+
+behavior:
+  - "Se o fonte e um PE (tem parent_rotina), busca no padrao.db"
+  - "Encontra todas funcoes que chamam ExecBlock com esse PE"
+  - "Mostra na arvore: fonte padrao, funcao, linha, parametros"
+  - "Permite entender o CONTEXTO EXATO onde o PE e chamado"
+
+queries:
+  execblocks: "SELECT DISTINCT arquivo, funcao, parametros, linha FROM execblocks WHERE nome_pe = ?"
+
+notes: |
+  Antes: PE mostrava so o codigo do cliente.
+  Agora: mostra tambem QUEM chama o PE no padrao e com quais parametros.
+  Isso ajuda a entender PARAMIXB sem precisar abrir o fonte padrao manualmente.

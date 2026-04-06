@@ -1,0 +1,16 @@
+id: gerar_codigo
+name: "Gerar Codigo (LLM)"
+description: "Gerar codigo ADVPL novo — PE, User Function, MVC"
+source: "backend/services/code_specialist.py"
+when_to_use:
+  - "criar PE"
+  - "gerar funcao"
+  - "gerar codigo MVC"
+inputs:
+  tipo: "pe | user_function | mvc"
+  nome: "nome do artefato"
+  spec: "especificacao do que deve fazer"
+  contexto: "contexto adicional (opcional)"
+outputs:
+  - "codigo ADVPL gerado"
+notes: "Usa chamada LLM — tem custo. Gera baseado em regras ADVPL e exemplos."

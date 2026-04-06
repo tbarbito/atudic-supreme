@@ -1,0 +1,21 @@
+id: info_tabela
+name: "Info Tabela"
+description: "Metadata completa da tabela"
+source: "backend/services/analista_tools.py:1500"
+when_to_use:
+  - "preciso saber sobre a tabela"
+  - "quantos campos tem"
+  - "quais indices"
+inputs:
+  tabela: "codigo da tabela"
+input_schema:
+  tabela:
+    type: string
+    required: true
+    pattern: "^[A-Z][A-Z0-9]{2}$"
+outputs:
+  existe: "bool"
+  nome: "descricao da tabela"
+  total_campos: "total de campos"
+  campos_custom: "campos customizados"
+  indices: "quantidade de indices"

@@ -1,0 +1,11 @@
+id: buscar_schedules
+name: "Buscar Schedules"
+description: "Schedules por rotina/status"
+source: "backend/services/analista_tools.py:653"
+when_to_use:
+  - "schedules da rotina"
+  - "agendamentos programados"
+inputs:
+  rotina: "nome da rotina"
+outputs:
+  - "lista de {codigo, rotina, tipo_recorrencia, status}"

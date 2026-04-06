@@ -1,0 +1,11 @@
+id: buscar_funcao_padrao
+name: "Buscar Funcao Padrao"
+description: "Buscar funcao no padrao por nome"
+source: "backend/services/padrao_tools.py"
+when_to_use:
+  - "onde esta essa funcao no padrao"
+  - "assinatura da funcao"
+inputs:
+  nome: "nome da funcao"
+outputs:
+  - "lista de {tipo, assinatura, nome, arquivo}"

@@ -1,0 +1,281 @@
+id: modernization
+name: "Regras de Modernizacao ADVPL"
+description: "Checklist de regras para review de codigo ADVPL - oportunidades de migracao e modernizacao"
+
+rules:
+  - id: MOD-001
+    name: "Classe em .prw candidata a migracao para TLPP"
+    severity: low
+    description: "Classes definidas em .prw com CLASS/DATA/METHOD/ENDCLASS sao candidatas a migracao para .tlpp, que oferece OOP nativo com namespaces, tipos, modificadores de acesso e annotations."
+    bad_pattern: |
+      // File: OrderService.prw
+      #Include "TOTVS.CH"
+      Class OrderService
+          Data cOrderId
+          Data nTotal
+          Method New() Constructor
+          Method Process()
+      EndClass
+      Method New(cId) Class OrderService
+          ::cOrderId := cId
+          ::nTotal   := 0
+      Return Self
+    good_pattern: |
+      // File: OrderService.tlpp
+      #Include "tlpp-core.th"
+      Namespace custom.vendas
+      Class OrderService
+          Private Data cOrderId As Character
+          Private Data nTotal As Numeric
+          Public Method New(cId As Character) As Object
+          Public Method Process() As Logical
+      EndClass
+      Method New(cId) Class OrderService
+          ::cOrderId := cId
+          ::nTotal   := 0
+      Return Self
+    detect_regex: "(?i)\\bclass\\s+\\w+[\\s\\S]*?endclass"
+    absent_regex: "(?i)namespace\\s+"
+    explanation: "TLPP oferece parametros tipados, retornos tipados, modificadores de acesso (Public/Private/Protected), namespaces e annotations. Migrar classes para TLPP melhora seguranca, tooling de IDE e alinhamento com praticas modernas."
+
+  - id: MOD-002
+    name: "using namespace ao inves de .th includes em TLPP"
+    severity: low
+    description: "Arquivos .tlpp devem usar #Include dos .th (tlpp-core.th, tlpp-rest.th, tlpp-object.th, tlpp-probat.th) ao inves de using namespace. Os .th sao o mecanismo oficialmente suportado."
+    bad_pattern: |
+      // File: ClientAPI.tlpp
+      using namespace tlpp.core
+      using namespace tlpp.rest
+      Namespace custom.cadastro
+      Class ClientAPI
+          // ...
+      EndClass
+    good_pattern: |
+      // File: ClientAPI.tlpp
+      #Include "tlpp-core.th"
+      #Include "tlpp-rest.th"
+      Namespace custom.cadastro
+      Class ClientAPI
+          // ...
+      EndClass
+    detect_regex: "(?i)using\\s+namespace\\s+tlpp\\."
+    absent_regex: ""
+    explanation: "Os arquivos .th fornecem todas as definicoes de tipo, constantes e macros necessarias pelo runtime TLPP. Usar .th garante compatibilidade com releases atuais e futuras da TOTVS."
+
+  - id: MOD-003
+    name: "Funcoes procedurais com prefixo comum - candidatas a classe"
+    severity: low
+    description: "Grupo de funcoes com prefixo comum (ex: Ped_Create, Ped_Validate, Ped_Save) que operam nos mesmos dados sao candidatas a refatoracao em classe. Melhora encapsulamento e testabilidade."
+    bad_pattern: |
+      User Function Ped_Create(cCodCli, cCondPag)
+          Private aPedido := {}
+          aAdd(aPedido, {"C5_CLIENTE", cCodCli})
+          If Ped_Validate(aPedido)
+              Ped_Save(aPedido)
+          EndIf
+      Return
+      Static Function Ped_Validate(aPedido)
+      Return .T.
+      Static Function Ped_Save(aPedido)
+      Return
+    good_pattern: |
+      // File: PedidoService.tlpp
+      #Include "tlpp-core.th"
+      Namespace custom.vendas
+      Class PedidoService
+          Private Data cCodCli  As Character
+          Private Data cCondPag As Character
+          Private Data aItems   As Array
+          Public Method New(cCodCli As Character, cCondPag As Character) As Object
+          Public Method Validate() As Logical
+          Public Method Save() As Logical
+      EndClass
+    detect_regex: "(?i)(user|static)\\s+function\\s+(\\w+)_(create|save|delete|validate|process|update|get|set)\\b"
+    absent_regex: ""
+    explanation: "Funcoes procedurais com prefixo compartilhado sao essencialmente uma classe sem encapsulamento. Converter para classe elimina poluicao de Private, torna dependencias explicitas e habilita testes unitarios via mock."
+
+  - id: MOD-004
+    name: "AxCadastro/Modelo2/Modelo3 - migrar para MVC"
+    severity: medium
+    description: "Funcoes legadas de UI (AxCadastro, AxPesqui, MBrowse, Modelo2, Modelo3) devem ser migradas para FWMBrowse/MVC que oferecem validacao, audit, API REST e CRUD padronizado."
+    bad_pattern: |
+      User Function XPED001()
+          Private cCadastro := "Pedidos de Venda"
+          Private aRotina   := {}
+          aAdd(aRotina, {"Pesquisar", "AxPesqui()",  0, 1})
+          aAdd(aRotina, {"Incluir",   "XPED001I()",  0, 3})
+          aAdd(aRotina, {"Alterar",   "XPED001A()",  0, 4})
+          DbSelectArea("SC5")
+          AxCadastro("SC5", cCadastro, aRotina)
+      Return
+    good_pattern: |
+      User Function XPED001()
+          Local oBrowse := FWMBrowse():New()
+          oBrowse:SetAlias("SC5")
+          oBrowse:SetDescription("Pedidos de Venda")
+          oBrowse:Activate()
+      Return
+      Static Function ModelDef()
+          Local oModel := MPFormModel():New("XPED001M")
+          Local oStMaster := FWFormStruct(1, "SC5")
+          oModel:AddFields("SC5MASTER", /*cOwner*/, oStMaster)
+          oModel:SetPrimaryKey({"C5_FILIAL", "C5_NUM"})
+      Return oModel
+      Static Function ViewDef()
+          Local oView   := FWFormView():New()
+          Local oModel  := FWLoadModel("XPED001")
+          Local oStView := FWFormStruct(2, "SC5")
+          oView:SetModel(oModel)
+          oView:AddField("VIEW_SC5", oStView, "SC5MASTER")
+          oView:CreateHorizontalBox("SUPERIOR", 100)
+          oView:SetOwnerView("VIEW_SC5", "SUPERIOR")
+      Return oView
+    detect_regex: "(?i)\\b(axcadastro|axpesqui|mbrowse|modelo2|modelo3|ax2model|ax3model)\\s*\\("
+    absent_regex: ""
+    explanation: "Padroes legados de UI nao suportam validacao moderna, audit logging, exposicao via REST API ou CRUD padronizado. MVC oferece arquitetura consistente, menos boilerplate e integracao com workflow e auditoria."
+
+  - id: MOD-005
+    name: "DEFINE MSDIALOG manual - usar FWDialogModal ou MVC"
+    severity: low
+    description: "Construcao manual de dialogos com DEFINE MSDIALOG/ACTIVATE MSDIALOG eh verbosa e propensa a erro. Usar FWDialogModal, FWInputDialog ou MVC para interfaces padronizadas."
+    bad_pattern: |
+      DEFINE MSDIALOG oDlg TITLE "Cadastro" FROM 0,0 TO 400,600 PIXEL
+          // montagem manual de campos
+          @ 10,10 MSGET oGet1 VAR cCampo1 SIZE 100,10 PIXEL
+          @ 30,10 MSGET oGet2 VAR cCampo2 SIZE 100,10 PIXEL
+          DEFINE SBUTTON FROM 350,220 TYPE 1 ACTION lRet := .T. ENABLE OF oDlg
+          DEFINE SBUTTON FROM 350,270 TYPE 2 ACTION lRet := .F. ENABLE OF oDlg
+      ACTIVATE MSDIALOG oDlg CENTERED
+    good_pattern: |
+      // Para dialogo simples de input:
+      FWInputDialog("Titulo", aFields, {|oPanel, aFields| /* layout */ })
+      // Para CRUD completo: usar MVC com ModelDef/ViewDef
+      // Para dialogo customizado moderno:
+      Local oDlg := FWDialogModal():New()
+      oDlg:SetTitle("Cadastro")
+      oDlg:Activate()
+    detect_regex: "(?i)define\\s+msdialog\\b"
+    absent_regex: ""
+    explanation: "Dialogos manuais exigem controle pixel-a-pixel, nao escalam entre resolucoes e nao seguem padrao visual Protheus. FWDialogModal e MVC cuidam de layout, validacao e comportamento padrao automaticamente."
+
+  - id: MOD-006
+    name: "WebService SOAP legado - considerar REST/TLPP"
+    severity: low
+    description: "Novos webservices devem ser implementados em REST com TLPP (@Get/@Post) ao inves de SOAP (WsMethod/WsService). SOAP so se justifica por integracao com sistemas legados que exigem WSDL."
+    bad_pattern: |
+      WsService ClienteWS
+          WsData cCodCli  As String
+          WsData cNomeCli As String
+          WsMethod GetCliente
+      EndWsService
+      WsMethod GetCliente WsReceive cCodCli WsSend cNomeCli WsService ClienteWS
+          // implementacao SOAP
+      Return .T.
+    good_pattern: |
+      // File: ClienteAPI.tlpp
+      #Include "tlpp-core.th"
+      #Include "tlpp-rest.th"
+      Namespace custom.cadastro
+      Class ClienteAPI
+          @Get("/api/v1/clientes/:cod")
+          Public Method GetCliente() As Logical
+      EndClass
+      Method GetCliente() Class ClienteAPI
+          // implementacao REST moderna
+      Return .T.
+    detect_regex: "(?i)\\b(wsservice|wsmethod|wsstruct|endwsservice)\\b"
+    absent_regex: ""
+    explanation: "SOAP eh verbose e complexo. REST com TLPP eh mais simples, tem melhor performance, suporta JSON nativo e eh o padrao de mercado para APIs modernas. Manter SOAP apenas para integracao com sistemas que exigem WSDL."
+
+  - id: MOD-007
+    name: "Tratamento de erro com ErrorBlock ao inves de try/catch"
+    severity: low
+    description: "Em TLPP, preferir try/catch/finally ao inves de Begin Sequence/ErrorBlock. try/catch eh mais legivel e suporta tipagem de excecao."
+    bad_pattern: |
+      // Padrao ADVPL classico
+      Local bOldError := ErrorBlock({|e| oError := e, Break(e)})
+      Begin Sequence
+          // codigo que pode falhar
+      Recover Using oError
+          ConOut("Erro: " + oError:Description)
+      End Sequence
+      ErrorBlock(bOldError)
+    good_pattern: |
+      // Padrao TLPP moderno
+      Try
+          // codigo que pode falhar
+      Catch oErr As Object
+          ConOut("Erro: " + oErr:Description)
+      Finally
+          // cleanup garantido (executado sempre)
+      EndTry
+    detect_regex: "(?i)errorblock\\s*\\("
+    absent_regex: ""
+    explanation: "try/catch/finally eh mais legivel, nao precisa salvar/restaurar ErrorBlock, e Finally garante execucao de cleanup mesmo em caso de erro. Em arquivos .tlpp novos, preferir sempre try/catch."
+
+  - id: MOD-008
+    name: "MsExcel legado - usar FWMsExcel"
+    severity: medium
+    description: "A classe MsExcel eh restrita pela TOTVS. Usar FWMsExcel ou FWAdaptor que sao as alternativas oficiais suportadas."
+    bad_pattern: |
+      oExcel := MsExcel():New()
+      oExcel:WorkBooks:Open(cArquivo)
+      // MsExcel eh classe restrita
+    good_pattern: |
+      oExcel := FWMsExcel():New()
+      oExcel:AddWorkSheet("Plan1")
+      oExcel:AddTable("Plan1", "Dados")
+      oExcel:AddColumn("Plan1", "Dados", "Codigo", 1, 1)
+      oExcel:AddRow("Plan1", "Dados", {cCodigo, cNome})
+      oExcel:Activate()
+      oExcel:GetXMLFile(cArquivo)
+    detect_regex: "(?i)\\bmsexcel\\s*\\(\\s*\\)|\\bapOleClient\\b"
+    absent_regex: ""
+    explanation: "MsExcel e ApOleClient sao classes restritas que podem ser removidas sem aviso. FWMsExcel eh a alternativa oficial, nao depende de OLE/COM e funciona em servidores Linux."
+
+  - id: MOD-009
+    name: "Falta de testes unitarios - implementar PROBAT"
+    severity: low
+    description: "Funcoes de negocio devem ter testes unitarios com PROBAT. Classes TLPP com logica testavel sao candidatas naturais."
+    bad_pattern: |
+      // Funcao sem nenhum teste
+      User Function CalcDesconto(nPreco, nPerc)
+          Local nDesc := nPreco * (nPerc / 100)
+      Return nDesc
+    good_pattern: |
+      // Teste PROBAT para a funcao
+      #Include "tlpp-probat.th"
+      Namespace custom.tests
+      Class TestCalcDesconto
+          @Test("Deve calcular desconto de 10%")
+          Public Method testDesconto10Pct() As Logical
+      EndClass
+      Method testDesconto10Pct() Class TestCalcDesconto
+          Local nResult := U_CalcDesconto(100.00, 10)
+          Return assertEquals(nResult, 10.00)
+      EndMethod
+    detect_regex: "(?i)user\\s+function\\s+(calc|valid|process|check|verify)\\w+"
+    absent_regex: "(?i)@test|probat"
+    explanation: "Funcoes de calculo, validacao e processamento sao candidatas naturais a testes unitarios. PROBAT integra com o framework TLPP e permite testes automatizados no pipeline de CI/CD."
+
+  - id: MOD-010
+    name: "Falta de Namespace em arquivo .tlpp"
+    severity: medium
+    description: "Todo arquivo .tlpp deve declarar um Namespace para evitar conflito de nomes entre modulos e facilitar organizacao do codigo."
+    bad_pattern: |
+      // File: MeuServico.tlpp
+      #Include "tlpp-core.th"
+      // sem namespace - funcoes ficam no escopo global
+      Class MeuServico
+          Public Method New() As Object
+      EndClass
+    good_pattern: |
+      // File: MeuServico.tlpp
+      #Include "tlpp-core.th"
+      Namespace empresa.modulo
+      Class MeuServico
+          Public Method New() As Object
+      EndClass
+    detect_regex: "(?i)#include\\s+[\"']tlpp-"
+    absent_regex: "(?i)namespace\\s+\\w+"
+    explanation: "Sem namespace, classes e funcoes TLPP ficam no escopo global, com risco de conflito de nomes entre modulos diferentes. Namespace organiza o codigo e previne colisoes."

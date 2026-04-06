@@ -1,0 +1,15 @@
+id: fonte_padrao
+name: "Fonte Padrao"
+description: "Metadata e funcoes de fonte PADRAO Protheus"
+source: "backend/services/padrao_tools.py"
+when_to_use:
+  - "como funciona a rotina no padrao"
+  - "funcoes da rotina padrao"
+inputs:
+  arquivo: "nome do arquivo (ex: MATA410)"
+outputs:
+  encontrado: "bool"
+  arquivo: "nome"
+  modulo: "modulo"
+  lines_of_code: "LOC"
+  funcoes: "lista de funcoes com assinatura"

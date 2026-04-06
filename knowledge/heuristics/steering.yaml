@@ -1,0 +1,10 @@
+id: steering
+name: "Steering — Intervencao do Usuario"
+description: "Usuario pode enviar correcao durante investigacao via POST /steer"
+source: "backend/routers/analista.py"
+
+behavior:
+  - "POST /api/analista/conversas/{id}/steer com {instruction: 'texto'}"
+  - "Instrucao enfileirada e verificada antes de cada grupo de tools"
+  - "Se houver correcao, adicionada ao contexto como alta prioridade"
+  - "Pipeline pode re-planejar com nova informacao"

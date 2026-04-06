@@ -1,0 +1,529 @@
+id: common-errors
+name: "Erros Comuns ADVPL/TLPP"
+description: "Top 30 erros mais comuns com causa, diagnostico, correcao e prevencao"
+
+rules:
+  # ===== COMPILACAO =====
+  - id: ERR-001
+    category: "compilacao"
+    message: "Syntax error at line X: unexpected token"
+    cause: "Estruturas de controle desbalanceadas, operadores faltando ou typo em keywords"
+    diagnosis:
+      - "Verificar If/EndIf, While/EndDo, For/Next, Do Case/EndCase"
+      - "Verificar se falta operador entre expressoes (==, +, .And.)"
+      - "Verificar se keywords estao corretas (EndIf, nao Endif)"
+    fix: |
+      // ERRADO — falta operador
+      If cCodCli "001"
+      EndIf
+      // CORRETO
+      If cCodCli == "001"
+      EndIf
+    prevention: "Usar indentacao consistente e verificar pares de estruturas"
+
+  - id: ERR-002
+    category: "compilacao"
+    message: "Function 'XPTO' not found / Undefined function"
+    cause: "Funcao nao existe no RPO, nome digitado errado, ou fonte nao compilado"
+    diagnosis:
+      - "Verificar ortografia exata do nome da funcao"
+      - "Verificar se o .prw/.tlpp foi compilado no RPO"
+      - "Em TLPP, verificar namespace e Using Namespace"
+    fix: "Compilar o fonte no RPO. Verificar se o nome bate exatamente."
+    prevention: "Usar prefixos padrao (u_NOME para User Function) e compilar antes de testar"
+
+  - id: ERR-003
+    category: "compilacao"
+    message: "Missing ENDIF / ENDDO / NEXT / ENDCASE"
+    cause: "Bloco de controle aberto sem fechamento correspondente"
+    diagnosis:
+      - "Contar pares: cada If precisa de EndIf, cada While de EndDo"
+      - "Verificar indentacao para encontrar bloco nao fechado"
+    fix: "Adicionar o fechamento correspondente na posicao correta"
+    prevention: "Sempre escrever o fechamento imediatamente apos abrir o bloco, depois preencher o conteudo"
+
+  - id: ERR-004
+    category: "compilacao"
+    message: "Type clash in expression"
+    cause: "Operacao entre tipos incompativeis em tempo de compilacao (string + numerico)"
+    diagnosis:
+      - "Identificar a linha exata"
+      - "Verificar tipos dos operandos"
+    fix: |
+      // ERRADO
+      cMsg := "Total: " + 100
+      // CORRETO
+      cMsg := "Total: " + cValToChar(100)
+    prevention: "Sempre converter tipos antes de concatenar: cValToChar(), Str(), Val()"
+
+  - id: ERR-005
+    category: "compilacao"
+    message: "Duplicate definition of function"
+    cause: "Duas User Functions com mesmo nome em PRWs diferentes compilados no mesmo RPO"
+    diagnosis:
+      - "Buscar nome da funcao em todos os fontes do projeto"
+      - "Verificar se existe conflito com funcoes do RPO padrao"
+    fix: "Renomear uma das funcoes. Usar prefixo unico por modulo."
+    prevention: "Convencao de nomes com prefixo de modulo (zFAT001, zCOM001)"
+
+  - id: ERR-006
+    category: "compilacao"
+    message: "#Include file not found"
+    cause: "Arquivo .ch nao existe no path de includes ou nome errado"
+    diagnosis:
+      - "Verificar se o arquivo existe no diretorio de includes"
+      - "Verificar ortografia e extensao (.ch, .th)"
+    fix: "Corrigir nome ou adicionar arquivo ao path de includes"
+    prevention: "Usar includes padrao: TOTVS.CH, FWMVCDef.ch, RestFul.ch. Protheus.ch e OBSOLETO."
+
+  # ===== RUNTIME =====
+  - id: ERR-007
+    category: "runtime"
+    message: "Variable 'XXXX' does not exist"
+    cause: "Variavel referenciada sem declarar com Local/Static/Private/Public"
+    diagnosis:
+      - "Verificar se a variavel foi declarada na funcao"
+      - "Verificar se o nome esta correto (typo)"
+    fix: |
+      // ERRADO
+      cCodCli := "000001"  // nao declarada
+      // CORRETO
+      Local cCodCli := "000001"
+    prevention: "Sempre declarar variaveis com Local. Usar Hungarian notation (cStr, nNum, lLog, aArr, oObj)."
+
+  - id: ERR-008
+    category: "runtime"
+    message: "Array access error: index N of M"
+    cause: "Acesso a posicao inexistente do array (indice > Len ou < 1)"
+    diagnosis:
+      - "Verificar Len(aArray) antes do acesso"
+      - "Verificar se aScan retornou 0"
+      - "Verificar se PARAMIXB tem posicoes suficientes"
+    fix: |
+      // ERRADO
+      cVal := aItems[5]  // so tem 3 elementos
+      // CORRETO
+      If Len(aItems) >= 5
+          cVal := aItems[5]
+      EndIf
+
+      // Para aScan:
+      nPos := aScan(aArr, cBusca)
+      If nPos > 0 .And. nPos <= Len(aArr)
+          cVal := aArr[nPos]
+      EndIf
+    prevention: "Sempre validar Len() antes de acessar. Sempre testar retorno de aScan > 0."
+
+  - id: ERR-009
+    category: "runtime"
+    message: "Type mismatch on + : C and N"
+    cause: "Operacao entre tipos incompativeis em runtime (string + numerico)"
+    diagnosis:
+      - "Usar ValType() para verificar tipos das variaveis"
+      - "Verificar se funcao retornou tipo inesperado ou Nil"
+    fix: |
+      // ERRADO
+      cMsg := "Total: " + nTotal
+      // CORRETO
+      cMsg := "Total: " + cValToChar(nTotal)
+      // Ou para operacao numerica:
+      nResult := Val(cNumStr) + nTotal
+    prevention: "Verificar tipos com ValType() antes de operar. Inicializar variaveis com tipo correto."
+
+  - id: ERR-010
+    category: "runtime"
+    message: "Divide by zero"
+    cause: "Divisao por zero sem validacao previa"
+    diagnosis:
+      - "Verificar valor do divisor antes da operacao"
+    fix: |
+      // ERRADO
+      nPerc := nParcial / nTotal
+      // CORRETO
+      nPerc := IIf(nTotal > 0, nParcial / nTotal, 0)
+    prevention: "Sempre testar divisor <> 0 antes de dividir"
+
+  - id: ERR-011
+    category: "runtime"
+    message: "Value is NIL / Type mismatch: U and C"
+    cause: "Variavel nao inicializada (padrao NIL) ou funcao retornou NIL"
+    diagnosis:
+      - "Verificar se variavel foi inicializada com valor"
+      - "Verificar se funcao chamada pode retornar NIL"
+      - "Usar ValType(xVar) == 'U' para testar NIL"
+    fix: |
+      // ERRADO
+      Local cResult
+      cMsg := "Result: " + cResult  // NIL
+      // CORRETO
+      Local cResult := ""
+      cMsg := "Result: " + cResult
+      // Ou com guard:
+      If ValType(cResult) == "C"
+          cMsg := "Result: " + cResult
+      EndIf
+    prevention: "SEMPRE inicializar variaveis na declaracao: Local cVar := '', Local nVar := 0"
+
+  - id: ERR-012
+    category: "runtime"
+    message: "Invalid alias 'SA1'"
+    cause: "Alias/workarea nao aberto ou fechado antes do uso"
+    diagnosis:
+      - "Verificar se DbSelectArea foi chamado antes"
+      - "Verificar se DbCloseArea nao foi chamado prematuramente"
+      - "Usar Select('SA1') > 0 para testar"
+    fix: |
+      // ERRADO
+      cNome := SA1->A1_NOME  // alias nao aberto
+      // CORRETO
+      DbSelectArea("SA1")
+      DbSetOrder(1)
+      If DbSeek(xFilial("SA1") + cCodCli)
+          cNome := SA1->A1_NOME
+      EndIf
+    prevention: "Sempre abrir area antes de acessar. Verificar Select() antes de usar alias."
+
+  - id: ERR-013
+    category: "runtime"
+    message: "RecLock timeout on alias"
+    cause: "Outro usuario/thread segura lock no mesmo registro"
+    diagnosis:
+      - "Verificar Monitor Protheus (SIGAMNT) para locks ativos"
+      - "Verificar se existe MsUnlock correspondente para cada RecLock"
+    fix: |
+      // ERRADO — bloqueia indefinidamente
+      RecLock("SD1", .T.)
+      // CORRETO — com retry
+      Local nRetries := 3
+      Local lLocked  := .F.
+      While nRetries > 0 .And. !lLocked
+          lLocked := RecLock("SD1", .F.)
+          If !lLocked
+              nRetries--
+              Sleep(1000)
+          EndIf
+      EndDo
+      If lLocked
+          SD1->D1_TOTAL := nVal
+          MsUnlock()
+      EndIf
+    prevention: "Sempre usar MsUnlock apos RecLock. Minimizar tempo entre Lock e Unlock."
+
+  - id: ERR-014
+    category: "runtime"
+    message: "Stack overflow"
+    cause: "Recursao infinita — funcao chama a si mesma sem caso base"
+    diagnosis:
+      - "Verificar funcoes recursivas"
+      - "Verificar se existe condicao de parada"
+    fix: |
+      // ERRADO
+      Static Function Calc(n)
+      Return n * Calc(n - 1)  // nunca para
+      // CORRETO
+      Static Function Calc(n)
+          If n <= 1
+              Return 1
+          EndIf
+      Return n * Calc(n - 1)
+    prevention: "Toda funcao recursiva DEVE ter caso base. Preferir loops quando possivel."
+
+  - id: ERR-015
+    category: "runtime"
+    message: "Object method not found"
+    cause: "Chamando metodo que nao existe no objeto, ou objeto e de classe diferente"
+    diagnosis:
+      - "Verificar classe com GetClassName(oObj)"
+      - "Verificar se metodo esta declarado na classe"
+    fix: |
+      // Debug
+      Conout("Classe: " + GetClassName(oObj))
+      // Verificar antes de chamar:
+      If FindMember(oObj, "Process")
+          oObj:Process()
+      EndIf
+    prevention: "Verificar documentacao da classe. Usar GetClassName para debug."
+
+  - id: ERR-016
+    category: "runtime"
+    message: "Date conversion error / Invalid date"
+    cause: "StoD com formato errado (espera YYYYMMDD) ou CtoD com formato incompativel"
+    diagnosis:
+      - "StoD espera formato YYYYMMDD sem separadores"
+      - "CtoD usa formato de data do sistema"
+    fix: |
+      // ERRADO
+      Local dDate := StoD("01/01/2024")  // formato errado
+      // CORRETO
+      Local dDate := StoD("20240101")     // YYYYMMDD
+      Local dDate2 := CtoD("01/01/2024") // formato do sistema
+    prevention: "StoD sempre YYYYMMDD. CtoD depende do formato do ambiente."
+
+  - id: ERR-017
+    category: "runtime"
+    message: "Numeric overflow"
+    cause: "Valor excede precisao definida para o campo (ex: N(10,2))"
+    diagnosis:
+      - "Verificar tamanho do campo no SX3"
+      - "Verificar se calculo pode gerar valor maior que o campo suporta"
+    fix: |
+      // Validar antes de gravar
+      If nTotal <= 99999999.99
+          SD1->D1_TOTAL := nTotal
+      Else
+          Conout("Overflow: " + cValToChar(nTotal))
+      EndIf
+    prevention: "Conhecer limites dos campos. Validar valores antes de gravar."
+
+  - id: ERR-018
+    category: "runtime"
+    message: "Memory allocation error / Out of memory"
+    cause: "Arrays crescendo sem limite, strings enormes, ou workareas nao fechadas"
+    diagnosis:
+      - "Verificar loops infinitos com aAdd"
+      - "Verificar se workareas temporarias sao fechadas com DbCloseArea"
+      - "Verificar concatenacao de string em loop grande"
+    fix: |
+      // ERRADO — loop infinito
+      While .T.
+          aAdd(aData, GetRecord())
+      EndDo
+      // CORRETO — com limite
+      While !Eof() .And. Len(aData) < 10000
+          aAdd(aData, GetRecord())
+          DbSkip()
+      EndDo
+    prevention: "Definir limites. Fechar areas temporarias. Usar array + join em vez de concatenar strings."
+
+  # ===== DATABASE =====
+  - id: ERR-019
+    category: "database"
+    message: "Table/alias not found / Table does not exist"
+    cause: "Tabela nao registrada no SX2 ou nao criada fisicamente no banco"
+    diagnosis:
+      - "Verificar se existe no SX2 (dicionario de tabelas)"
+      - "Verificar se tabela fisica foi criada (APSDU)"
+    fix: "Registrar tabela no SX2 via Configurador e criar tabela fisica"
+    prevention: "Sempre validar existencia da tabela antes de acessar"
+
+  - id: ERR-020
+    category: "database"
+    message: "Invalid order number N for alias"
+    cause: "DbSetOrder com indice que nao existe no SIX"
+    diagnosis:
+      - "Verificar indices disponiveis no SIX para o alias"
+      - "Usar IndexOrd() para verificar ordem atual"
+    fix: |
+      // ERRADO
+      DbSetOrder(15)  // indice 15 nao existe
+      // CORRETO
+      DbSetOrder(1)   // usar indice valido
+    prevention: "Consultar SIX para conhecer indices disponiveis. Usar indices padrao (1, 2, 3)."
+
+  - id: ERR-021
+    category: "database"
+    message: "SQL syntax error"
+    cause: "Query SQL malformada — aspas faltando, nome de tabela errado, D_E_L_E_T_ faltando"
+    diagnosis:
+      - "Imprimir query com ConOut antes de executar"
+      - "Testar query diretamente no SGBD"
+    fix: |
+      // ERRADO — aspas faltando
+      cQuery := "SELECT * FROM " + RetSqlName("SA1") + " WHERE A1_COD = " + cCod
+      // CORRETO
+      cQuery := "SELECT * FROM " + RetSqlName("SA1") + " SA1 "
+      cQuery += "WHERE SA1.D_E_L_E_T_ = ' ' "
+      cQuery += "AND A1_FILIAL = '" + xFilial("SA1") + "' "
+      cQuery += "AND A1_COD = '" + cCod + "' "
+    prevention: "SEMPRE usar RetSqlName(). SEMPRE incluir D_E_L_E_T_ = ' '. SEMPRE aspas em strings."
+
+  - id: ERR-022
+    category: "database"
+    message: "Transaction error / Transaction already active"
+    cause: "Begin Transaction aninhado ou transacao deixada aberta apos erro"
+    diagnosis:
+      - "Verificar se existe Begin Transaction sem End Transaction"
+      - "Verificar se nao ha aninhamento"
+    fix: |
+      // CORRETO — escopo unico
+      Begin Transaction
+          RecLock("SA1", .F.)
+          SA1->A1_NOME := "Test"
+          MsUnlock()
+      End Transaction
+    prevention: "Nunca aninhar transacoes. Usar escopo unico de transacao."
+
+  - id: ERR-023
+    category: "database"
+    message: "Deadlock detected"
+    cause: "Duas threads lockam recursos em ordens opostas"
+    diagnosis:
+      - "Verificar ordem de locks entre threads"
+      - "Verificar log do SGBD para detalhes do deadlock"
+    fix: "Sempre lockar tabelas na mesma ordem (alfabetica) em todas as threads"
+    prevention: "Padronizar ordem de locks. Minimizar tempo de lock."
+
+  - id: ERR-024
+    category: "database"
+    message: "Field 'XX_CAMPO' not found in alias"
+    cause: "Campo nao existe no SX3 para a tabela, ou campo customizado nao foi criado"
+    diagnosis:
+      - "Verificar campo no SX3 via Configurador"
+      - "Usar FieldPos('CAMPO') > 0 para testar"
+    fix: |
+      If FieldPos("A1_XTEST") > 0
+          cVal := SA1->A1_XTEST
+      Else
+          cVal := ""
+      EndIf
+    prevention: "Sempre verificar FieldPos antes de acessar campos customizados"
+
+  # ===== NETWORK/REST =====
+  - id: ERR-025
+    category: "network"
+    message: "HTTP request timeout"
+    cause: "Servidor remoto lento ou inacessivel"
+    diagnosis:
+      - "Verificar conectividade de rede"
+      - "Verificar se servidor destino esta operante"
+    fix: |
+      Local oRest := FWRest():New("https://api.example.com")
+      oRest:SetTimeout(30)  // 30 segundos
+      If oRest:Get("/endpoint")
+          cResponse := oRest:GetResult()
+      Else
+          Conout("Timeout: " + cValToChar(oRest:GetLastError()))
+      EndIf
+    prevention: "Sempre configurar timeout. Implementar retry com backoff."
+
+  - id: ERR-026
+    category: "network"
+    message: "JSON parse error"
+    cause: "Resposta nao e JSON (pagina HTML de erro, resposta vazia)"
+    diagnosis:
+      - "Imprimir resposta raw com ConOut"
+      - "Verificar Content-Type da resposta"
+    fix: |
+      Local cResp := oRest:GetResult()
+      // Verificar se parece JSON
+      If Left(AllTrim(cResp), 1) $ "{["
+          Local oJson := JsonObject():New()
+          If oJson:FromJson(cResp) == 0
+              // JSON valido
+          Else
+              Conout("JSON invalido: " + Left(cResp, 200))
+          EndIf
+          FreeObj(oJson)
+      Else
+          Conout("Resposta nao e JSON: " + Left(cResp, 200))
+      EndIf
+    prevention: "Sempre validar FromJson() retorno == 0 antes de usar. Verificar resposta raw em caso de erro."
+
+  - id: ERR-027
+    category: "network"
+    message: "HTTP 401 Unauthorized"
+    cause: "Token ausente, expirado ou invalido"
+    diagnosis:
+      - "Verificar header Authorization"
+      - "Verificar se token expirou"
+    fix: |
+      // Verificar expiracao antes de chamar
+      If dTokenExpiry < Date() .Or. Empty(cToken)
+          cToken := RefreshAuthToken()
+      EndIf
+      oRest:SetAuthorization("Bearer " + cToken)
+    prevention: "Implementar refresh automatico de token. Sempre verificar expiracao."
+
+  # ===== FRAMEWORK =====
+  - id: ERR-028
+    category: "framework"
+    message: "WorkArea not in use"
+    cause: "Area fechada com DbCloseArea mas codigo ainda tenta acessar"
+    diagnosis:
+      - "Verificar se DbCloseArea foi chamado antes do acesso"
+      - "Verificar se Select('ALIAS') > 0"
+    fix: |
+      If Select("QRY_TMP") > 0
+          cVal := QRY_TMP->FIELD1
+          DbSelectArea("QRY_TMP")
+          DbCloseArea()
+      EndIf
+    prevention: "Verificar Select() antes de acessar alias temporarios"
+
+  - id: ERR-029
+    category: "framework"
+    message: "Code block evaluation error"
+    cause: "Code block referencia variavel fora de escopo ou contem erro de runtime"
+    diagnosis:
+      - "Verificar variaveis capturadas no code block"
+      - "Testar code block isoladamente"
+    fix: |
+      // ERRADO — variavel pode nao existir quando block executa
+      Static Function CreateBlock()
+          Local cField := "A1_NOME"
+      Return {|| &cField}
+      // CORRETO — capturar valor
+      Static Function CreateBlock()
+          Local cField := "A1_NOME"
+      Return {|| SA1->&(cField)}
+    prevention: "Evitar macros em code blocks. Capturar valores explicitamente."
+
+  - id: ERR-030
+    category: "framework"
+    message: "String too long / truncation"
+    cause: "Concatenacao repetida em loop gera string gigante"
+    diagnosis:
+      - "Verificar loops com += em strings"
+      - "Monitorar tamanho da string"
+    fix: |
+      // ERRADO — concatenacao em loop
+      Local cHtml := ""
+      While !Eof()
+          cHtml += "<tr><td>" + ALIAS->FIELD1 + "</td></tr>"
+          DbSkip()
+      EndDo
+      // CORRETO — usar array
+      Local aHtml := {}
+      While !Eof()
+          aAdd(aHtml, "<tr><td>" + ALIAS->FIELD1 + "</td></tr>")
+          DbSkip()
+      EndDo
+      cHtml := ArrTokStr(aHtml, CRLF)
+    prevention: "Para strings grandes, usar array de partes e juntar no final"
+
+quick_reference:
+  compilacao:
+    - "ERR-001: Syntax error — estruturas desbalanceadas"
+    - "ERR-002: Function not found — fonte nao compilado"
+    - "ERR-003: Missing END — bloco nao fechado"
+    - "ERR-004: Type clash — tipos incompativeis"
+    - "ERR-005: Duplicate function — mesmo nome em PRWs"
+    - "ERR-006: Include not found — path incorreto"
+  runtime:
+    - "ERR-007: Variable not exist — nao declarada"
+    - "ERR-008: Array out of bounds — indice invalido"
+    - "ERR-009: Type mismatch — tipos incompativeis"
+    - "ERR-010: Divide by zero — divisor nao validado"
+    - "ERR-011: NIL value — variavel nao inicializada"
+    - "ERR-012: Invalid alias — area nao aberta"
+    - "ERR-013: RecLock timeout — lock concorrente"
+    - "ERR-014: Stack overflow — recursao infinita"
+    - "ERR-015: Method not found — classe errada"
+    - "ERR-016: Date error — formato incorreto"
+    - "ERR-017: Numeric overflow — valor excede campo"
+    - "ERR-018: Out of memory — sem limites"
+  database:
+    - "ERR-019: Table not found — SX2 ou banco"
+    - "ERR-020: Invalid order — indice inexistente"
+    - "ERR-021: SQL error — query malformada"
+    - "ERR-022: Transaction error — aninhamento"
+    - "ERR-023: Deadlock — ordem de locks"
+    - "ERR-024: Field not found — campo nao existe"
+  network:
+    - "ERR-025: HTTP timeout — servidor lento"
+    - "ERR-026: JSON parse error — resposta invalida"
+    - "ERR-027: 401 Unauthorized — token invalido"
+  framework:
+    - "ERR-028: WorkArea not in use — area fechada"
+    - "ERR-029: Code block error — escopo de variavel"
+    - "ERR-030: String too long — concatenacao em loop"

@@ -1,0 +1,22 @@
+id: code_specialist
+name: "Prompts do Especialista de Codigo"
+description: "3 modos de analise/geracao de codigo ADVPL"
+source: "backend/services/code_specialist.py"
+
+modes:
+  diagnosticar:
+    description: "Analisar codigo ADVPL para encontrar causa raiz"
+    inputs: [codigo, problema, rotina, arquivo]
+
+  gerar:
+    description: "Gerar codigo ADVPL novo (PE, User Function, MVC)"
+    inputs: [tipo, nome, spec, contexto]
+
+  ajustar:
+    description: "Aplicar correcao em codigo existente"
+    inputs: [codigo, problema, correcao]
+
+knowledge_sources:
+  - "Regras ADVPL do skill file (boas praticas, convencoes)"
+  - "Exemplos de codigo do diretorio Skills ADVPL/Exemplos"
+  - "Few-shot prompts por tipo (PE, MVC, TLPP)"

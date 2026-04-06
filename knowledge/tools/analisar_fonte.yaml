@@ -1,0 +1,15 @@
+id: analisar_fonte
+name: "Analisar Fonte (LLM)"
+description: "Analise de codigo ADVPL por LLM para diagnosticar problema"
+source: "backend/services/code_specialist.py"
+when_to_use:
+  - "diagnosticar bug no codigo"
+  - "entender logica complexa"
+inputs:
+  codigo: "codigo a analisar"
+  problema: "descricao do problema"
+  rotina: "rotina (opcional)"
+  arquivo: "arquivo (opcional)"
+outputs:
+  - "diagnostico em texto com causa raiz e sugestao"
+notes: "CUIDADO: usa chamada LLM — tem custo. Usar quando tools deterministicas nao bastam."

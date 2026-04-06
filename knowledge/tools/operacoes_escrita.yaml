@@ -1,0 +1,21 @@
+id: operacoes_escrita
+name: "Operacoes de Escrita"
+description: "Resumo de todas operacoes de escrita na tabela"
+source: "backend/services/analista_tools.py:1039"
+when_to_use:
+  - "visao geral de quem mexe na tabela"
+  - "quantas fontes gravam"
+  - "que tipos de operacao (inclusao, alteracao)"
+what_it_checks:
+  - "total de operacoes por tipo (reclock_inc, reclock_alt, etc)"
+  - "fontes envolvidas"
+  - "escritas condicionais"
+  - "campos mais escritos"
+inputs:
+  tabela: "codigo da tabela"
+outputs:
+  total_operacoes: "contagem total"
+  por_tipo: "operacoes agrupadas por tipo"
+  fontes: "lista de fontes"
+  escritas_condicionais: "escritas com condicao"
+  campos_mais_escritos: "ranking de campos"

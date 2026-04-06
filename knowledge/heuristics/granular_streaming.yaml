@@ -1,0 +1,11 @@
+id: granular_streaming
+name: "Streaming Granular de Investigacao"
+description: "Frontend recebe tool_result events com detalhes de cada tool executada"
+source: "backend/services/analista_pipeline.py"
+
+events:
+  status: "Progresso geral (Classificando..., Investigando...)"
+  tool_result: "Resultado de cada tool (nome, args, resumo)"
+  token: "Tokens da resposta LLM"
+  technical_sections: "Artefatos estruturados"
+  done: "Fim da resposta"

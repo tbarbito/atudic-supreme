@@ -1,0 +1,324 @@
+id: advpl-to-tlpp
+name: "Migracao ADVPL para TLPP"
+description: "Padroes de migracao de ADVPL procedural (.prw) para TLPP orientado a objetos (.tlpp)"
+when_to_use:
+  - "Modernizar codigo ADVPL existente"
+  - "Criar novos fontes em TLPP"
+  - "Migrar WsService para REST annotations"
+  - "Encapsular logica de negocio em classes"
+  - "Adotar namespaces e tipagem"
+
+principle: "Estrutura muda, sintaxe basicamente permanece. A linguagem (arrays, strings, DB, error handling, code blocks) e identica. O que muda e organizacao, escopo, imports e naming."
+
+sections:
+  - name: "Preprocessor / Includes"
+    description: "Substituicao de includes ADVPL por TLPP"
+    rules:
+      - advpl: '#Include "TOTVS.CH"'
+        tlpp: '#Include "tlpp-core.th"'
+        notes: "Include principal TLPP. Protheus.ch e OBSOLETO."
+      - advpl: '#Include "TopConn.ch"'
+        tlpp: '#Include "tlpp-core.th"'
+        notes: "Conectividade DB disponivel via tlpp-core.th"
+      - advpl: '#Include "RestFul.ch"'
+        tlpp: '#Include "tlpp-rest.th"'
+        notes: "Para annotations @RestService, @Get, @Post, etc."
+      - advpl: '#Include "FWMVCDef.ch"'
+        tlpp: '#Include "tlpp-core.th"'
+        notes: "Framework MVC disponivel via tlpp-core.th"
+    extra_includes:
+      - '#Include "tlpp-object.th"  // para features avancadas de objetos'
+      - '#Include "tlpp-probat.th"  // para testes automatizados ProBat'
+    warning: "NAO usar 'using namespace tlpp.core', 'tlpp.rest', 'tlpp.log', 'tlpp.data'. Usar os .th includes."
+
+  - name: "Namespaces"
+    description: "Convencoes de namespace obrigatorias"
+    rules:
+      - type: "Codigo TOTVS produto"
+        pattern: "totvs.protheus.<segmento>.<agrupador>"
+        examples:
+          - "totvs.protheus.backoffice.customer"
+          - "totvs.protheus.financial.payment.receive"
+      - type: "Customizacoes cliente"
+        pattern: "custom.<agrupador>.<servico>"
+        examples:
+          - "custom.cadastros.cliente"
+          - "custom.faturamento.pedido"
+    naming:
+      - "Tudo lowercase, separado por pontos, SEM underscores"
+      - "Arquivo: custom.<agrupador>.<funcionalidade>.tlpp"
+      - "Classes: PascalCase (ContactsController, PedidoService)"
+      - "Metodos/funcoes: camelCase (validName, calcTotal)"
+      - "SEM underscores em identificadores"
+
+  - name: "Escopo de Variaveis"
+    description: "Mapeamento de escopo ADVPL para TLPP"
+    rules:
+      - advpl: "Private cVar := 'x'"
+        tlpp: "data cVar as character"
+        action: "Converter para propriedade da classe. Inicializar no constructor."
+      - advpl: "Public nGlobal"
+        tlpp: "REMOVER"
+        action: "Passar valor via constructor ou parametro de metodo. NUNCA usar Public."
+      - advpl: "Local aArray := {}"
+        tlpp: "local aArray := {}"
+        action: "Sem mudanca — manter Local dentro de metodos."
+      - advpl: "Static cShared := ''"
+        tlpp: "static data cShared as character"
+        action: "Converter para static data na classe."
+    key_rules:
+      - "Private usada em multiplas funcoes -> data (propriedade da classe, acesso via ::cVar)"
+      - "Private usada em uma funcao so -> Local no metodo correspondente"
+      - "Public SEMPRE eliminada -> passar via constructor/parametro"
+      - "Static file-level -> static data na classe"
+
+  - name: "Funcoes para Metodos"
+    description: "Conversao de funcoes ADVPL para metodos TLPP"
+    rules:
+      - advpl: "User Function Name(params)"
+        tlpp: "public method execute(params)"
+        action: "Metodo publico principal da classe"
+      - advpl: "Static Function Helper(params)"
+        tlpp: "private method helper(params)"
+        action: "Funcoes internas viram metodos privados"
+      - advpl: "Main Function"
+        tlpp: "method new()"
+        action: "Logica de inicializacao vai pro constructor"
+    wrapper_pattern: |
+      // Manter compatibilidade: .prw wrapper chama classe .tlpp
+      #Include "TOTVS.CH"
+
+      User Function OriginalName(cParam1, nParam2)
+          Local oService := custom.mymodule.OriginalNameService():new()
+      Return oService:execute(cParam1, nParam2)
+
+  - name: "Operacoes de Banco"
+    description: "DB operations permanecem identicas, apenas encapsuladas em metodos"
+    rules:
+      - pattern: "Salvar/restaurar area"
+        advpl: "Local aArea := GetArea() ... RestArea(aArea)"
+        tlpp: "local aArea := GetArea() ... RestArea(aArea)"
+        action: "Sem mudanca"
+      - pattern: "Select area"
+        advpl: 'DbSelectArea("SA1")'
+        tlpp: "DbSelectArea(::cAlias)"
+        action: "Usar propriedade da classe para alias"
+      - pattern: "Record lock"
+        advpl: 'RecLock("SA1", .T.)'
+        tlpp: "RecLock(::cAlias, .T.)"
+        action: "Usar propriedade da classe para alias"
+    best_practice: |
+      // Armazenar alias como propriedade da classe
+      class ClienteRepository
+          data cAlias as character
+
+          public method new(cAlias as character) as object
+          public method findByCod(cCod as character) as logical
+      endclass
+
+      method new(cAlias as character) class ClienteRepository
+          ::cAlias := iif(empty(cAlias), "SA1", cAlias)
+      return self
+
+      method findByCod(cCod as character) class ClienteRepository
+          local aArea := GetArea()
+          local lFound := .F.
+          DbSelectArea(::cAlias)
+          DbSetOrder(1)
+          lFound := DbSeek(xFilial(::cAlias) + cCod)
+          RestArea(aArea)
+      return lFound
+
+  - name: "REST: WsRestFul para TLPP Annotations"
+    description: "Migracao de WsRestFul class-based para TLPP @annotations"
+    rules:
+      - advpl: 'WsRestFul CUSTOMERS Description "API" Format APPLICATION_JSON'
+        tlpp: '@RestService("/api/v1/customers")'
+      - advpl: "WsMethod GET WsReceive nPage WsService CUSTOMERS"
+        tlpp: '@Get("")\nFunction getCustomers()'
+      - advpl: "WsMethod POST WsService CUSTOMERS"
+        tlpp: '@Post("")\nFunction createCustomer()'
+      - advpl: 'WsMethod PUT WsReceive cCodigo WsService CUSTOMERS'
+        tlpp: '@Put("/{codigo}")\nFunction updateCustomer()'
+      - advpl: "WsMethod DELETE WsReceive cCodigo WsService CUSTOMERS"
+        tlpp: '@Delete("/{codigo}")\nFunction deleteCustomer()'
+      - advpl: "::GetContent()"
+        tlpp: "oRest:getBody()"
+      - advpl: "::SetResponse(cJson)"
+        tlpp: "oRest:setResponse(cJson)"
+      - advpl: "::SetStatus(nCode)"
+        tlpp: "oRest:setStatus(nCode)"
+      - advpl: "SetRestFault(nStatus, cMsg)"
+        tlpp: "oRest:setStatus(nStatus) + oRest:setResponse(cMsg)"
+      - advpl: "::nPage (WsData)"
+        tlpp: 'oRest:getQueryString():getValue("page")'
+      - advpl: "::cCodigo (path param)"
+        tlpp: 'oRest:getPathParamsRequest():getValue("codigo")'
+
+  - name: "Error Handling"
+    description: "Tratamento de erros — sintaxe preservada, logging melhorado"
+    rules:
+      - advpl: "Begin Sequence / Recover Using oError / End Sequence"
+        tlpp: "begin sequence / recover using oError / end sequence"
+        action: "Sem mudanca"
+      - advpl: 'Conout("Erro: " + cMsg)'
+        tlpp: 'FWLogMsg("ERROR", , "Module", "Method", , , "Erro: " + cMsg)'
+        action: "Preferir FWLogMsg estruturado"
+    example: |
+      method processOrder(cOrder as character) class OrderService
+          local lRet := .T.
+          local oError
+
+          begin sequence
+              ::validateOrder(cOrder)
+              ::saveOrder(cOrder)
+          recover using oError
+              lRet := .F.
+              FWLogMsg("ERROR", , "OrderService", "processOrder", , , ;
+                  "Erro pedido " + cOrder + ": " + oError:Description)
+          end sequence
+      return lRet
+
+  - name: "UI Elements"
+    description: "Elementos de interface — sintaxe preservada, organizacao em classe"
+    rules:
+      - pattern: "DEFINE MSDIALOG"
+        action: "Mover para metodo buildDialog() em classe View/Controller"
+      - pattern: "Button actions"
+        advpl: "ACTION u_MinhaFunc()"
+        tlpp: "ACTION (::oDlg:End())"
+        action: "Substituir chamadas a funcoes por chamadas a metodos"
+    example: |
+      class ClienteView
+          data oDlg    as object
+          data cCodigo as character
+          data cNome   as character
+
+          public method new() as object
+          public method show() as logical
+          private method buildDialog() as object
+      endclass
+
+      method new() class ClienteView
+          ::cCodigo := Space(6)
+          ::cNome   := Space(40)
+      return self
+
+      method show() class ClienteView
+          ::buildDialog()
+          ACTIVATE MSDIALOG ::oDlg CENTERED
+      return .T.
+
+      method buildDialog() class ClienteView
+          DEFINE MSDIALOG ::oDlg TITLE "Cliente" FROM 0,0 TO 300,500
+          @ 10, 10 MSGET ::cCodigo SIZE 100, 20 OF ::oDlg
+          @ 40, 10 MSGET ::cNome   SIZE 200, 20 OF ::oDlg
+          @ 80, 10 BUTTON "OK" SIZE 80, 25 OF ::oDlg ACTION (::oDlg:End())
+      return ::oDlg
+
+  - name: "Code Blocks"
+    description: "Code blocks — sintaxe identica, atencao com self"
+    rules:
+      - pattern: "Sintaxe"
+        action: "Sem mudanca: {|x| x * 2}, Eval(), aEval(), DbEval()"
+      - pattern: "Referencia a propriedades da classe"
+        action: "Usar self explicito quando block sera avaliado fora do metodo"
+    example: |
+      // Dentro de metodo:
+      local oSelf := self
+      local bFilter := {|| (oSelf:cAlias)->(C6_NUM) == oSelf:cPedido}
+
+complete_migration_example:
+  advpl: |
+    #Include "TOTVS.CH"
+
+    User Function CalcPedido(cNumPed)
+        Private nTotal := 0
+        fBuscaItens(cNumPed)
+    Return nTotal
+
+    Static Function fBuscaItens(cNumPed)
+        Local aArea := GetArea()
+        DbSelectArea("SC6")
+        DbSetOrder(1)
+        DbSeek(xFilial("SC6") + cNumPed)
+        While !Eof() .And. SC6->C6_NUM == cNumPed
+            nTotal += SC6->C6_VALOR * SC6->C6_QTDVEN
+            DbSkip()
+        EndWh
+        RestArea(aArea)
+    Return Nil
+
+  tlpp: |
+    #Include "tlpp-core.th"
+
+    namespace custom.faturamento.pedido
+
+    class PedidoService
+        data nTotal as numeric
+        data cAlias as character
+
+        public method new() as object
+        public method calcTotal(cNumPed as character) as numeric
+        private method buscaItens(cNumPed as character) as object
+    endclass
+
+    method new() class PedidoService
+        ::nTotal := 0
+        ::cAlias := "SC6"
+    return self
+
+    method calcTotal(cNumPed as character) class PedidoService
+        ::nTotal := 0
+        ::buscaItens(cNumPed)
+    return ::nTotal
+
+    method buscaItens(cNumPed as character) class PedidoService
+        local aArea := GetArea()
+        DbSelectArea(::cAlias)
+        DbSetOrder(1)
+        DbSeek(xFilial(::cAlias) + cNumPed)
+        While !Eof() .And. (::cAlias)->(C6_NUM) == cNumPed
+            ::nTotal += (::cAlias)->(C6_VALOR) * (::cAlias)->(C6_QTDVEN)
+            DbSkip()
+        EndWh
+        RestArea(aArea)
+    return self
+
+  wrapper: |
+    // CalcPedido.prw — wrapper de compatibilidade
+    #Include "TOTVS.CH"
+
+    User Function CalcPedido(cNumPed)
+        Local oService := custom.faturamento.pedido.PedidoService():new()
+    Return oService:calcTotal(cNumPed)
+
+migration_checklist:
+  pre_analysis:
+    - "Identificar todas User Function e Static Function no .prw"
+    - "Mapear dependencias entre funcoes"
+    - "Identificar Private/Public variaveis compartilhadas"
+    - "Listar aliases de banco usados"
+    - "Documentar #Includes"
+    - "Identificar code blocks que referenciam Private/Static"
+    - "Verificar uso de MV_* parametros"
+  execution:
+    - "Definir namespace (custom.<agrupador>.<servico>)"
+    - "Criar .tlpp com #Include tlpp-core.th"
+    - "Declarar classe PascalCase com data, public/private methods"
+    - "Criar constructor new() inicializando propriedades"
+    - "Converter User Functions -> public methods"
+    - "Converter Static Functions -> private methods"
+    - "Substituir Private por ::propriedade"
+    - "Eliminar Public — passar via constructor"
+    - "Substituir Conout por FWLogMsg"
+    - "Criar .prw wrapper mantendo User Function original"
+  validation:
+    - "Compilar .tlpp sem erros"
+    - "Compilar .prw wrapper sem erros"
+    - "Testar todas operacoes via wrapper"
+    - "Verificar: zero Private/Public no .tlpp"
+    - "Verificar: GetArea/RestArea sem vazamentos"
+    - "Verificar: naming PascalCase/camelCase"
+    - "Verificar: namespace correto"
+    - "Verificar: Protheus.doc em classe e metodos publicos"

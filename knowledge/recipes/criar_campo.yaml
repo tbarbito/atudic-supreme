@@ -1,0 +1,21 @@
+id: criar_campo
+name: "Criar Campo"
+description: "Criar novo campo em tabela existente"
+modo: melhoria
+action_type: campo
+trigger:
+  keywords: ["novo campo", "criar campo", "adicionar campo", "incluir campo"]
+steps:
+  - tool: info_tabela
+    reason: "Verificar tabela destino e campos existentes"
+  - tool: analise_impacto
+    reason: "Analise COMPLETA: fontes de escrita, MsExecAuto, integracoes, gatilhos"
+  - tool: operacoes_escrita
+    reason: "Detalhe de todas operacoes de escrita na tabela"
+  - tool: buscar_pes_cliente
+    reason: "PEs existentes para a rotina"
+  - tool: pes_disponiveis
+    reason: "PEs disponiveis no padrao para customizar"
+notes: |
+  Verificar se ja existe campo similar antes de criar.
+  Se for campo obrigatorio, aplicar receita campo_obrigatorio.

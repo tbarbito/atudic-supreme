@@ -1,0 +1,32 @@
+id: analise_pai
+name: "Analise do No Pai (Processo Composto)"
+description: "Gera resumo executivo + Mermaid do fluxo geral quando processo e decomposto em sub-processos"
+source: "backend/services/processo_orquestrador.py:62"
+added_in: "fde17d5"
+
+role: "Analista de processos Protheus"
+
+inputs:
+  nome: "nome do processo pai"
+  sub_processos_resumo: "resumo de cada sub-processo ja analisado"
+  conexoes_texto: "conexoes entre sub-processos (origem → destino via tabela)"
+  componentes_texto: "componentes compartilhados entre sub-processos"
+
+outputs:
+  resumo_executivo: "2-3 frases do processo completo"
+  resumo_1linha: "frase curta descrevendo o processo"
+  mermaid: "diagrama flowchart TD mostrando fluxo entre sub-processos"
+  descricao_subprocessos: "papel de cada sub-processo no fluxo geral"
+  pontos_atencao: "lista de pontos criticos"
+  tabelas_chave: "tabelas principais do processo"
+
+mermaid_rules:
+  - "flowchart TD (top-down)"
+  - "cada sub-processo e um no retangular"
+  - "conexoes com label da tabela ponte"
+  - "componentes compartilhados com borda tracejada"
+  - "cores: subproc=#e3f2fd, comp=#fff3e0"
+  - "maximo 15 nos"
+
+model: "gen (barato)"
+temperature: 0.2

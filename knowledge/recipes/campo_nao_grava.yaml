@@ -1,0 +1,23 @@
+id: campo_nao_grava
+name: "Campo Nao Grava"
+description: "Campo nao esta gravando ou salvando valor"
+modo: ajuste
+action_type: nao_salva
+trigger:
+  keywords: ["nao salva", "nao grava", "não salva", "não grava", "nao esta gravando", "nao esta salvando"]
+steps:
+  - tool: operacoes_escrita
+    reason: "Mapear todos os pontos de escrita na tabela"
+  - tool: quem_grava
+    reason: "Identificar quem grava especificamente o campo"
+  - tool: rastrear_condicao
+    reason: "Rastrear origem de condicoes em escritas condicionais"
+  - tool: fonte_padrao
+    reason: "Verificar comportamento padrao da rotina"
+notes: |
+  Padrão de investigacao:
+  1. Ver QUEM deveria gravar o campo
+  2. Se tem escrita condicional, rastrear a condicao
+  3. Comparar com padrao — o campo e gravado no padrao ou so por customizacao?
+  4. Verificar se tem PE interferindo na gravacao
+cross_reference_padrao: true

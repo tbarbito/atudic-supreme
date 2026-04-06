@@ -1,0 +1,11 @@
+id: codigo_pe
+name: "Codigo do PE"
+description: "Codigo fonte onde PE e chamado no padrao"
+source: "backend/services/padrao_tools.py"
+when_to_use:
+  - "como o PE e chamado"
+  - "qual o contexto do ExecBlock"
+inputs:
+  nome_pe: "nome do ponto de entrada"
+outputs:
+  - "lista de {arquivo, funcao, linha, codigo}"

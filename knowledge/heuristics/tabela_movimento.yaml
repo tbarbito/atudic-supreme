@@ -1,0 +1,17 @@
+id: tabela_movimento
+name: "Detectar Tabela de Movimento"
+description: "Heuristica para distinguir tabela de movimento vs configuracao/cadastro"
+source: "backend/services/analista_tools.py:92"
+
+rules:
+  - check: "palavras na descricao da tabela"
+    palavras_movimento: [MOVIMENT, LANC, LANÇA, ITENS, SALDO, TITULO, PARCELA, PEDIDO, ORDEM, EMBARQUE, NOTA FISCAL, DOCUMENTO, HISTOR, LOG, RASTREIO, ENVIO, INTEG]
+    resultado: "Se contem alguma → tabela de movimento"
+
+  - check: "campos de data"
+    condicao: "Tem campo tipo D com nome *EMISSA* ou *DTDIGI* ou *DATA*"
+    mais: "E tem mais de 15 campos total"
+    resultado: "Tabela de movimento"
+
+  - check: "default"
+    resultado: "Tabela de configuracao/cadastro"

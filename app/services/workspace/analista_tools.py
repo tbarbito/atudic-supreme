@@ -27,6 +27,158 @@ def _safe_json(val):
         return []
 
 
+def _table_exists(db, table_name: str) -> bool:
+    """Check if a SQLite table exists."""
+    r = db.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table_name,)
+    ).fetchone()
+    return r is not None
+
+
+def get_uso_tabela(db, tabela: str) -> dict:
+    """Classifica o nível de uso real de uma tabela no ambiente do cliente.
+
+    Retorna dict com:
+      - registros: int | None (None = tabela não existe no Oracle)
+      - uso: 'ativo' | 'residual' | 'config' | 'inexistente'
+      - descricao_uso: texto curto para o LLM
+    """
+    tabela_upper = tabela.upper()
+
+    if not _table_exists(db, "record_counts"):
+        return {"registros": None, "uso": "desconhecido",
+                "descricao_uso": "sem dados de volumetria"}
+
+    rc = db.execute(
+        "SELECT registros FROM record_counts WHERE upper(tabela)=?",
+        (tabela_upper,),
+    ).fetchone()
+
+    if rc is None:
+        return {"registros": None, "uso": "inexistente",
+                "descricao_uso": "tabela NÃO existe no banco Oracle — módulo não implantado"}
+
+    regs = rc[0] or 0
+
+    if regs == 0:
+        return {"registros": 0, "uso": "inexistente",
+                "descricao_uso": "tabela existe mas com 0 registros — não utilizada"}
+
+    if regs <= 10:
+        # Pode ser config ou residual — verificar se é tabela de movimento
+        is_movto = _is_tabela_movimento(db, tabela_upper)
+        if is_movto:
+            return {"registros": regs, "uso": "residual",
+                    "descricao_uso": f"apenas {regs} registros em tabela de movimentação — provável que NÃO usam"}
+        else:
+            return {"registros": regs, "uso": "config",
+                    "descricao_uso": f"{regs} registros (tabela de configuração/cadastro — normal ter poucos)"}
+
+    if regs <= 100:
+        is_movto = _is_tabela_movimento(db, tabela_upper)
+        if is_movto:
+            return {"registros": regs, "uso": "residual",
+                    "descricao_uso": f"apenas {regs} registros em tabela de movimentação — uso mínimo"}
+        else:
+            return {"registros": regs, "uso": "ativo",
+                    "descricao_uso": f"{regs} registros — uso ativo"}
+
+    # > 100 registros
+    label = _format_regs(regs)
+    return {"registros": regs, "uso": "ativo",
+            "descricao_uso": f"{label} registros — uso ativo"}
+
+
+def _is_tabela_movimento(db, tabela_upper: str) -> bool:
+    """Detecta se é tabela de movimentação (vs configuração/cadastro).
+
+    Heurística: tabelas com muitos campos, campo de data (EMISSAO/DTDIGIT),
+    ou descrição indicando movimentação/lançamento/itens.
+    """
+    # Palavras na descrição da tabela que indicam movimento
+    row = db.execute(
+        "SELECT nome FROM tabelas WHERE upper(codigo)=?", (tabela_upper,)
+    ).fetchone()
+    if row and row[0]:
+        nome = row[0].upper()
+        movto_words = ['MOVIMENT', 'LANC', 'LANÇA', 'ITENS', 'SALDO', 'TITULO',
+                       'PARCELA', 'PEDIDO', 'ORDEM', 'EMBARQUE', 'NOTA FISCAL',
+                       'DOCUMENTO', 'HISTOR', 'LOG ', 'RASTREIO', 'ENVIO', 'INTEG']
+        if any(w in nome for w in movto_words):
+            return True
+
+    # Tabelas com campo de data de emissão/digitação são tipicamente de movimento
+    dt_count = db.execute(
+        "SELECT COUNT(*) FROM campos WHERE upper(tabela)=? AND tipo='D' "
+        "AND (upper(campo) LIKE '%EMISSA%' OR upper(campo) LIKE '%DTDIGI%' "
+        "OR upper(campo) LIKE '%DATA%')",
+        (tabela_upper,),
+    ).fetchone()[0]
+    if dt_count > 0:
+        # Tabelas com data + muitos campos = movimento
+        total = db.execute(
+            "SELECT COUNT(*) FROM campos WHERE upper(tabela)=?", (tabela_upper,)
+        ).fetchone()[0]
+        if total > 15:
+            return True
+
+    return False
+
+
+def _format_regs(n: int) -> str:
+    """Formata número de registros de forma legível."""
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M"
+    if n >= 1_000:
+        return f"{n / 1_000:.0f}K"
+    return str(n)
+
+
+def get_uso_tabelas_bulk(db, tabelas: list[str]) -> dict[str, dict]:
+    """Versão bulk de get_uso_tabela para evitar N queries."""
+    if not _table_exists(db, "record_counts"):
+        return {t: {"registros": None, "uso": "desconhecido",
+                     "descricao_uso": "sem dados de volumetria"} for t in tabelas}
+
+    # Carrega tudo de uma vez
+    rc_map = {}
+    for row in db.execute("SELECT tabela, registros FROM record_counts").fetchall():
+        rc_map[row[0].upper()] = row[1] or 0
+
+    result = {}
+    for t in tabelas:
+        tu = t.upper()
+        if tu not in rc_map:
+            result[t] = {"registros": None, "uso": "inexistente",
+                         "descricao_uso": "tabela NÃO existe no banco Oracle — módulo não implantado"}
+        else:
+            regs = rc_map[tu]
+            if regs == 0:
+                result[t] = {"registros": 0, "uso": "inexistente",
+                             "descricao_uso": "tabela existe mas 0 registros — não utilizada"}
+            elif regs <= 10:
+                is_movto = _is_tabela_movimento(db, tu)
+                if is_movto:
+                    result[t] = {"registros": regs, "uso": "residual",
+                                 "descricao_uso": f"apenas {regs} registros em tabela de movimentação — provável que NÃO usam"}
+                else:
+                    result[t] = {"registros": regs, "uso": "config",
+                                 "descricao_uso": f"{regs} registros (tabela de configuração/cadastro — normal ter poucos)"}
+            elif regs <= 100:
+                is_movto = _is_tabela_movimento(db, tu)
+                if is_movto:
+                    result[t] = {"registros": regs, "uso": "residual",
+                                 "descricao_uso": f"apenas {regs} registros em tabela de movimentação — uso mínimo"}
+                else:
+                    result[t] = {"registros": regs, "uso": "ativo",
+                                 "descricao_uso": f"{regs} registros — uso ativo"}
+            else:
+                label = _format_regs(regs)
+                result[t] = {"registros": regs, "uso": "ativo",
+                             "descricao_uso": f"{label} registros — uso ativo"}
+    return result
+
+
 def tool_analise_impacto(tabela: str, campo: str = "", alteracao: str = "novo_campo") -> dict:
     """Run impact analysis for a table/field change. Returns filtered results (write-only)."""
     db = _get_db()
@@ -49,15 +201,22 @@ def tool_analise_impacto(tabela: str, campo: str = "", alteracao: str = "novo_ca
             })
 
         # Get triggers related to this table
+        # Note: 'tabela' column in gatilhos is the SEEK table, not the field's table
+        # So we search by field prefix (e.g., C7_% for SC7)
         gatilhos = []
+        # Derive field prefix from table code (SC7 → C7_, SA1 → A1_, SB1 → B1_)
+        field_prefix = tabela[1:] + "_" if len(tabela) == 3 else tabela + "_"
         gat_rows = db.execute(
-            "SELECT campo_origem, campo_destino, regra, tipo FROM gatilhos WHERE tabela=?",
-            (tabela,),
+            "SELECT campo_origem, sequencia, campo_destino, regra, tipo, tabela, condicao, custom "
+            "FROM gatilhos WHERE campo_origem LIKE ?",
+            (f"{field_prefix}%",),
         ).fetchall()
         for g in gat_rows:
             gatilhos.append({
-                "campo_origem": g[0], "campo_destino": g[1],
-                "regra": g[2] or "", "tipo": g[3] or "",
+                "campo_origem": g[0], "sequencia": g[1],
+                "campo_destino": g[2], "regra": g[3] or "",
+                "tipo": g[4] or "", "tabela_seek": g[5] or "",
+                "condicao": g[6] or "", "custom": g[7],
             })
 
         # Get existing custom fields
@@ -197,8 +356,10 @@ def tool_analise_impacto(tabela: str, campo: str = "", alteracao: str = "novo_ca
         except Exception:
             pass  # Table may not exist in older databases
 
+        uso_tabela = get_uso_tabela(db, tabela)
         return {
             "tabela": tabela,
+            "uso_tabela": uso_tabela,
             "campo_info": campo_info,
             "fontes_escrita": fontes,
             "exec_autos": exec_autos,
@@ -1326,9 +1487,11 @@ def tool_mapear_processo(tabela: str, campo: str) -> dict:
         campo = campo.upper()
         tabela = tabela.upper()
 
+        uso_tabela = get_uso_tabela(db, tabela)
         result = {
             "campo": campo,
             "tabela": tabela,
+            "uso_tabela": uso_tabela,
             "processo": {},
             "estados": [],
             "campos_companheiros": [],
@@ -1416,6 +1579,7 @@ def tool_mapear_processo(tabela: str, campo: str) -> dict:
                     "SELECT COUNT(*) FROM campos WHERE upper(tabela)=?", (sat_tab,)
                 ).fetchone()[0]
                 relacao = "escrita" if refs["escritas"] else "leitura"
+                sat_uso = get_uso_tabela(db, sat_tab)
                 sat_list.append({
                     "tabela": sat_tab,
                     "nome": trow[1] if trow else "",
@@ -1425,6 +1589,7 @@ def tool_mapear_processo(tabela: str, campo: str) -> dict:
                     "fontes_leitura": len(refs["leituras"]),
                     "relacao": relacao,
                     "arquivos": sorted(refs["escritas"] | refs["leituras"]),
+                    **sat_uso,
                 })
         result["tabelas_satelite"] = sat_list[:8]
 
@@ -1556,10 +1721,12 @@ def tool_info_tabela(tabela: str) -> dict:
         total = db.execute("SELECT COUNT(*) FROM campos WHERE upper(tabela)=?", (tabela.upper(),)).fetchone()[0]
         custom = db.execute("SELECT COUNT(*) FROM campos WHERE upper(tabela)=? AND custom=1", (tabela.upper(),)).fetchone()[0]
         indices = db.execute("SELECT COUNT(*) FROM indices WHERE upper(tabela)=?", (tabela.upper(),)).fetchone()[0]
+        uso = get_uso_tabela(db, tabela)
 
         return {
             "tabela": row[0], "nome": row[1], "existe": True,
             "total_campos": total, "campos_custom": custom, "indices": indices,
+            **uso,
         }
     finally:
         db.close()
@@ -1583,6 +1750,12 @@ def tool_processos_cliente(tabelas: list | None = None) -> dict:
             "FROM processos_detectados ORDER BY score DESC"
         ).fetchall()
 
+        # Carregar uso de todas as tabelas envolvidas de uma vez
+        all_tabs = set()
+        for r in rows:
+            all_tabs.update(t.upper() for t in _safe_json(r[5]))
+        uso_map = get_uso_tabelas_bulk(db, list(all_tabs)) if all_tabs else {}
+
         processos = []
         for r in rows:
             tabs = _safe_json(r[5])
@@ -1591,10 +1764,20 @@ def tool_processos_cliente(tabelas: list | None = None) -> dict:
                 filtro_upper = {t.upper() for t in tabelas}
                 if not tabs_upper.intersection(filtro_upper):
                     continue
+            # Enriquecer tabelas com info de uso
+            tabs_com_uso = []
+            for t in tabs:
+                uso = uso_map.get(t.upper(), {})
+                tabs_com_uso.append({
+                    "tabela": t,
+                    "registros": uso.get("registros"),
+                    "uso": uso.get("uso", "desconhecido"),
+                    "descricao_uso": uso.get("descricao_uso", ""),
+                })
             processos.append({
                 "id": r[0], "nome": r[1], "tipo": r[2], "descricao": r[3],
-                "criticidade": r[4], "tabelas": tabs, "score": r[6],
-                "fluxo_mermaid": r[7],
+                "criticidade": r[4], "tabelas": tabs, "tabelas_uso": tabs_com_uso,
+                "score": r[6], "fluxo_mermaid": r[7],
             })
 
         return {"total": len(processos), "processos": processos, "status": "ok"}

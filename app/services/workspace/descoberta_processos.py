@@ -1,12 +1,7 @@
-# -*- coding: utf-8 -*-
-"""Pipeline de descoberta automatica de processos do cliente — SQL puro (passos 1-4)."""
+# backend/services/descoberta_processos.py
+"""Pipeline de descoberta automática de processos do cliente — SQL puro (passos 1-4)."""
 import json
-import logging
 import re
-
-from app.services.workspace.workspace_db import Database
-
-logger = logging.getLogger(__name__)
 
 
 def _safe_json(val):
@@ -23,7 +18,7 @@ def _safe_json(val):
 # ──────────────────────────────────────────────────────────────
 
 def passo1_clustering_campos(db) -> dict:
-    """Detecta macro-processos via 5 niveis semanticos nos dados do cliente."""
+    """Detecta macro-processos via 5 níveis semânticos nos dados do cliente."""
 
     # Nível 1 — tabelas custom com >= 5 campos
     nivel1 = []
@@ -125,7 +120,7 @@ def passo1_clustering_campos(db) -> dict:
 # ──────────────────────────────────────────────────────────────
 
 def passo2_gatilhos(db) -> dict:
-    """Extrai super-triggers, funcoes U_ e tabelas consultadas."""
+    """Extrai super-triggers, funções U_ e tabelas consultadas."""
 
     # Super-triggers: campos que disparam 3+ gatilhos custom
     super_triggers = {}
@@ -181,7 +176,7 @@ def passo2_gatilhos(db) -> dict:
 # ──────────────────────────────────────────────────────────────
 
 def passo3_fontes_satelite(db) -> dict:
-    """Agrupa fontes por tabela que escrevem e identifica satelites."""
+    """Agrupa fontes por tabela que escrevem e identifica satélites."""
 
     # Cluster por tabela: todos os fontes que a escrevem
     clusters: dict[str, dict] = {}
@@ -231,6 +226,11 @@ def passo3_fontes_satelite(db) -> dict:
     # These are often the "grade", "regras", "aprovadores" tables that define business rules
     sys_tables = {"SM0", "SX1", "SX2", "SX3", "SX5", "SX6", "SX7", "SX9", "SIX", "SAK"}
     ref_tables: dict[str, dict] = {}  # table -> {nome, fontes_que_leem, tabelas_escrita_associadas}
+
+    # Scan ALL writing fontes (not just top 20 clusters) to catch broader reference patterns
+    all_writing_fontes = set()
+    for cluster in clusters_list[:30]:
+        all_writing_fontes.update(cluster["fontes"][:15])
 
     for cluster in clusters_list[:30]:
         tab = cluster["tabela"]
@@ -384,6 +384,7 @@ def _passo5_llm(dados: dict, llm) -> list[dict]:
          "associada_a": rt["tabelas_escrita"][:3]}
         for rt in dados["passo3"].get("ref_tables", [])[:20]
     ]
+
     dados_compacto = {
         "tabelas_custom": tabs_compact,
         "maquinas_estado": dados["passo1"]["nivel2_cbox_estados"][:30],
@@ -400,27 +401,18 @@ def _passo5_llm(dados: dict, llm) -> list[dict]:
         ],
     }
     prompt = _PASSO5_PROMPT.format(dados=json.dumps(dados_compacto, ensure_ascii=False, indent=2))
-
-    logger.info("Passo 5: chamando LLM para classificacao de processos")
-    result = llm.chat([{"role": "user", "content": prompt}], max_tokens=8000)
-
-    # No Supreme, llm.chat() retorna dict {"content": "...", "model": "...", ...}
-    text = result["content"] if isinstance(result, dict) else result
-    text = text.strip()
-
+    response = llm.chat([{"role": "user", "content": prompt}], max_tokens=8000)
     # Strip markdown code block if LLM wrapped the JSON
+    text = response.strip()
     md_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
     if md_match:
         text = md_match.group(1).strip()
     try:
         processos = json.loads(text)
         if not isinstance(processos, list):
-            logger.warning("Passo 5: LLM retornou JSON valido mas nao e uma lista")
             return []
-        logger.info("Passo 5: %d processos detectados via LLM", len(processos))
         return processos
-    except (json.JSONDecodeError, TypeError) as exc:
-        logger.error("Passo 5: falha ao parsear resposta da LLM: %s", exc)
+    except (json.JSONDecodeError, TypeError):
         return []
 
 
@@ -431,13 +423,12 @@ def _passo5_llm(dados: dict, llm) -> list[dict]:
 def descobrir_processos(db, llm, force: bool = False) -> list[dict]:
     """
     Roda o pipeline completo de descoberta (passos 1-5) e salva em processos_detectados.
-    Usa cache — nao recalcula se ja existem registros, a menos que force=True.
+    Usa cache — não recalcula se já existem registros, a menos que force=True.
     """
     # Checar cache
     if not force:
         count = db.execute("SELECT COUNT(*) FROM processos_detectados").fetchone()[0]
         if count > 0:
-            logger.info("Descoberta de processos: usando cache (%d registros)", count)
             rows = db.execute(
                 "SELECT id, nome, tipo, descricao, criticidade, tabelas, score "
                 "FROM processos_detectados ORDER BY score DESC"
@@ -448,8 +439,6 @@ def descobrir_processos(db, llm, force: bool = False) -> list[dict]:
                 for r in rows
             ]
 
-    logger.info("Iniciando pipeline de descoberta de processos (force=%s)", force)
-
     # Rodar passos 1-4
     dados = {
         "passo1": passo1_clustering_campos(db),
@@ -458,19 +447,10 @@ def descobrir_processos(db, llm, force: bool = False) -> list[dict]:
         "passo4": passo4_jobs(db),
     }
 
-    logger.info(
-        "Passos 1-4 concluidos: %d tabelas custom, %d gatilhos custom, %d clusters, %d jobs",
-        len(dados["passo1"]["nivel1_tabelas_custom"]),
-        dados["passo2"]["total_gatilhos_custom"],
-        len(dados["passo3"]["clusters_tabela"]),
-        len(dados["passo4"]["jobs_criticos"]),
-    )
-
     # Passo 5: LLM
     processos = _passo5_llm(dados, llm)
 
     if not processos:
-        logger.warning("Nenhum processo detectado pelo pipeline")
         return []
 
     # Limpar resultados anteriores e salvar novos
@@ -502,9 +482,6 @@ def descobrir_processos(db, llm, force: bool = False) -> list[dict]:
         "SELECT id, nome, tipo, descricao, criticidade, tabelas, score "
         "FROM processos_detectados ORDER BY score DESC"
     ).fetchall()
-
-    logger.info("Pipeline de descoberta concluido: %d processos salvos", len(rows))
-
     return [
         {"id": r[0], "nome": r[1], "tipo": r[2], "descricao": r[3],
          "criticidade": r[4], "tabelas": _safe_json(r[5]), "score": r[6]}

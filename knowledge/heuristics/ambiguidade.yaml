@@ -1,0 +1,21 @@
+id: ambiguidade
+name: "Deteccao de Ambiguidade"
+description: "Quando pedir clarificacao ao usuario"
+source: "backend/services/clarificacao.py"
+
+triggers:
+  - "Multiplos campos na mesma tabela matcham keywords"
+  - "Keywords matcham categorias ambiguas (bloqueio, rateio, integracao)"
+  - "Mensagem muito generica sem tabela/campo especifico"
+
+nao_pedir_quando:
+  - "Usuario nomeou codigo de campo especifico (ex: C5_LIBEROK)"
+  - "Contexto anterior ja clarificou"
+
+categorias_ambiguas:
+  bloqueio: [bloq, lib, trav, aprov, pend]
+  rateio: [rate, cc, centro_custo]
+  integracao: [integr, taura, tms, sfa]
+  fiscal: [sintr, sped, nfe, icms]
+  aprovacao: [aprov, workflow, alcad]
+  estoque: [estoq, saldo, movimen]

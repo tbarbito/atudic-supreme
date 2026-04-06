@@ -1,0 +1,290 @@
+id: rest-api
+name: "Padrao REST API"
+description: "APIs REST em Protheus usando WsRestFul (classico) e TLPP com annotations (@Get, @Post, @Put, @Delete)"
+when_to_use:
+  - "Expor dados do Protheus para sistemas externos"
+  - "Integracao com front-end web ou mobile"
+  - "API CRUD para tabelas customizadas"
+  - "Microservicos que consomem/produzem JSON"
+  - "Webhook ou callback HTTP"
+  - "Integracao com ERPs terceiros"
+
+includes_wsrestful:
+  - '#Include "TOTVS.CH"'
+  - '#Include "RestFul.ch"'
+
+includes_tlpp:
+  - '#Include "tlpp-core.th"'
+  - '#Include "tlpp-rest.th"'
+
+sections:
+  - name: "WsRestFul (Classico)"
+    description: "API REST baseada em classe WsRestFul — padrao ADVPL tradicional"
+    key_points:
+      - "Declarar servico com WsRestFul ... End WsRestFul"
+      - "WsData define propriedades recebiveis via query/path"
+      - "WsMethod declara metodos HTTP com Path e Syntax"
+      - "Usar Self (::) para acessar WsData e metodos do servico"
+      - "SetRestFault para erros, SetResponse para sucesso"
+    template: |
+      #Include "TOTVS.CH"
+      #Include "RestFul.ch"
+
+      WsRestFul CUSTOMERS Description "API de Clientes" Format APPLICATION_JSON
+
+          WsData nPage      As Integer   Optional
+          WsData nPageSize  As Integer   Optional
+          WsData cCodigo    As Character Optional
+          WsData cLoja      As Character Optional
+
+          WsMethod GET    Description "Lista clientes"    WsSyntax "/customers"                 Path "/customers"
+          WsMethod POST   Description "Inclui cliente"    WsSyntax "/customers"                 Path "/customers"
+          WsMethod PUT    Description "Altera cliente"    WsSyntax "/customers/{codigo}/{loja}"  Path "/customers/{codigo}/{loja}"
+          WsMethod DELETE Description "Exclui cliente"    WsSyntax "/customers/{codigo}/{loja}"  Path "/customers/{codigo}/{loja}"
+
+      End WsRestFul
+
+  - name: "TLPP REST (Annotations)"
+    description: "API REST moderna com annotations TLPP — @RestService, @Get, @Post, @Put, @Delete"
+    key_points:
+      - "Usar @RestService para definir o path base"
+      - "Usar @Get, @Post, @Put, @Delete para cada operacao"
+      - "oRest e o objeto global do framework REST TLPP"
+      - "Query params: oRest:getQueryString():getValue('param')"
+      - "Path params: oRest:getPathParamsRequest():getValue('param')"
+      - "Body: oRest:getBody()"
+      - "Response: oRest:setResponse(cJson), oRest:setStatus(nCode)"
+    template: |
+      #Include "tlpp-core.th"
+      #Include "tlpp-rest.th"
+
+      @RestService("/api/v1/products")
+      @Get("")
+      Function getProducts()
+          Local oJson   := JsonObject():New()
+          Local aResult := {}
+          Local aArea   := GetArea()
+          Local cPage   := oRest:getQueryString():getValue("page")
+          Local nPage   := IIf(Empty(cPage), 1, Val(cPage))
+
+          // ... buscar dados e montar array ...
+
+          oJson["items"] := aResult
+          oJson["page"]  := nPage
+
+          oRest:setResponse(oJson:ToJson())
+          oRest:setStatus(200)
+
+          FreeObj(oJson)
+          RestArea(aArea)
+      Return .T.
+
+      @RestService("/api/v1/products")
+      @Get("/{codigo}")
+      Function getProductById()
+          Local cCodigo := oRest:getPathParamsRequest():getValue("codigo")
+          Local aArea   := GetArea()
+
+          DbSelectArea("SB1")
+          DbSetOrder(1)
+          If !DbSeek(xFilial("SB1") + PadR(cCodigo, TamSX3("B1_COD")[1]))
+              oRest:setStatus(404)
+              oRest:setResponse('{"error":"Produto nao encontrado"}')
+              RestArea(aArea)
+              Return .T.
+          EndIf
+
+          // ... montar JSON de resposta ...
+
+          RestArea(aArea)
+      Return .T.
+
+      @RestService("/api/v1/products")
+      @Post("")
+      Function createProduct()
+          Local oJson   := JsonObject():New()
+          Local cBody   := oRest:getBody()
+          Local nParsed := oJson:FromJson(cBody)
+
+          If nParsed <> 0
+              oRest:setStatus(400)
+              oRest:setResponse('{"error":"JSON invalido"}')
+              FreeObj(oJson)
+              Return .T.
+          EndIf
+
+          // ... validar e gravar ...
+
+          oRest:setStatus(201)
+          oRest:setResponse('{"message":"Criado com sucesso"}')
+          FreeObj(oJson)
+      Return .T.
+
+      @RestService("/api/v1/products")
+      @Put("/{codigo}")
+      Function updateProduct()
+          Local cCodigo := oRest:getPathParamsRequest():getValue("codigo")
+          // ... buscar, validar, atualizar ...
+          oRest:setStatus(200)
+      Return .T.
+
+      @RestService("/api/v1/products")
+      @Delete("/{codigo}")
+      Function deleteProduct()
+          Local cCodigo := oRest:getPathParamsRequest():getValue("codigo")
+          // ... buscar, deletar (D_E_L_E_T_ := "*") ...
+          oRest:setStatus(200)
+      Return .T.
+
+  - name: "JSON Handling"
+    description: "Manipulacao de JSON com JsonObject — criacao, parsing, arrays"
+    key_points:
+      - "JsonObject():New() para criar novo objeto"
+      - "FromJson(cBody) retorna 0 se OK, posicao do erro se falhar"
+      - "ToJson() converte objeto para string JSON"
+      - "Acessar chaves com oJson['chave']"
+      - "Arrays: criar array AdvPL com objetos e atribuir a chave"
+      - "Sempre chamar FreeObj(oJson) ao final"
+    code: |
+      // Criacao
+      Local oJson := JsonObject():New()
+      oJson["nome"]   := "Produto Teste"
+      oJson["codigo"] := 123
+      oJson["ativo"]  := .T.
+      oJson["preco"]  := 99.90
+
+      // Array de objetos
+      Local aItens := {}
+      Local oItem  := JsonObject():New()
+      oItem["produto"] := "PROD001"
+      oItem["quant"]   := 10
+      aAdd(aItens, oItem)
+      oJson["itens"] := aItens
+
+      cJson := oJson:ToJson()
+      FreeObj(oJson)
+
+      // Parsing
+      Local oReq    := JsonObject():New()
+      Local nResult := oReq:FromJson(cBody)
+      If nResult <> 0
+          // Erro na posicao nResult
+      EndIf
+      cNome := oReq["nome"]
+      FreeObj(oReq)
+
+  - name: "Autenticacao"
+    description: "Padrao de autenticacao Bearer Token e Basic Auth"
+    code: |
+      // Bearer Token
+      Static Function ValidToken(oSelf)
+          Local lValid      := .F.
+          Local cAuthHeader := oSelf:GetHeader("Authorization")
+
+          If !Empty(cAuthHeader) .And. Left(cAuthHeader, 7) == "Bearer "
+              Local cToken := SubStr(cAuthHeader, 8)
+              // Validar token contra base/cache
+              lValid := ValidateJWT(cToken)
+          EndIf
+      Return lValid
+
+      // Basic Auth
+      Static Function ValidBasicAuth(oSelf)
+          Local lValid      := .F.
+          Local cAuthHeader := oSelf:GetHeader("Authorization")
+
+          If !Empty(cAuthHeader) .And. Left(cAuthHeader, 6) == "Basic "
+              Local cDecoded := Decode64(SubStr(cAuthHeader, 7))
+              Local nPos     := At(":", cDecoded)
+              If nPos > 0
+                  Local cUser := Left(cDecoded, nPos - 1)
+                  Local cPass := SubStr(cDecoded, nPos + 1)
+                  lValid := FWCheckPass(cUser, cPass)
+              EndIf
+          EndIf
+      Return lValid
+
+  - name: "Error Response Padrao"
+    description: "Funcao helper para respostas de erro padronizadas"
+    code: |
+      Static Function SendError(oSelf, nStatus, cCode, cMessage, cDetails)
+          Local oErr := JsonObject():New()
+          oErr["error"]   := cCode
+          oErr["message"] := cMessage
+          oErr["status"]  := nStatus
+          If !Empty(cDetails)
+              oErr["details"] := cDetails
+          EndIf
+          oSelf:SetContentType("application/json")
+          SetRestFault(nStatus, oErr:ToJson())
+          FreeObj(oErr)
+      Return Nil
+
+      // Uso:
+      // SendError(Self, 404, "NOT_FOUND", "Cliente nao encontrado", "")
+      // SendError(Self, 422, "VALIDATION", "Campo nome obrigatorio", "")
+
+  - name: "Query SQL Paginada"
+    description: "Busca eficiente com TCQuery e paginacao SQL"
+    code: |
+      Static Function QueryCustomers(cWhere, nPage, nPageSize)
+          Local cQuery  := ""
+          Local cAlias  := GetNextAlias()
+          Local aResult := {}
+
+          cQuery := "SELECT A1_COD, A1_LOJA, A1_NOME, A1_CGC "
+          cQuery += "FROM " + RetSqlName("SA1") + " SA1 "
+          cQuery += "WHERE SA1.D_E_L_E_T_ = ' ' "
+          cQuery += "AND A1_FILIAL = '" + xFilial("SA1") + "' "
+          If !Empty(cWhere)
+              cQuery += "AND " + cWhere + " "
+          EndIf
+          cQuery += "ORDER BY A1_COD "
+          cQuery += "OFFSET " + cValToChar((nPage - 1) * nPageSize) + " ROWS "
+          cQuery += "FETCH NEXT " + cValToChar(nPageSize) + " ROWS ONLY"
+
+          TCQuery cQuery New Alias (cAlias)
+
+          While !(cAlias)->(Eof())
+              Local oItem := JsonObject():New()
+              oItem["codigo"] := AllTrim((cAlias)->A1_COD)
+              oItem["nome"]   := AllTrim((cAlias)->A1_NOME)
+              aAdd(aResult, oItem)
+              (cAlias)->(DbSkip())
+          EndWh
+
+          (cAlias)->(DbCloseArea())
+      Return aResult
+
+appserver_ini: |
+  [HTTPREST]
+  Port=8080
+  URIs=HTTPURI
+
+  [HTTPURI]
+  URL=/rest
+  PrepareIn=All
+  Instances=2,5
+  CORSOrigins=*
+  CORSHeaders=Content-Type,Authorization
+  CORSMethods=GET,POST,PUT,DELETE,OPTIONS
+
+http_status_codes:
+  200: "OK — GET/PUT/DELETE sucesso"
+  201: "Created — POST sucesso"
+  400: "Bad Request — JSON invalido ou parametros errados"
+  401: "Unauthorized — token invalido ou ausente"
+  404: "Not Found — registro nao encontrado"
+  422: "Unprocessable Entity — validacao de negocio falhou"
+  500: "Internal Server Error — erro inesperado"
+
+best_practices:
+  - "Sempre salvar/restaurar area: aArea := GetArea() / RestArea(aArea)"
+  - "Sempre validar JSON body com FromJson antes de usar"
+  - "Sempre incluir D_E_L_E_T_ = ' ' em queries SQL"
+  - "Sempre usar RetSqlName() para nomes de tabelas no SQL"
+  - "Sempre chamar FreeObj() em JsonObjects apos uso"
+  - "Usar Begin Transaction / End Transaction para operacoes de escrita"
+  - "Implementar autenticacao em TODOS os endpoints"
+  - "Usar PadR com TamSX3 ao fazer DbSeek com parametros da URL"
+  - "Retornar .T. mesmo em erros no TLPP — usar setStatus para o codigo HTTP"

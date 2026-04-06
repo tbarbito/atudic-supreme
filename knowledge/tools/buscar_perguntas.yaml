@@ -1,0 +1,11 @@
+id: buscar_perguntas
+name: "Buscar Perguntas"
+description: "Buscar grupos de perguntas SX1 por codigo ou termo"
+source: "backend/services/analista_tools.py:566"
+when_to_use:
+  - "perguntas do relatorio"
+  - "grupo de perguntas SX1"
+inputs:
+  termo: "termo de busca ou codigo do grupo"
+outputs:
+  - "lista de perguntas com opcoes"

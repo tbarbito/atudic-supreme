@@ -1,0 +1,229 @@
+id: security
+name: "Regras de Seguranca ADVPL"
+description: "Checklist de regras para review de codigo ADVPL - vulnerabilidades de seguranca"
+
+rules:
+  - id: SEC-001
+    name: "SQL injection via concatenacao de string"
+    severity: critical
+    description: "Construir SQL concatenando variaveis de usuario diretamente na query permite SQL injection. Usar BeginSQL com macro %exp:variavel% que parametriza o valor."
+    bad_pattern: |
+      cQuery := "SELECT A1_COD, A1_NOME FROM " + RetSqlName("SA1")
+      cQuery += " WHERE A1_NOME LIKE '%" + cSearch + "%'"
+      cQuery += " AND D_E_L_E_T_ = ' '"
+      TCQuery cQuery New Alias "QRY_CLI"
+      // Se cSearch = "'; DROP TABLE SA1; --" o estrago esta feito
+    good_pattern: |
+      Local cFilter := "%" + cSearch + "%"
+      BeginSQL Alias cAlias
+          SELECT SA1.A1_COD, SA1.A1_NOME
+          FROM %table:SA1% SA1
+          WHERE SA1.%notDel%
+          AND SA1.A1_FILIAL = %xfilial:SA1%
+          AND SA1.A1_NOME LIKE %exp:cFilter%
+      EndSQL
+    detect_regex: '(?i)(tcquery|cquery\s*[\+:]?=).*\+\s*[cn]\w+'
+    absent_regex: "(?i)%exp:"
+    explanation: "SQL injection eh uma das vulnerabilidades mais exploradas. No Protheus, uma query injetada pode contornar controles de acesso, extrair dados financeiros sensiveis ou corromper tabelas criticas. A macro %exp: parametriza valores, prevenindo injecao."
+
+  - id: SEC-002
+    name: "Endpoint REST sem validacao de input"
+    severity: critical
+    description: "Endpoints REST que leem SELF:GetContent() ou oRest:GetBody() e usam dados diretamente sem validacao permitem ataques de injecao, erros de tipo e bypass de regras de negocio."
+    bad_pattern: |
+      @Get("/api/v1/clients")
+      Method GetClient() Class ClientService
+          Local cBody   := SELF:GetContent()
+          Local jBody   := JsonObject():New()
+          jBody:FromJson(cBody)
+          cCodCli := jBody["code"]   // sem validacao!
+          DbSelectArea("SA1")
+          DbSeek(xFilial("SA1") + cCodCli)
+      Return
+    good_pattern: |
+      @Get("/api/v1/clients")
+      Method GetClient() Class ClientService
+          Local cBody   := SELF:GetContent()
+          Local jBody   := JsonObject():New()
+          Local nRet    := jBody:FromJson(cBody)
+          If nRet <> 0
+              SELF:SetResponse('{"error": "JSON invalido"}')
+              SELF:SetStatus(400)
+              Return
+          EndIf
+          If ValType(jBody["code"]) <> "C" .Or. Empty(jBody["code"])
+              SELF:SetResponse('{"error": "Campo code obrigatorio"}')
+              SELF:SetStatus(400)
+              Return
+          EndIf
+          cCodCli := PadR(AllTrim(jBody["code"]), TamSX3("A1_COD")[1])
+          DbSelectArea("SA1")
+          If DbSeek(xFilial("SA1") + cCodCli)
+              // processa cliente valido
+          Else
+              SELF:SetResponse('{"error": "Cliente nao encontrado"}')
+              SELF:SetStatus(404)
+          EndIf
+      Return
+    detect_regex: "(?i)(self:getcontent|orest:getbody)\\s*\\("
+    absent_regex: "(?i)(valtype|empty|setstatus\\s*\\(\\s*400)"
+    explanation: "Endpoints REST sao expostos a consumidores externos. Sem validacao, payloads malformados causam crashes, bypass de regras ou exploits. Todo input deve ser validado em tipo, tamanho, formato e regras de negocio."
+
+  - id: SEC-003
+    name: "Dados sensiveis em ConOut/FWLogMsg"
+    severity: high
+    description: "Logging de senhas, tokens, CPF/CNPJ, cartoes de credito ou dados pessoais em ConOut/FWLogMsg expoe informacao a qualquer pessoa com acesso ao console ou arquivos de log."
+    bad_pattern: |
+      ConOut("[Auth] User: " + cUser + " Password: " + cPassword)
+      FWLogMsg("WARNING", , "AUTH", , , 01, ;
+          "Login falhou - user: " + cUser + " senha: " + cPassword)
+    good_pattern: |
+      ConOut("[Auth] Tentativa de login - User: " + cUser)
+      FWLogMsg("WARNING", , "AUTH", , , 01, ;
+          "Login falhou para usuario: " + cUser)
+    detect_regex: '(?i)(conout|fwlogmsg)\s*\(.*\b(passw|senha|token|apikey|api_key|secret|cpf|cnpj)\b'
+    absent_regex: ""
+    explanation: "Logs sao armazenados sem criptografia, compartilhados entre equipes e retidos por longos periodos. LGPD e GDPR proibem logging desnecessario de dados pessoais. Nunca logar credenciais, tokens ou PII."
+
+  - id: SEC-004
+    name: "Credenciais hardcoded no codigo fonte"
+    severity: high
+    description: "Senhas, API keys, tokens e connection strings nunca devem estar no codigo fonte. Codigo fica no versionamento e no RPO compilado, acessivel a todos os desenvolvedores."
+    bad_pattern: |
+      Local cApiKey := "sk-abc123def456ghi789jkl012mno345"
+      Local cPass   := "P@ssw0rd!2025"
+      aAdd(aHeaders, "Authorization: Bearer " + cApiKey)
+    good_pattern: |
+      Local cApiKey := AllTrim(GetMV("MV_XAPIKEY"))
+      If Empty(cApiKey)
+          ConOut("[ConnectAPI] API key nao configurada. Verifique SX6 MV_XAPIKEY.")
+          Return ""
+      EndIf
+      aAdd(aHeaders, "Authorization: Bearer " + cApiKey)
+    detect_regex: '(?i)(apikey|api_key|password|passwd|secret|token|bearer)\s*[:=]\s*["\u0027][A-Za-z0-9\-_!@#$%]{8,}'
+    absent_regex: ""
+    explanation: "Credenciais no fonte ficam no historico do Git para sempre, mesmo apos remocao. Se o repositorio for comprometido, todas as credenciais sao expostas. Usar parametros SX6 (GetMV/SuperGetMV) ou vault de segredos."
+
+  - id: SEC-005
+    name: "Uso de funcoes restritas/internas da TOTVS"
+    severity: critical
+    description: "Funcoes internas da TOTVS nao sao documentadas, nao tem suporte e podem ser removidas sem aviso. Algumas tem compilacao bloqueada desde 12.1.33."
+    bad_pattern: |
+      // StaticCall - BLOQUEADO desde 12.1.33
+      Local aMenu := StaticCall(MATA030, MenuDef)
+      // PARAMBOX - restrita
+      PARAMBOX(aParams, "Filtros", , , , , , , , , .F., .F.)
+      // CriaVar - restrita
+      Local xVal := CriaVar("A1_COD")
+    good_pattern: |
+      // Alternativa: chamar funcao publica diretamente
+      Local aMenu := U_MenuDef()
+      // Alternativa: Pergunte com SX1
+      Pergunte("MYREPORT", .F.)
+      // Alternativa: FWCriaVar
+      Local xVal := FWCriaVar("A1_COD")
+    detect_regex: "(?i)\\b(staticcall|ptinternal|parambox|criaVar|setprvt|montablock|opensxs|append\\s+from|copy\\s+to|loadlayout|pivottable|fwauthuser|e_field)\\b"
+    absent_regex: ""
+    explanation: "TOTVS pode alterar ou remover funcoes internas sem aviso. Codigo com funcoes restritas quebra silenciosamente apos updates ou nao compila em 12.1.33+. Suporte TOTVS NAO atende chamados causados por funcoes restritas."
+
+  - id: SEC-006
+    name: "TCSqlExec com dados de usuario sem sanitizacao"
+    severity: critical
+    description: "TCSqlExec executa INSERT/UPDATE/DELETE direto no banco. Concatenar dados de usuario na query eh SQL injection com poder de escrita destrutivo."
+    bad_pattern: |
+      cSql := "UPDATE " + RetSqlName("SA1") + " SET A1_NOME = '" + cNome + "'"
+      cSql += " WHERE A1_COD = '" + cCodigo + "'"
+      TCSqlExec(cSql)
+    good_pattern: |
+      // Usar RecLock para gravacao segura via framework
+      DbSelectArea("SA1")
+      DbSetOrder(1)
+      If DbSeek(xFilial("SA1") + cCodigo)
+          If RecLock("SA1", .F.)
+              SA1->A1_NOME := cNome
+              MsUnlock()
+          EndIf
+      EndIf
+      // Ou usar FWPreparedStatement para queries parametrizadas
+    detect_regex: "(?i)tcsqlexec\\s*\\(.*\\+\\s*[cn]\\w+"
+    absent_regex: ""
+    explanation: "TCSqlExec executa SQL direto sem o framework Protheus. Concatenar variaveis permite DROP TABLE, UPDATE em massa ou extracao de dados. Preferir RecLock/MsUnlock ou FWPreparedStatement."
+
+  - id: SEC-007
+    name: "Falta de controle de acesso em User Function exposta"
+    severity: medium
+    description: "User Functions acessiveis via menu ou API devem verificar permissoes de acesso antes de executar. Sem controle, qualquer usuario pode executar a funcao."
+    bad_pattern: |
+      User Function XFIN001()
+          // executa operacao financeira critica sem checar permissao
+          RecLock("SE1", .T.)
+              SE1->E1_VALOR := nValor
+          MsUnlock()
+      Return
+    good_pattern: |
+      User Function XFIN001()
+          // Verifica permissao de acesso
+          If !FWIsAdmin() .And. !AllowAccess("XFIN001")
+              MsgStop("Voce nao tem permissao para esta operacao.")
+              Return
+          EndIf
+          RecLock("SE1", .T.)
+              SE1->E1_VALOR := nValor
+          MsUnlock()
+      Return
+      // Ou usar CFGA010 (Privilegios) para controle fino
+    detect_regex: "(?i)user\\s+function\\s+\\w+.*\\n.*reclock"
+    absent_regex: "(?i)(fwisadmin|allowaccess|accessuser|cfga010)"
+    explanation: "Sem controle de acesso, qualquer usuario logado no Protheus pode executar rotinas criticas como baixa de titulos, exclusao de registros ou alteracao de precos."
+
+  - id: SEC-008
+    name: "Execucao de macro &() com dados externos"
+    severity: critical
+    description: "O operador macro &() executa expressoes ADVPL dinamicamente. Executar macros com dados de usuario permite execucao de codigo arbitrario no servidor."
+    bad_pattern: |
+      // cExpressao vem de input do usuario ou API
+      xResult := &(cExpressao)
+    good_pattern: |
+      // Usar abordagem segura sem macro
+      // Se precisar de logica dinamica, usar tabela de opcoes
+      Do Case
+          Case cOpcao == "SOMA"
+              xResult := nVal1 + nVal2
+          Case cOpcao == "MEDIA"
+              xResult := (nVal1 + nVal2) / 2
+      EndCase
+    detect_regex: "(?i)&\\s*\\(\\s*[cn]\\w+\\s*\\)"
+    absent_regex: ""
+    explanation: "Macro &() eh equivalente a eval() em outras linguagens. Executar com dados nao confiáveis permite execucao de qualquer codigo ADVPL no servidor, incluindo acesso ao banco, filesystem e rede."
+
+  - id: SEC-009
+    name: "Arquivo temporario com dados sensiveis sem exclusao"
+    severity: medium
+    description: "Arquivos temporarios com dados sensiveis devem ser excluidos apos uso. Arquivos abandonados no servidor podem ser acessados por outros processos ou usuarios."
+    bad_pattern: |
+      cFile := GetTempPath() + "export_clientes.csv"
+      MemoWrite(cFile, cConteudo)
+      // envia por email
+      // FALTA: FErase(cFile) - arquivo fica no servidor
+    good_pattern: |
+      cFile := GetTempPath() + "export_" + FWTimeStamp() + ".csv"
+      MemoWrite(cFile, cConteudo)
+      // envia por email
+      FErase(cFile)   // remove arquivo temporario apos uso
+    detect_regex: "(?i)(memowrite|fwrite|ft_fuse)\\s*\\(.*temp"
+    absent_regex: "(?i)ferase\\s*\\("
+    explanation: "Arquivos temporarios com dados de clientes, financeiros ou pessoais ficam acessiveis no filesystem do servidor. LGPD exige que dados pessoais sejam descartados apos o uso."
+
+  - id: SEC-010
+    name: "Transmissao de dados sem HTTPS"
+    severity: medium
+    description: "Chamadas HTTP a APIs externas devem usar HTTPS. HTTP transmite dados em texto plano, permitindo interceptacao (man-in-the-middle)."
+    bad_pattern: |
+      cUrl := "http://api.exemplo.com/dados"
+      cResp := HttpGet(cUrl, "", aHeaders)
+    good_pattern: |
+      cUrl := "https://api.exemplo.com/dados"
+      cResp := HttpGet(cUrl, "", aHeaders)
+    detect_regex: '(?i)http(get|post|put|delete)\s*\(\s*["\u0027]http://'
+    absent_regex: ""
+    explanation: "HTTP transmite tudo em texto plano. Credenciais, tokens e dados de negocio podem ser interceptados na rede. Sempre usar HTTPS para comunicacao com APIs externas."

@@ -95,8 +95,16 @@ def _get_padrao_db() -> Optional[sqlite3.Connection]:
     return sqlite3.connect(str(padrao_path))
 
 
+_client_db_path_cache: Optional[str] = None
+
 def _get_client_db() -> Optional[sqlite3.Connection]:
     """Get client extrairpo.db connection."""
+    global _client_db_path_cache
+    if _client_db_path_cache:
+        p = Path(_client_db_path_cache)
+        if p.exists():
+            return sqlite3.connect(str(p))
+        _client_db_path_cache = None
     from app.services.workspace.config import load_config, get_client_workspace
     config = load_config(Path("config.json"))
     if not config or not config.active_client:
@@ -105,6 +113,7 @@ def _get_client_db() -> Optional[sqlite3.Connection]:
     db_path = client_dir / "db" / "extrairpo.db"
     if not db_path.exists():
         return None
+    _client_db_path_cache = str(db_path)
     return sqlite3.connect(str(db_path))
 
 
@@ -318,7 +327,9 @@ def step1_entender(message: str, llm=None) -> dict:
             pass
 
     # ── 6. DYNAMIC SEARCH — if static + cache didn't find enough ──
-    if len(result["rotinas"]) < 2 and not _learned_from_cache:
+    # Skip dynamic search for trigger-specific questions (step3c handles them)
+    _is_trigger_query = any(k in msg_lower for k in ["gatilho", "trigger", "sx7", "sequência", "sequencia"])
+    if len(result["rotinas"]) < 2 and not _learned_from_cache and not _is_trigger_query:
         # Search client menus by keywords
         try:
             client_db = _get_client_db()
@@ -409,19 +420,28 @@ def step2_mapear_padrao(entendimento: dict) -> dict:
     if not padrao_db:
         return result
 
+    # Only process rotinas that are in ROTINA_MAP (known, with meaningful prefixes)
+    # Unknown rotinas from dynamic search cause slow full-table scans on 730k rows
+    known_rotinas = [r for r in entendimento["rotinas"][:4] if r in ROTINA_MAP]
+    # Also accept rotinas matching common Protheus patterns (e.g., MATA120, FINA050)
+    for r in entendimento["rotinas"][:4]:
+        if r not in known_rotinas and re.match(r'^(MATA|FINA|CTBA|ATFA|CNTA|TMKA|MNTA)\d{3}$', r):
+            known_rotinas.append(r)
+    known_rotinas = known_rotinas[:4]
+
     try:
         # 2a. Search PEs by rotina prefixes
-        for rotina in entendimento["rotinas"][:4]:
+        for rotina in known_rotinas:
             info = ROTINA_MAP.get(rotina, {})
             prefixos = info.get("prefixos", [])
 
             for prefixo in prefixos:
-                # Search execblocks for this prefix
+                # Use prefix match (LIKE 'X%') instead of contains ('%X%') for performance
                 rows = padrao_db.execute(
                     "SELECT DISTINCT nome_pe, operacao, parametros, tipo_retorno_inferido, funcao, arquivo, contexto, comentario "
                     "FROM execblocks WHERE arquivo LIKE ? OR funcao LIKE ? "
                     "ORDER BY operacao, nome_pe LIMIT 50",
-                    (f"%{prefixo}%", f"%{prefixo}%")
+                    (f"{prefixo}%", f"{prefixo}%")
                 ).fetchall()
 
                 for r in rows:
@@ -438,11 +458,11 @@ def step2_mapear_padrao(entendimento: dict) -> dict:
                     if not any(p["nome_pe"] == pe["nome_pe"] for p in result["pes_padrao"]):
                         result["pes_padrao"].append(pe)
 
-            # Also search by rotina name directly
+            # Also search by rotina name directly — prefix match only
             rows2 = padrao_db.execute(
                 "SELECT DISTINCT nome_pe, operacao, parametros, tipo_retorno_inferido, funcao, arquivo "
                 "FROM execblocks WHERE UPPER(arquivo) LIKE ? LIMIT 30",
-                (f"%{rotina}%",)
+                (f"{rotina}%",)
             ).fetchall()
             for r in rows2:
                 pe = {
@@ -460,11 +480,11 @@ def step2_mapear_padrao(entendimento: dict) -> dict:
                 result["pes_por_operacao"][op] = []
             result["pes_por_operacao"][op].append(pe)
 
-        # 2c. Get standard functions for the main rotinas
-        for rotina in entendimento["rotinas"][:4]:
+        # 2c. Get standard functions for the main rotinas — prefix match only
+        for rotina in known_rotinas:
             rows = padrao_db.execute(
                 "SELECT nome, tipo, assinatura, arquivo, resumo_auto FROM funcoes WHERE UPPER(arquivo) LIKE ? LIMIT 50",
-                (f"%{rotina}%",)
+                (f"{rotina}%",)
             ).fetchall()
             for r in rows:
                 result["funcoes_padrao"].append({
@@ -472,7 +492,7 @@ def step2_mapear_padrao(entendimento: dict) -> dict:
                     "resumo_auto": r[4] or "",
                 })
 
-        # 2d. Search padrao by resumo_auto for concepts related to the question
+        # 2d. Search padrao by resumo_auto for concepts — limit combos to avoid slow scans
         conceitos = entendimento.get("conceitos", [])
         tabelas = entendimento.get("tabelas", [])
         if conceitos or tabelas:
@@ -481,10 +501,14 @@ def step2_mapear_padrao(entendimento: dict) -> dict:
                 search_words.extend(c.split())
             for t in tabelas[:3]:
                 search_words.append(t)
-            # Try 2-word combos
+            # Limit to max 3 combos to avoid N^2 full-table scans on 730k rows
             result["funcoes_padrao_relevantes"] = []
-            for i, w1 in enumerate(search_words[:6]):
-                for w2 in search_words[i+1:6]:
+            combos_tried = 0
+            for i, w1 in enumerate(search_words[:4]):
+                for w2 in search_words[i+1:4]:
+                    if combos_tried >= 3:
+                        break
+                    combos_tried += 1
                     try:
                         rows = padrao_db.execute(
                             "SELECT nome, tipo, assinatura, arquivo, resumo_auto FROM funcoes "
@@ -902,7 +926,11 @@ def step3b_analise_campo(message: str, entendimento: dict) -> str:
             if not tab_info:
                 continue
 
-            parts.append(f"\n═══ ANÁLISE DE CAMPO: {campo} (tabela {tabela} — {tab_info[1]}) ═══")
+            # Volumetria real da tabela
+            from app.services.workspace.analista_tools import get_uso_tabela
+            uso = get_uso_tabela(client_db, tabela)
+            uso_label = f" | {uso['descricao_uso']}" if uso.get('descricao_uso') else ""
+            parts.append(f"\n═══ ANÁLISE DE CAMPO: {campo} (tabela {tabela} — {tab_info[1]}{uso_label}) ═══")
 
             # 1. Find parent-child relationships (SX9)
             parents = client_db.execute(
@@ -1040,11 +1068,643 @@ def step3b_analise_campo(message: str, entendimento: dict) -> str:
     return "\n".join(parts)
 
 
+# ── Step 3c: ANÁLISE DE GATILHO ESPECÍFICO ──────────────────────────────────
+
+def _analise_comportamento_regra(regra: str, tipo: str, tabela_seek: str, alias: str, seek: str, chave: str) -> dict:
+    """Analisa O QUE o gatilho faz baseado na regra.
+
+    Retorna: {tipo_acao, descricao, funcao_chamada, campos_lidos, tabelas_envolvidas}
+    """
+    import re as _re
+    result = {
+        "tipo_acao": "",
+        "descricao": "",
+        "funcao_chamada": "",
+        "campos_lidos": [],
+        "tabelas_envolvidas": [],
+    }
+
+    if not regra:
+        return result
+
+    # Detectar função customizada
+    func_match = _re.findall(r'U_(\w+)', regra)
+    if func_match:
+        result["tipo_acao"] = "funcao_customizada"
+        result["funcao_chamada"] = func_match[0]
+        result["descricao"] = f"Chama função customizada U_{func_match[0]}"
+
+    # Detectar leitura de campos (ALIAS->CAMPO)
+    campos_lidos = _re.findall(r'(\w{2,3})->(\w+)', regra)
+    for alias_ref, campo_ref in campos_lidos:
+        result["campos_lidos"].append(f"{alias_ref}->{campo_ref}")
+        if alias_ref not in result["tabelas_envolvidas"]:
+            result["tabelas_envolvidas"].append(alias_ref)
+
+    # Detectar posicionamento em tabela
+    if tipo == "P" and tabela_seek:
+        result["tipo_acao"] = result["tipo_acao"] or "posicionamento"
+        result["descricao"] = (result["descricao"] or "") + f". Posiciona na tabela {tabela_seek} (alias {alias})"
+        if tabela_seek not in result["tabelas_envolvidas"]:
+            result["tabelas_envolvidas"].append(tabela_seek)
+
+    # Detectar preenchimento direto (sem função)
+    if not func_match:
+        if tipo == "E":
+            result["tipo_acao"] = "preenchimento_direto"
+            result["descricao"] = f"Preenche diretamente com: {regra}"
+        elif "IIF(" in regra.upper() or "IF(" in regra.upper():
+            result["tipo_acao"] = "condicional"
+            result["descricao"] = f"Preenchimento condicional: {regra}"
+        elif _re.search(r'\w+->\w+', regra):
+            result["tipo_acao"] = "leitura_campo"
+            result["descricao"] = f"Lê campo de outra tabela: {regra}"
+
+    # Detectar funções padrão
+    padrao_funcs = _re.findall(r'\b(Posicione|MsSeek|dbSeek|Reclock|MSExecAuto|FWExecView)\b', regra, _re.IGNORECASE)
+    if padrao_funcs:
+        result["descricao"] += f". Usa funções padrão: {', '.join(set(padrao_funcs))}"
+
+    return result
+
+
+def step3c_analise_gatilho(message: str) -> str:
+    """Análise de impacto de gatilho com raciocínio de consultor.
+
+    Fluxo:
+    1. Encontrar o gatilho (SX7)
+    2. Entender O QUE ele faz (posiciona tabela? chama função? regra direta?)
+    3. Verificar campo destino: obrigatório? tem validação? inicializador?
+    4. Se chama função: verificar se faz algo EXTRA (preenche outros campos)
+    5. Verificar outros gatilhos que preenchem o mesmo campo destino
+    6. Montar análise de impacto estruturada
+    """
+    import re as _re
+
+    # Detect trigger references: "gatilho C7_PRODUTO 512", "sequência 512", "seq 512"
+    campo_match = _re.findall(r'\b([A-Z][A-Z0-9]{1,2}_\w+)\b', message.upper())
+    seq_match = _re.findall(r'(?:seq(?:u[eê]ncia)?|sequencia)\s*[=:]?\s*(\d{1,4})', message.lower())
+    if not seq_match:
+        seq_match = _re.findall(r'\b(\d{3})\b', message)  # 3-digit numbers as fallback
+
+    if not campo_match or not seq_match:
+        return ""
+
+    # Check if message is about a trigger
+    msg_lower = message.lower()
+    if not any(k in msg_lower for k in ["gatilho", "trigger", "seq", "sequência", "sequencia", "sx7"]):
+        return ""
+
+    client_db = _get_client_db()
+    if not client_db:
+        return ""
+
+    parts = []
+    try:
+        for campo in campo_match[:2]:
+            for seq in seq_match[:2]:
+                # ── 1. ENCONTRAR O GATILHO ──
+                row = client_db.execute(
+                    "SELECT campo_origem, sequencia, campo_destino, regra, tipo, tabela, "
+                    "condicao, proprietario, seek, alias, ordem, chave, custom "
+                    "FROM gatilhos WHERE campo_origem = ? AND sequencia = ?",
+                    (campo, seq)
+                ).fetchone()
+                if not row:
+                    row = client_db.execute(
+                        "SELECT campo_origem, sequencia, campo_destino, regra, tipo, tabela, "
+                        "condicao, proprietario, seek, alias, ordem, chave, custom "
+                        "FROM gatilhos WHERE campo_origem = ? AND sequencia = ?",
+                        (campo, seq.zfill(3))
+                    ).fetchone()
+                if not row:
+                    continue
+
+                campo_origem = row[0]
+                sequencia = row[1]
+                campo_destino = row[2]
+                regra = row[3] or ""
+                tipo = row[4] or ""
+                tabela_seek = row[5] or ""
+                condicao = row[6] or ""
+                proprietario = row[7] or ""
+                seek_flag = row[8] or ""
+                alias = row[9] or ""
+                ordem = row[10] or ""
+                chave = row[11] or ""
+
+                tipo_desc = {"P": "Posicionamento", "E": "Preenchimento"}.get(tipo, tipo)
+                prop_desc = "Customizado" if proprietario == "U" else "Padrão"
+
+                parts.append(f"\n╔══════════════════════════════════════════════════════════════╗")
+                parts.append(f"║  ANÁLISE DE IMPACTO: GATILHO {campo_origem} seq {sequencia}")
+                parts.append(f"╚══════════════════════════════════════════════════════════════╝")
+
+                parts.append(f"\n── 1. DADOS DO GATILHO ──")
+                parts.append(f"  Campo Origem: {campo_origem}")
+                parts.append(f"  Campo Destino (contradomínio): {campo_destino}")
+                parts.append(f"  Regra: {regra}")
+                parts.append(f"  Tipo: {tipo} ({tipo_desc})")
+                parts.append(f"  Proprietário: {proprietario} ({prop_desc})")
+                if tabela_seek:
+                    parts.append(f"  Tabela Seek: {tabela_seek} (alias {alias})")
+                    parts.append(f"  Chave de busca: {chave}")
+                if condicao:
+                    parts.append(f"  Condição de execução: {condicao}")
+                else:
+                    parts.append(f"  Condição: SEMPRE executa (sem condição)")
+
+                # ── 2. ENTENDER O QUE O GATILHO FAZ ──
+                comportamento = _analise_comportamento_regra(regra, tipo, tabela_seek, alias, seek_flag, chave)
+                parts.append(f"\n── 2. O QUE ESTE GATILHO FAZ ──")
+                if comportamento["descricao"]:
+                    parts.append(f"  Comportamento: {comportamento['descricao']}")
+                if comportamento["campos_lidos"]:
+                    parts.append(f"  Campos lidos pela regra: {', '.join(comportamento['campos_lidos'])}")
+                if comportamento["tabelas_envolvidas"]:
+                    parts.append(f"  Tabelas envolvidas: {', '.join(comportamento['tabelas_envolvidas'])}")
+
+                # ── 3. ANÁLISE DO CAMPO DESTINO ──
+                parts.append(f"\n── 3. CAMPO DESTINO: {campo_destino} ──")
+                tabela_destino = campo_destino.split("_")[0] if "_" in campo_destino else ""
+
+                campo_info = client_db.execute(
+                    "SELECT tabela, tipo, tamanho, titulo, descricao, validacao, "
+                    "inicializador, obrigatorio, vlduser, trigger_flag, f3 "
+                    "FROM campos WHERE campo = ? LIMIT 1",
+                    (campo_destino,)
+                ).fetchone()
+
+                if campo_info:
+                    is_obrigatorio = campo_info[7] == 1 or str(campo_info[7]).upper() == "S"
+                    parts.append(f"  Tabela: {campo_info[0]}")
+                    parts.append(f"  Título: {campo_info[3]} — {campo_info[4]}")
+                    parts.append(f"  Tipo: {campo_info[1]}, Tamanho: {campo_info[2]}")
+                    parts.append(f"  Obrigatório: {'⚠️ SIM' if is_obrigatorio else 'Não'}")
+                    if campo_info[5]:
+                        parts.append(f"  Validação do campo: {campo_info[5]}")
+                    if campo_info[6]:
+                        parts.append(f"  Inicializador padrão: {campo_info[6]}")
+                    else:
+                        parts.append(f"  Inicializador padrão: (nenhum — campo ficará vazio sem o gatilho)")
+                    if campo_info[8]:
+                        parts.append(f"  Validação de usuário (VldUser): {campo_info[8]}")
+                    if campo_info[10]:
+                        parts.append(f"  Consulta F3: {campo_info[10]}")
+                else:
+                    parts.append(f"  (Campo não encontrado no dicionário)")
+
+                # ── 4. FUNÇÃO CUSTOMIZADA — ANÁLISE PROFUNDA ──
+                func_name = comportamento.get("funcao_chamada")
+                func_row = None
+                if func_name:
+                    parts.append(f"\n── 4. FUNÇÃO CUSTOMIZADA: U_{func_name} ──")
+
+                    func_row = client_db.execute(
+                        "SELECT arquivo, funcao, resumo_auto, resumo FROM funcao_docs WHERE funcao = ?",
+                        (func_name,)
+                    ).fetchone()
+                    if func_row:
+                        parts.append(f"  Arquivo: {func_row[0]}")
+                        resumo = func_row[3] if func_row[3] else (func_row[2] or "")
+                        if resumo:
+                            parts.append(f"  Resumo: {resumo}")
+
+                        # Get the actual code
+                        chunk = client_db.execute(
+                            "SELECT content FROM fonte_chunks WHERE arquivo = ? AND funcao = ?",
+                            (func_row[0], func_name)
+                        ).fetchone()
+                        if chunk and chunk[0]:
+                            code = chunk[0]
+
+                            # Detectar campos que a função preenche ALÉM do campo destino
+                            # Padrões: M->CAMPO := valor, _FIELD("CAMPO", valor)
+                            campos_preenchidos = set()
+                            for m in _re.findall(r'M->(\w+)\s*:=', code):
+                                if m != campo_destino:
+                                    campos_preenchidos.add(m)
+                            for m in _re.findall(r'FWFieldPut\s*\(\s*["\'](\w+)["\']', code, _re.IGNORECASE):
+                                if m != campo_destino:
+                                    campos_preenchidos.add(m)
+
+                            if campos_preenchidos:
+                                parts.append(f"\n  ⚠️ CAMPOS EXTRAS preenchidos pela função (além de {campo_destino}):")
+                                for cp in sorted(campos_preenchidos):
+                                    # Check if extra field is mandatory
+                                    cp_info = client_db.execute(
+                                        "SELECT titulo, obrigatorio FROM campos WHERE campo = ? LIMIT 1",
+                                        (cp,)
+                                    ).fetchone()
+                                    obrig = ""
+                                    if cp_info and (cp_info[1] == 1 or str(cp_info[1]).upper() == "S"):
+                                        obrig = " [OBRIGATÓRIO]"
+                                    parts.append(f"    - {cp}{obrig}" + (f" ({cp_info[0]})" if cp_info else ""))
+
+                            # Detectar se bloqueia execução (Return .F.)
+                            if _re.search(r'Return\s*\(\s*\.F\.', code, _re.IGNORECASE):
+                                parts.append(f"\n  ⚠️ FUNÇÃO PODE BLOQUEAR: contém Return(.F.) — impede a operação")
+
+                            # Detectar parâmetros MV_ usados
+                            params = _re.findall(r'(?:GetNewPar|SuperGetMv|GetMV)\s*\(\s*["\'](\w+)["\']', code, _re.IGNORECASE)
+                            if params:
+                                parts.append(f"  Parâmetros MV_ consultados: {', '.join(set(params))}")
+
+                            # Detectar tabelas acessadas
+                            tabelas_code = set(_re.findall(r'(?:dbSelectArea|dbSetOrder|MSSeek)\s*\(\s*["\'](\w{2,3})["\']', code, _re.IGNORECASE))
+                            if tabelas_code:
+                                parts.append(f"  Tabelas acessadas pelo código: {', '.join(sorted(tabelas_code))}")
+
+                            parts.append(f"\n  CÓDIGO FONTE:")
+                            parts.append(f"  ```advpl")
+                            line_count = 0
+                            for line in code.split("\n"):
+                                ls = line.rstrip()
+                                if ls.strip():
+                                    parts.append(f"  {ls}")
+                                    line_count += 1
+                                    if line_count >= 50:
+                                        parts.append(f"  // ... (truncado)")
+                                        break
+                            parts.append(f"  ```")
+
+                    # Outros fontes que chamam esta função
+                    callers = client_db.execute(
+                        "SELECT DISTINCT arquivo, funcao FROM funcao_docs "
+                        "WHERE (resumo_auto LIKE ? OR resumo LIKE ?) AND arquivo != ? LIMIT 10",
+                        (f"%{func_name}%", f"%{func_name}%", func_row[0] if func_row else "")
+                    ).fetchall()
+                    if callers:
+                        parts.append(f"\n  Outros fontes que chamam U_{func_name}:")
+                        for c in callers:
+                            parts.append(f"    - {c[0]}::{c[1]}")
+
+                # ── 5. OUTROS GATILHOS NO MESMO CAMPO DESTINO ──
+                outros_destino = client_db.execute(
+                    "SELECT campo_origem, sequencia, regra, tipo, proprietario FROM gatilhos "
+                    "WHERE campo_destino = ? AND NOT (campo_origem = ? AND sequencia = ?)",
+                    (campo_destino, campo, seq)
+                ).fetchall()
+                if outros_destino:
+                    parts.append(f"\n── 5. OUTROS GATILHOS QUE PREENCHEM {campo_destino} ──")
+                    for og in outros_destino:
+                        og_prop = "Custom" if og[4] == "U" else "Padrão"
+                        parts.append(f"  - {og[0]} seq {og[1]} ({og_prop}): {og[2][:100]}")
+                    parts.append(f"  → Estes gatilhos continuarão funcionando após exclusão")
+                else:
+                    parts.append(f"\n── 5. OUTROS GATILHOS QUE PREENCHEM {campo_destino} ──")
+                    parts.append(f"  ⚠️ NENHUM — este é o ÚNICO gatilho que preenche {campo_destino}")
+
+                # Outros gatilhos que usam a mesma função
+                if func_name:
+                    other_gats = client_db.execute(
+                        "SELECT campo_origem, sequencia, campo_destino FROM gatilhos "
+                        "WHERE regra LIKE ? AND NOT (campo_origem = ? AND sequencia = ?)",
+                        (f"%{func_name}%", campo, seq)
+                    ).fetchall()
+                    if other_gats:
+                        parts.append(f"\n  Outros gatilhos que usam U_{func_name}:")
+                        for g in other_gats:
+                            parts.append(f"    - {g[0]} seq {g[1]} → {g[2]}")
+
+                # ── 6. RESUMO DE IMPACTO (para o LLM formular a resposta) ──
+                parts.append(f"\n── 6. RESUMO DE IMPACTO PARA ANÁLISE ──")
+                parts.append(f"  Ao excluir o gatilho {campo_origem} seq {sequencia}:")
+                parts.append(f"  - O campo {campo_destino}" + (f" ({campo_info[3]})" if campo_info else "") + " NÃO será mais preenchido automaticamente")
+
+                if campo_info:
+                    if not campo_info[6]:  # sem inicializador
+                        parts.append(f"  - O campo ficará VAZIO — não há inicializador padrão")
+                    else:
+                        parts.append(f"  - O campo usará o inicializador padrão: {campo_info[6]}")
+
+                    if is_obrigatorio:
+                        parts.append(f"  - ⚠️ CAMPO OBRIGATÓRIO — usuário TERÁ que preencher manualmente")
+                    else:
+                        parts.append(f"  - Campo não é obrigatório — pode ficar vazio mas pode impactar processos")
+
+                    if campo_info[5]:  # tem validação
+                        parts.append(f"  - Campo tem validação ({campo_info[5]}) — preencher incorretamente causará erro")
+
+                if not outros_destino:
+                    parts.append(f"  - ⚠️ Não há outro gatilho alternativo para preencher {campo_destino}")
+
+                if func_name and func_row:
+                    parts.append(f"  - A função U_{func_name} do arquivo {func_row[0]} deixará de ser chamada por este gatilho")
+                    if campos_preenchidos:
+                        parts.append(f"  - ⚠️ Campos extras que também perdem preenchimento automático: {', '.join(sorted(campos_preenchidos))}")
+
+    except Exception as e:
+        print(f"[decomposer] step3c gatilho error: {e}")
+        import traceback; traceback.print_exc()
+    finally:
+        client_db.close()
+
+    return "\n".join(parts)
+
+
+# ── Step 3d: ANÁLISE DE CAMPO OBRIGATÓRIO ─────────────────────────────────
+
+def step3d_analise_campo_obrigatorio(message: str) -> str:
+    """Análise de impacto de tornar campo obrigatório com raciocínio de consultor.
+
+    Cadeia:
+    1. Verificar se campo já é obrigatório ou não
+    2. Encontrar programas que gravam na tabela com MsExecAuto (vão quebrar)
+    3. Verificar se esses programas são chamados em Jobs, WS, REST, telas, PEs
+    4. Encontrar programas que usam Reclock na tabela e se tratam o campo
+    """
+    import re as _re
+
+    # Detect field + table: "campo C7_CC", "C7_CC obrigatório", "campo XX_YY na tabela ZZZ"
+    campo_match = _re.findall(r'\b([A-Z][A-Z0-9]{1,2}_\w+)\b', message.upper())
+    if not campo_match:
+        return ""
+
+    # Must be about mandatory
+    msg_lower = message.lower()
+    if not any(k in msg_lower for k in ["obrigatório", "obrigatorio", "obrigatoria", "mandatory"]):
+        return ""
+
+    client_db = _get_client_db()
+    if not client_db:
+        return ""
+
+    parts = []
+    try:
+        for campo in campo_match[:2]:
+            # ── 1. VERIFICAR SE JÁ É OBRIGATÓRIO ──
+            campo_info = client_db.execute(
+                "SELECT tabela, campo, tipo, tamanho, titulo, descricao, validacao, "
+                "inicializador, obrigatorio, vlduser, trigger_flag, f3, proprietario "
+                "FROM campos WHERE campo = ? LIMIT 1",
+                (campo,)
+            ).fetchone()
+            if not campo_info:
+                continue
+
+            tabela = campo_info[0]
+            titulo = campo_info[4] or ""
+            descricao = campo_info[5] or ""
+            validacao = campo_info[6] or ""
+            inicializador = campo_info[7] or ""
+            is_obrigatorio = campo_info[8] == 1 or str(campo_info[8]).upper() == "S"
+            vlduser = campo_info[9] or ""
+            trigger_flag = campo_info[10] or ""
+            f3 = campo_info[11] or ""
+            proprietario = campo_info[12] or ""
+
+            parts.append(f"\n╔══════════════════════════════════════════════════════════════╗")
+            parts.append(f"║  ANÁLISE DE IMPACTO: TORNAR {campo} OBRIGATÓRIO")
+            parts.append(f"╚══════════════════════════════════════════════════════════════╝")
+
+            parts.append(f"\n── 1. SITUAÇÃO ATUAL DO CAMPO ──")
+            parts.append(f"  Campo: {campo} ({titulo} — {descricao})")
+            parts.append(f"  Tabela: {tabela}")
+            parts.append(f"  Tipo: {campo_info[2]}, Tamanho: {campo_info[3]}")
+            if is_obrigatorio:
+                parts.append(f"  ⚠️ JÁ É OBRIGATÓRIO — não precisa alterar")
+            else:
+                parts.append(f"  Status atual: OPCIONAL")
+            parts.append(f"  Proprietário: {proprietario} ({'Customizado' if proprietario == 'U' else 'Padrão'})")
+            if validacao:
+                parts.append(f"  Validação: {validacao}")
+            if vlduser:
+                parts.append(f"  Validação de usuário: {vlduser}")
+            if inicializador:
+                parts.append(f"  Inicializador: {inicializador}")
+            else:
+                parts.append(f"  Inicializador: (nenhum)")
+            if trigger_flag == "S":
+                parts.append(f"  Possui gatilho: SIM")
+            if f3:
+                parts.append(f"  Consulta F3: {f3}")
+
+            if is_obrigatorio:
+                parts.append(f"\n  O campo já é obrigatório. Análise de impacto não se aplica.")
+                continue
+
+            # ── 2. PROGRAMAS COM MSEXECAUTO QUE GRAVAM NA TABELA ──
+            # Esses VÃO QUEBRAR se não passarem o campo no array
+            parts.append(f"\n── 2. MSEXECAUTO QUE GRAVAM EM {tabela} (RISCO CRÍTICO) ──")
+            parts.append(f"  Se tornar obrigatório, qualquer MsExecAuto que grava em {tabela}")
+            parts.append(f"  sem enviar {campo} no array VAI GERAR ERRO em produção.")
+
+            # Find all fonte_chunks that have MsExecAuto AND reference the table's main routine
+            # First, find the main routines for this table
+            rotina_map_tabela = {v["tabela"]: k for k, v in ROTINA_MAP.items() if "tabela" in v}
+            rotina_principal = rotina_map_tabela.get(tabela, "")
+
+            msexecauto_fontes = []
+            if rotina_principal:
+                rows = client_db.execute(
+                    "SELECT DISTINCT fc.arquivo, fc.funcao, fd.resumo_auto "
+                    "FROM fonte_chunks fc "
+                    "LEFT JOIN funcao_docs fd ON fc.arquivo = fd.arquivo AND fc.funcao = fd.funcao "
+                    "WHERE fc.content LIKE '%MsExecAuto%' AND fc.content LIKE ?",
+                    (f"%{rotina_principal}%",)
+                ).fetchall()
+                for r in rows:
+                    msexecauto_fontes.append(r)
+
+            # Also search by table alias patterns (e.g., MATA120 for SC7)
+            if not msexecauto_fontes:
+                # Try generic: any MsExecAuto that also references the table
+                rows = client_db.execute(
+                    "SELECT DISTINCT fc.arquivo, fc.funcao, fd.resumo_auto "
+                    "FROM fonte_chunks fc "
+                    "LEFT JOIN funcao_docs fd ON fc.arquivo = fd.arquivo AND fc.funcao = fd.funcao "
+                    "WHERE fc.content LIKE '%MsExecAuto%' AND fc.content LIKE ?",
+                    (f"%{tabela}%",)
+                ).fetchall()
+                for r in rows:
+                    msexecauto_fontes.append(r)
+
+            if msexecauto_fontes:
+                for mf in msexecauto_fontes:
+                    arquivo, funcao, resumo = mf
+                    parts.append(f"\n  ⚠️ {arquivo}::{funcao}")
+                    if resumo:
+                        parts.append(f"     Resumo: {resumo[:150]}")
+
+                    # Check if this MsExecAuto already passes the field
+                    chunk = client_db.execute(
+                        "SELECT content FROM fonte_chunks WHERE arquivo = ? AND funcao = ?",
+                        (arquivo, funcao)
+                    ).fetchone()
+                    if chunk and chunk[0]:
+                        code = chunk[0]
+                        if campo in code:
+                            parts.append(f"     ✅ JÁ REFERENCIA {campo} no código — verificar se envia no array")
+                        else:
+                            parts.append(f"     ❌ NÃO REFERENCIA {campo} — ALTO RISCO de erro")
+
+                        # Check if called in Job/Schedule/WS context
+                        func_callers = client_db.execute(
+                            "SELECT DISTINCT arquivo FROM fonte_chunks WHERE content LIKE ? AND arquivo != ?",
+                            (f"%{funcao}%", arquivo)
+                        ).fetchall()
+                        if func_callers:
+                            caller_names = [c[0] for c in func_callers]
+                            parts.append(f"     Chamado por: {', '.join(caller_names[:5])}")
+
+                # Check if any of these are in Jobs or Schedules
+                msexec_arquivos = [mf[0].split('.')[0] for mf in msexecauto_fontes]
+                jobs_found = []
+                schedules_found = []
+                for arq in msexec_arquivos:
+                    jr = client_db.execute(
+                        "SELECT rotina, sessao FROM jobs WHERE rotina LIKE ?", (f"%{arq}%",)
+                    ).fetchall()
+                    jobs_found.extend([(arq, j[0], j[1]) for j in jr])
+
+                    sr = client_db.execute(
+                        "SELECT rotina, empresa_filial, tipo_recorrencia FROM schedules WHERE rotina LIKE ?",
+                        (f"%{arq}%",)
+                    ).fetchall()
+                    schedules_found.extend([(arq, s[0], s[1], s[2]) for s in sr])
+
+                if jobs_found:
+                    parts.append(f"\n  🔴 MSEXECAUTO EM JOBS (execução automática):")
+                    for j in jobs_found:
+                        parts.append(f"     {j[0]} → Job: {j[1]} (sessão {j[2]})")
+                if schedules_found:
+                    parts.append(f"\n  🔴 MSEXECAUTO EM SCHEDULES (execução agendada):")
+                    for s in schedules_found:
+                        parts.append(f"     {s[0]} → Schedule: {s[1]} ({s[2]}, {s[3]})")
+                if not jobs_found and not schedules_found:
+                    parts.append(f"\n  Nenhum MsExecAuto encontrado em Jobs ou Schedules")
+            else:
+                parts.append(f"  Nenhum MsExecAuto encontrado para {tabela}")
+
+            # ── 3. PROGRAMAS COM RECLOCK NA TABELA ──
+            parts.append(f"\n── 3. PROGRAMAS QUE GRAVAM VIA RECLOCK EM {tabela} ──")
+            parts.append(f"  Programas que fazem RecLock em {tabela} e podem precisar tratar {campo}.")
+
+            reclock_fontes = client_db.execute(
+                "SELECT arquivo, modulo, lines_of_code FROM fontes WHERE reclock_tables LIKE ?",
+                (f'%{tabela}%',)
+            ).fetchall()
+
+            if reclock_fontes:
+                for rf in reclock_fontes:
+                    arquivo_rec = rf[0]
+                    modulo_rec = rf[1] or ""
+                    loc = rf[2] or 0
+
+                    # Check if this fonte references the field in its code
+                    has_field = client_db.execute(
+                        "SELECT COUNT(*) FROM fonte_chunks WHERE arquivo = ? AND content LIKE ?",
+                        (arquivo_rec, f"%{campo}%")
+                    ).fetchone()[0] > 0
+
+                    status = "✅ Referencia" if has_field else "❌ NÃO referencia"
+                    parts.append(f"  {status} {campo}: {arquivo_rec} ({modulo_rec}, {loc} LOC)")
+
+                    # Check if this program is in a Job/Schedule
+                    arq_base = arquivo_rec.split('.')[0]
+                    jr = client_db.execute(
+                        "SELECT rotina, sessao FROM jobs WHERE rotina LIKE ?", (f"%{arq_base}%",)
+                    ).fetchall()
+                    for j in jr:
+                        parts.append(f"     🔴 Em JOB: {j[0]} (sessão {j[1]})")
+                    sr = client_db.execute(
+                        "SELECT rotina, tipo_recorrencia FROM schedules WHERE rotina LIKE ?",
+                        (f"%{arq_base}%",)
+                    ).fetchall()
+                    for s in sr:
+                        parts.append(f"     🔴 Em SCHEDULE: {s[0]} ({s[1]})")
+
+                    # Check if it's a PE (ponto de entrada)
+                    pe_info = client_db.execute(
+                        "SELECT funcao, resumo_auto FROM funcao_docs WHERE arquivo = ? AND "
+                        "(resumo_auto LIKE '%User Function%' OR resumo_auto LIKE '%PE %')",
+                        (arquivo_rec,)
+                    ).fetchall()
+                    for pi in pe_info[:3]:
+                        parts.append(f"     📌 Função: {pi[0]} — {(pi[1] or '')[:80]}")
+            else:
+                parts.append(f"  Nenhum programa com RecLock em {tabela}")
+
+            # ── 4. GATILHOS QUE PREENCHEM ESTE CAMPO ──
+            parts.append(f"\n── 4. GATILHOS QUE PREENCHEM {campo} ──")
+            gatilhos = client_db.execute(
+                "SELECT campo_origem, sequencia, regra, tipo, proprietario FROM gatilhos "
+                "WHERE campo_destino = ?",
+                (campo,)
+            ).fetchall()
+            if gatilhos:
+                parts.append(f"  Se há gatilho preenchendo, talvez o campo já seja populado")
+                parts.append(f"  automaticamente e o impacto de obrigatoriedade é menor.")
+                for g in gatilhos:
+                    prop = "Custom" if g[4] == "U" else "Padrão"
+                    parts.append(f"  - {g[0]} seq {g[1]} ({prop}, tipo {g[3]}): {g[2][:100]}")
+            else:
+                parts.append(f"  NENHUM gatilho preenche {campo}")
+                parts.append(f"  → Usuário/programa terá que informar manualmente em TODA operação")
+
+            # ── 5. RESUMO DE IMPACTO ──
+            qtd_msexec = len(msexecauto_fontes)
+            qtd_reclock = len(reclock_fontes)
+            qtd_reclock_sem = sum(1 for rf in reclock_fontes if client_db.execute(
+                "SELECT COUNT(*) FROM fonte_chunks WHERE arquivo = ? AND content LIKE ?",
+                (rf[0], f"%{campo}%")
+            ).fetchone()[0] == 0) if reclock_fontes else 0
+
+            parts.append(f"\n── 5. RESUMO DE IMPACTO ──")
+            parts.append(f"  Ao tornar {campo} ({titulo}) obrigatório em {tabela}:")
+            if qtd_msexec > 0:
+                parts.append(f"  🔴 {qtd_msexec} MsExecAuto precisam ser revisados — RISCO de erro em produção")
+            if qtd_reclock > 0:
+                parts.append(f"  🟡 {qtd_reclock} programas com RecLock em {tabela}")
+                if qtd_reclock_sem > 0:
+                    parts.append(f"     ❌ {qtd_reclock_sem} deles NÃO referenciam {campo} — precisam análise")
+            if gatilhos:
+                parts.append(f"  🟢 Existe(m) {len(gatilhos)} gatilho(s) preenchendo — reduz risco em operações de tela")
+            else:
+                parts.append(f"  🟡 Sem gatilho — todo preenchimento será manual")
+            if jobs_found or schedules_found:
+                parts.append(f"  🔴 Há processos automáticos (Jobs/Schedules) que podem quebrar")
+
+    except Exception as e:
+        print(f"[decomposer] step3d campo_obrigatorio error: {e}")
+        import traceback; traceback.print_exc()
+    finally:
+        client_db.close()
+
+    return "\n".join(parts)
+
+
 def decompose_and_investigate(message: str, llm=None) -> str:
     """Run full 4-step decomposition pipeline.
 
     Returns formatted context string ready for LLM consumption.
     """
+    msg_lower = message.lower()
+
+    # ── FAST PATH: Trigger-specific queries go straight to SX7 ──
+    _is_trigger_query = (
+        any(k in msg_lower for k in ["gatilho", "trigger", "sx7"])
+        and re.search(r'\b[A-Z][A-Z0-9]{1,2}_\w+', message)
+    )
+    if _is_trigger_query:
+        print(f"[decomposer] FAST PATH: trigger query detected")
+        gatilho_context = step3c_analise_gatilho(message)
+        if gatilho_context:
+            return gatilho_context
+        # If step3c found nothing, fall through to full pipeline
+
+    # ── FAST PATH: Mandatory field impact ──
+    _is_mandatory_query = (
+        any(k in msg_lower for k in ["obrigatório", "obrigatorio", "obrigatoria", "mandatory"])
+        and re.search(r'\b[A-Z][A-Z0-9]{1,2}_\w+', message)
+    )
+    if _is_mandatory_query:
+        print(f"[decomposer] FAST PATH: mandatory field query detected")
+        mandatory_context = step3d_analise_campo_obrigatorio(message)
+        if mandatory_context:
+            return mandatory_context
+
     # Step 1
     entendimento = step1_entender(message, llm)
     entendimento["_msg_words"] = [w.lower() for w in message.split() if len(w) > 3]
@@ -1057,6 +1717,9 @@ def decompose_and_investigate(message: str, llm=None) -> str:
 
     # Step 3b — Field-specific analysis (table ecosystem for mandatory/new fields)
     campo_context = step3b_analise_campo(message, entendimento)
+
+    # Step 3c — Trigger-specific analysis
+    gatilho_context = step3c_analise_gatilho(message)
 
     # Step 4
     evidencias = step4_evidenciar(cruzamento, mapa_padrao, entendimento)
@@ -1213,5 +1876,9 @@ def decompose_and_investigate(message: str, llm=None) -> str:
     # Add field ecosystem analysis if available
     if campo_context:
         parts.append(campo_context)
+
+    # Add trigger analysis if available
+    if gatilho_context:
+        parts.append(gatilho_context)
 
     return "\n".join(parts)

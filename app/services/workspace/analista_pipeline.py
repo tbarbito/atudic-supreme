@@ -14,6 +14,7 @@ from typing import AsyncGenerator, Optional
 from pathlib import Path
 
 from app.services.workspace.analista_prompts import get_system_prompt
+from app.services.workspace.context_window import ContextWindowManager
 
 
 class AnalistaPipeline:
@@ -47,6 +48,27 @@ class AnalistaPipeline:
         self.classification: dict = {}
         self.verified_draft = ""
 
+        # Steering queue — set by router to allow user mid-flight corrections
+        self._steering_queue = None  # type: Optional[asyncio.Queue]
+
+        # Artifact registry — collects typed artifacts from tools
+        from app.services.workspace.artifact_registry import ArtifactRegistry
+        self.artifact_registry = ArtifactRegistry()
+
+        # Cost tracker — per-conversation cost tracking
+        from app.services.workspace.cost_tracker import CostTracker
+        self.cost_tracker = CostTracker(conversa_id=conversa_id, modo=modo)
+
+        # Session memory — persists discoveries between conversations
+        from app.services.workspace.session_memory import SessionMemory
+        try:
+            from app.services.workspace.config import load_config, get_client_workspace
+            config = load_config(Path("config.json"))
+            client_dir = get_client_workspace(Path("workspace"), config.active_client)
+            self.memory = SessionMemory(client_dir)
+        except Exception:
+            self.memory = None
+
     async def run(self, message: str) -> AsyncGenerator[dict, None]:
         """Full pipeline — yields SSE-compatible events.
 
@@ -67,6 +89,12 @@ class AnalistaPipeline:
         yield self._status("Classificando sua pergunta...")
         await self._classify(message)
 
+        # ── Step 1b: Load relevant memories from previous sessions ──────
+        if self.memory:
+            memories = self.memory.load_relevant(message)
+            if memories:
+                self.tool_results_parts.insert(0, memories)
+
         # ── Step 2: Query Decomposer (padrao + client cross-reference) ──
         yield self._status("Investigando padrão e customizações...")
         await self._run_decomposer(message)
@@ -79,20 +107,26 @@ class AnalistaPipeline:
         # Inject cached detected processes
         await self._inject_processes()
 
-        # ── Step 3: Ambiguity detection ───────────────────────────────────
-        if not self.usou_clarificacao:
-            yield self._status("Verificando ambiguidade...")
-            await self._check_ambiguity(message)
+        # ── Step 2c: Sufficiency check (skip heavy investigation for simple questions) ──
+        _context_sufficient = self._is_context_sufficient(message)
+        if _context_sufficient:
+            print(f"[AnalistaPipeline] Sufficiency check PASSED — skipping steps 3-5 for: {message[:80]}")
+            yield self._status("Contexto suficiente, preparando resposta...")
+        else:
+            # ── Step 3: Ambiguity detection ───────────────────────────────────
+            if not self.usou_clarificacao:
+                yield self._status("Verificando ambiguidade...")
+                await self._check_ambiguity(message)
 
-        # ── Step 4: Directed investigation (nao_salva pattern) ────────────
-        if not self.usou_clarificacao:
-            async for event in self._directed_investigation(message):
-                yield event
+            # ── Step 4: Directed investigation (nao_salva pattern) ────────────
+            if not self.usou_clarificacao:
+                async for event in self._directed_investigation(message):
+                    yield event
 
-        # ── Step 5: Plan + Investigate (always runs if we have tables) ─────
-        if self.tabelas and not self.usou_clarificacao:
-            async for event in self._plan_and_investigate(message):
-                yield event
+            # ── Step 5: Plan + Investigate (always runs if we have tables) ─────
+            if self.tabelas and not self.usou_clarificacao:
+                async for event in self._plan_and_investigate(message):
+                    yield event
 
         # ── Step 6: Build context + Verify ────────────────────────────────
         # Separate resumos from investigation data
@@ -116,18 +150,28 @@ class AnalistaPipeline:
         yield self._status("")
 
         full_response = ""
-        if self.verified_draft and not self.usou_clarificacao:
-            # Stream pre-verified response
+        if self.verified_draft and not self.usou_clarificacao and self.modo == "ajuste":
+            # Stream pre-verified response — ONLY for ajuste mode
+            # In melhoria/duvida, the main model with full system prompt
+            # produces better responses than the cheap gen model draft
             async for event in self._stream_verified(self.verified_draft):
                 yield event
                 if event.get("event") == "token":
                     full_response += json.loads(event["data"]).get("content", "")
         else:
-            # Stream from LLM
+            # Stream from main LLM with rich system prompt
             async for event in self._stream_llm(messages):
                 yield event
                 if event.get("event") == "token":
                     full_response += json.loads(event["data"]).get("content", "")
+
+        # ── Step 8b: Append technical detail lists (not LLM-generated) ────
+        technical_appendix = self._build_technical_appendix()
+        if technical_appendix:
+            # Stream the appendix as additional tokens
+            for chunk in [technical_appendix[i:i+200] for i in range(0, len(technical_appendix), 200)]:
+                yield {"event": "token", "data": json.dumps({"content": chunk})}
+                full_response += chunk
 
         # ── Step 9: Save + artifacts ──────────────────────────────────────
         artefatos_novos = self._parse_artifacts(full_response)
@@ -139,9 +183,145 @@ class AnalistaPipeline:
 
         if artefatos_novos:
             yield {"event": "artefatos", "data": json.dumps(artefatos_novos)}
+
+        # Send technical artifacts from tool investigation
+        if self.artifact_registry.count() > 0:
+            yield {
+                "event": "technical_sections",
+                "data": json.dumps(self.artifact_registry.to_sse_payload(), ensure_ascii=False),
+            }
+
+        # ── Step 10: Auto-save discoveries for future sessions ──────────
+        if self.memory and self.artifact_registry.count() > 0:
+            self._save_session_discoveries(message)
+
+        # ── Step 11: Record cost tracking ────────────────────────────────
+        try:
+            summary = self.cost_tracker.get_summary()
+            from app.services.workspace.cost_tracker import AggregateTracker
+            agg = AggregateTracker()
+            agg.record_conversation(summary)
+        except Exception:
+            pass
+
         yield {"event": "done", "data": "{}"}
 
     # ── Internal pipeline steps ───────────────────────────────────────────────
+
+    def _save_session_discoveries(self, message: str):
+        """Auto-save key discoveries from this conversation."""
+        try:
+            by_type = self.artifact_registry.by_type()
+
+            # Build a summary of what was discovered
+            parts = []
+            for tipo, items in by_type.items():
+                if items:
+                    names = [i.get("preview", i.get("arquivo", i.get("nome", "?")))[:60] for i in items[:5]]
+                    parts.append(f"{tipo}: {len(items)} ({', '.join(names)})")
+
+            if not parts:
+                return
+
+            # Create topic from the question
+            topic_words = message[:80].replace("?", "").strip()
+            tags = list(self.tabelas[:5]) + list(self.campos_msg[:5])
+
+            content = f"Pergunta: {message[:200]}\n\nDescoberto:\n" + "\n".join(f"- {p}" for p in parts)
+
+            self.memory.save_discovery(
+                topic=topic_words,
+                content=content,
+                tags=tags,
+                source=f"conversa:{self.conversa_id}",
+                conversa_id=self.conversa_id,
+            )
+        except Exception as e:
+            print(f"[pipeline] memory save error: {e}")
+
+        # Auto-extract learnable patterns
+        try:
+            from app.services.workspace.memory_extractor import MemoryExtractor
+            from app.services.workspace.config import load_config, get_client_workspace
+            config = load_config(Path("config.json"))
+            client_dir = get_client_workspace(Path("workspace"), config.active_client)
+
+            extractor = MemoryExtractor(client_dir)
+            from app.services.workspace.investigation_planner import _detect_action_type
+            action_type = _detect_action_type(message)
+
+            tools_used = list(set(
+                a.get("tipo_problema", a.get("tipo", ""))
+                for a in self.artifact_registry.all()
+            ))
+
+            extracted = extractor.extract_from_investigation(
+                message=message,
+                modo=self.modo,
+                action_type=action_type,
+                tools_used=tools_used,
+                artifacts_by_type=self.artifact_registry.by_type(),
+                context_text=" ".join(self.tool_results_parts[:5]),
+                conversa_id=self.conversa_id,
+            )
+            if extracted:
+                print(f"[pipeline] extracted {len(extracted)} patterns from conversation")
+        except Exception as e:
+            print(f"[pipeline] memory extraction error: {e}")
+
+    def _is_context_sufficient(self, message: str) -> bool:
+        """Check if we have enough context to answer without full investigation.
+
+        Returns True for simple 'duvida' questions where decomposer already
+        provided sufficient context (e.g., "o que é o campo X?", "como funciona Y?").
+        Conservative — better to investigate too much than too little.
+        """
+        # Only for understanding mode
+        if self.modo != "duvida":
+            return False
+
+        # Must have some context from decomposer
+        if not self.tool_results_parts:
+            return False
+
+        # Don't skip if clarification was used (ambiguity path)
+        if self.usou_clarificacao:
+            return False
+
+        # ── FAST SUFFICIENT: trigger analysis already has everything ──
+        # When decomposer did deep trigger analysis (step3c), skip investigation
+        total_context = sum(len(p) for p in self.tool_results_parts)
+        has_deep_analysis = any(
+            "ANÁLISE DE IMPACTO: GATILHO" in p or "ANÁLISE DE IMPACTO: TORNAR" in p
+            for p in self.tool_results_parts
+        )
+        if has_deep_analysis and total_context > 500:
+            return True
+
+        # Must have at least one table identified
+        if not self.tabelas:
+            return False
+
+        # Don't skip for complex questions
+        msg_lower = message.lower()
+        complex_keywords = [
+            "erro", "não grava", "nao grava", "obrigatório", "obrigatorio",
+            "aumentar", "aumento", "criar", "alterar", "processo completo",
+            "todos os", "listar todos", "impacto", "quem grava",
+            "por que", "causa", "debug", "problema",
+            "parametro", "mv_", "mgf_", "ti_", "sy_", "xg_", "tx_", "mf_", "pt_",
+            "supergetmv", "getmv", "putmv", "getnewpar",
+            "ponto de entrada", "pontos de entrada",
+            "pe ", "implementou", "implementado", "customiz",
+        ]
+        if any(kw in msg_lower for kw in complex_keywords):
+            return False
+
+        # Context must have meaningful content (not just "Contexto carregado.")
+        if total_context < 200:
+            return False
+
+        return True
 
     async def _classify(self, message: str):
         """Classify the message to extract entities."""
@@ -178,14 +358,32 @@ class AnalistaPipeline:
         self.campos_msg = re.findall(r'\b([A-Z][A-Z0-9]{1,2}_\w+)\b', message.upper())
         self.campos_msg_original = list(self.campos_msg)
 
+        # Infer table from field prefix when classify missed it
+        # e.g. B1_COD -> SB1, C5_NUM -> SC5, E2_VALOR -> SE2
+        if not self.tabelas and self.campos_msg:
+            inferred = set()
+            for campo in self.campos_msg:
+                prefix = campo[:2]  # e.g. "B1", "C5", "E2"
+                table = "S" + prefix  # e.g. "SB1", "SC5", "SE2"
+                if re.match(r'^S[A-Z][A-Z0-9]$', table):
+                    inferred.add(table)
+            if inferred:
+                self.tabelas = list(inferred)
+                print(f"[pipeline] inferred tables from fields: {self.tabelas}")
+
     async def _run_decomposer(self, message: str):
         """Run the query decomposer pipeline (padrao + client cross-reference)."""
         try:
             from app.services.workspace.query_decomposer import decompose_and_investigate
-            decomposer_result = await asyncio.to_thread(decompose_and_investigate, message, self.llm)
+            decomposer_result = await asyncio.wait_for(
+                asyncio.to_thread(decompose_and_investigate, message, self.llm),
+                timeout=30,
+            )
             if decomposer_result and len(decomposer_result) > 50:
                 # Insert at the beginning — this is the most important context
                 self.tool_results_parts.insert(0, decomposer_result)
+        except asyncio.TimeoutError:
+            print(f"[pipeline] decomposer TIMEOUT (30s) for: {message[:80]}")
         except Exception as e:
             print(f"[pipeline] decomposer error: {e}")
             import traceback
@@ -564,6 +762,16 @@ class AnalistaPipeline:
         except Exception as e:
             print(f"[pipeline] directed investigation error: {e}")
 
+    async def _check_steering(self) -> Optional[str]:
+        """Check if user sent a steering instruction via the /steer endpoint."""
+        if not self._steering_queue:
+            return None
+        try:
+            instruction = self._steering_queue.get_nowait()
+            return instruction
+        except Exception:
+            return None
+
     async def _plan_and_investigate(self, message: str) -> AsyncGenerator[dict, None]:
         """Plan investigation and execute — the core reasoning loop."""
         yield self._status("Planejando investigação...")
@@ -602,9 +810,26 @@ class AnalistaPipeline:
             investigation_context = ""
             if plan and plan.get("steps"):
                 yield self._status(f"Plano: {plan.get('objective', '...')[:80]}")
-                async for event in run_planned_investigation(self.llm, plan, initial_context, self.modo):
+                async for event in run_planned_investigation(
+                    self.llm, plan, initial_context, self.modo,
+                    artifact_registry=self.artifact_registry,
+                ):
                     if event["type"] == "status":
                         yield self._status(event["step"])
+                    elif event["type"] == "tool_result":
+                        # Forward tool results to frontend for granular visibility
+                        steering = await self._check_steering()
+                        if steering:
+                            self.tool_results_parts.append(f"## CORRECAO DO USUARIO\n{steering}")
+                            yield self._status(f"Usuario corrigiu: {steering[:80]}...")
+                        yield {
+                            "event": "tool_result",
+                            "data": json.dumps({
+                                "tool": event.get("tool", ""),
+                                "args": event.get("args", {}),
+                                "summary": event.get("summary", ""),
+                            }, ensure_ascii=False),
+                        }
                     elif event["type"] == "complete":
                         investigation_context = event["context"]
             else:
@@ -613,6 +838,20 @@ class AnalistaPipeline:
                 async for event in run_investigation(self.llm, initial_context, self.modo):
                     if event["type"] == "status":
                         yield self._status(event["step"])
+                    elif event["type"] == "tool_result":
+                        # Forward tool results to frontend for granular visibility
+                        steering = await self._check_steering()
+                        if steering:
+                            self.tool_results_parts.append(f"## CORRECAO DO USUARIO\n{steering}")
+                            yield self._status(f"Usuario corrigiu: {steering[:80]}...")
+                        yield {
+                            "event": "tool_result",
+                            "data": json.dumps({
+                                "tool": event.get("tool", ""),
+                                "args": event.get("args", {}),
+                                "summary": event.get("summary", ""),
+                            }, ensure_ascii=False),
+                        }
                     elif event["type"] == "complete":
                         investigation_context = event["context"]
 
@@ -654,7 +893,6 @@ REGRAS ABSOLUTAS:
 
 {tool_results_text}"""
 
-        prompt_template = get_system_prompt(self.modo)
         # Build dedicated customizations section
         customizacoes = ""
         resumo_parts = getattr(self, '_resumo_parts', [])
@@ -666,6 +904,39 @@ Se alguma das funções abaixo JÁ FAZ o que o usuário pede,
 DESCREVA O QUE JÁ EXISTE em vez de sugerir criar algo novo.
 ══════════════════════════════════════════════════════════════
 """ + "\n\n".join(resumo_parts)
+
+        # Inject artifact index so LLM can use #refs
+        artifact_index = self.artifact_registry.summary_for_llm()
+        if artifact_index:
+            context = context + "\n\n" + artifact_index
+
+        # Try modular composer first — focused prompt with only relevant rules
+        try:
+            from app.services.workspace.prompt_composer import compose_system_prompt
+            return compose_system_prompt(
+                modo=self.modo,
+                context=context,
+                artefatos_text=self.artefatos_text,
+                tool_results_text=tool_results_text[:10000],
+                customizacoes=customizacoes,
+                has_artifacts=self.artifact_registry.count() > 0,
+            )
+        except Exception as e:
+            print(f"[pipeline] prompt composer failed: {e}, using monolithic")
+
+        # Fallback to monolithic prompts
+        prompt_template = get_system_prompt(self.modo)
+
+        if artifact_index:
+            context += """
+
+REGRA DE REFERENCIAMENTO:
+Use #id (ex: #f1, #c3, #m1) para referenciar artefatos na sua resposta.
+NAO reproduza listas completas de fontes, campos ou dados tecnicos — o frontend
+vai exibir os dados estruturados automaticamente em secoes colapsaveis.
+Foque na ANALISE: por que importa, qual o risco, o que o usuario deve fazer.
+Exemplo BOM: "Os fontes #f1 a #f10 usam PadR(15) fixo e precisam ser corrigidos"
+Exemplo RUIM: listar cada fonte com seu codigo linha por linha"""
 
         try:
             if self.modo == "melhoria":
@@ -690,12 +961,176 @@ DESCREVA O QUE JÁ EXISTE em vez de sugerir criar algo novo.
                 customizacoes_existentes=customizacoes,
             )
 
+    # Context window manager — singleton shared across calls
+    _ctx_manager = ContextWindowManager(max_tokens=120_000, reserve_output=8_000)
+
     def _build_messages(self, system: str) -> list[dict]:
-        """Build the messages array for LLM."""
-        messages = [{"role": "system", "content": system}]
-        for r in self.hist_rows[-10:]:
-            messages.append({"role": r[0], "content": r[1][:2000]})
-        return messages
+        """Build the messages array for LLM using budget-based context management.
+
+        Uses ContextWindowManager to maximize useful context instead of
+        crude truncation.
+        """
+        # The last entry in hist_rows is the current user message
+        if self.hist_rows:
+            current_message = self.hist_rows[-1][1]
+            prior_history = self.hist_rows[:-1]
+        else:
+            current_message = ""
+            prior_history = []
+
+        return self._ctx_manager.build_messages_from_rows(
+            system_prompt=system,
+            hist_rows=prior_history,
+            current_message=current_message,
+        )
+
+        # ── Old logic (crude truncation) — kept as fallback ──
+        # messages = [{"role": "system", "content": system}]
+        # for r in self.hist_rows[-10:]:
+        #     messages.append({"role": r[0], "content": r[1][:2000]})
+        # return messages
+
+    def _build_technical_appendix(self) -> str:
+        """Build COMPLETE technical appendix — NOT LLM-generated.
+
+        Uses the artifact_registry to render ALL technical data:
+        - Campos fora do SXG (com tabela, tamanho, risco)
+        - Fontes com tamanho chumbado (com trechos de codigo)
+        - MsExecAuto (com rotina e risco)
+        - Integracoes
+        - Info geral (grupo SXG, totais)
+
+        This data goes DIRECTLY to the frontend, bypassing the LLM.
+        """
+        if self.artifact_registry.count() == 0:
+            return ""
+
+        by_type = self.artifact_registry.by_type()
+        parts = ["\n\n---\n\n# Dados Tecnicos Completos\n"]
+        parts.append("*Dados extraidos automaticamente do ambiente do cliente — 100% precisos.*\n")
+
+        # ── MsExecAuto (RISCO) ──
+        msexec = by_type.get("msexecauto", [])
+        if msexec:
+            parts.append(f"\n## MsExecAuto — RISCO CRITICO ({len(msexec)})\n")
+            parts.append("| # | Arquivo | Rotina | Risco |")
+            parts.append("|---|---------|--------|-------|")
+            for a in msexec:
+                parts.append(f"| {a['id']} | {a.get('arquivo','')} | {a.get('rotina','')} | {a.get('risco','')[:80]} |")
+            parts.append("")
+
+        # ── Campos fora do SXG ──
+        campos = by_type.get("campo", [])
+        campos_fora = [c for c in campos if "Fora do grupo" in c.get("problema", "")]
+        campos_suspeitos = [c for c in campos if "suspeito" in c.get("risco", "").lower()]
+        if campos_fora:
+            parts.append(f"\n## Campos FORA do Grupo SXG — Ajuste Manual ({len(campos_fora)})\n")
+            parts.append("| # | Tabela.Campo | Titulo | Tamanho | Risco |")
+            parts.append("|---|-------------|--------|---------|-------|")
+            for c in campos_fora:
+                parts.append(f"| {c['id']} | {c.get('tabela','')}.{c.get('campo','')} | {c.get('titulo','')} | {c.get('tamanho','')} | {c.get('risco','')} |")
+            parts.append("")
+
+        if campos_suspeitos:
+            parts.append(f"\n## Campos Custom Suspeitos ({len(campos_suspeitos)})\n")
+            parts.append("| # | Tabela.Campo | Titulo | Tamanho |")
+            parts.append("|---|-------------|--------|---------|")
+            for c in campos_suspeitos[:20]:
+                parts.append(f"| {c['id']} | {c.get('tabela','')}.{c.get('campo','')} | {c.get('titulo','')} | {c.get('tamanho','')} |")
+            parts.append("")
+
+        # ── Fontes com tamanho chumbado ──
+        fontes = by_type.get("fonte", [])
+        fontes_chumbado = [f for f in fontes if f.get("tipo_problema")]
+        if fontes_chumbado:
+            # Group by tipo_problema
+            by_tipo = {}
+            for f in fontes_chumbado:
+                key = f"{f['tipo_problema']}({f.get('tamanho_chumbado', '?')})"
+                by_tipo.setdefault(key, []).append(f)
+
+            total_unique = len(set(f["arquivo"] for f in fontes_chumbado))
+            parts.append(f"\n## Fontes com Tamanho Chumbado ({len(fontes_chumbado)} ocorrencias em {total_unique} fontes)\n")
+            parts.append("*Todos devem usar `TamSX3(\"CAMPO\")` em vez de numero fixo.*\n")
+
+            for key in sorted(by_tipo.keys()):
+                items = by_tipo[key]
+                alta = [i for i in items if i.get("confianca") == "alta"]
+                media = [i for i in items if i.get("confianca") == "media"]
+
+                parts.append(f"\n### {key} — {len(items)} ocorrencia(s)\n")
+
+                if alta:
+                    parts.append(f"**Confianca ALTA** ({len(alta)} — referenciam o campo diretamente):\n")
+                    for f in alta:
+                        parts.append(f"- {f['id']} **{f['arquivo']}::{f.get('funcao','')}**")
+                        for trecho in f.get("trechos", []):
+                            parts.append(f"  ```\n  {trecho}\n  ```")
+                    parts.append("")
+
+                if media:
+                    parts.append(f"**Confianca MEDIA** ({len(media)} — usam a tabela, podem estar relacionados):\n")
+                    for f in media:
+                        parts.append(f"- {f['id']} **{f['arquivo']}::{f.get('funcao','')}**")
+                        for trecho in f.get("trechos", []):
+                            parts.append(f"  ```\n  {trecho}\n  ```")
+                    parts.append("")
+
+        # ── Fontes de escrita (sem tipo_problema = vem do analise_impacto) ──
+        fontes_escrita = [f for f in fontes if not f.get("tipo_problema") and f.get("problema") == "Grava na tabela"]
+        if fontes_escrita:
+            parts.append(f"\n## Fontes que Gravam na Tabela ({len(fontes_escrita)})\n")
+            parts.append("| # | Arquivo | Modulo | LOC |")
+            parts.append("|---|---------|--------|-----|")
+            for f in fontes_escrita:
+                parts.append(f"| {f['id']} | {f.get('arquivo','')} | {f.get('modulo','')} | {f.get('loc','')} |")
+            parts.append("")
+
+        # ── Integracoes ──
+        integ = by_type.get("integracao", [])
+        if integ:
+            parts.append(f"\n## Integracoes/WebServices ({len(integ)})\n")
+            parts.append("| # | Arquivo | Modulo |")
+            parts.append("|---|---------|--------|")
+            for i in integ:
+                parts.append(f"| {i['id']} | {i.get('arquivo','')} | {i.get('modulo','')} |")
+            parts.append("")
+
+        # ── Gatilhos ──
+        gats = by_type.get("gatilho", [])
+        if gats:
+            parts.append(f"\n## Gatilhos ({len(gats)})\n")
+            parts.append("| # | Origem | Destino | Tipo | Regra |")
+            parts.append("|---|--------|---------|------|-------|")
+            for g in gats[:30]:
+                parts.append(f"| {g['id']} | {g.get('campo_origem','')} | {g.get('campo_destino','')} | {g.get('tipo','')} | {g.get('regra','')[:50]} |")
+            if len(gats) > 30:
+                parts.append(f"\n*... +{len(gats)-30} gatilhos adicionais*")
+            parts.append("")
+
+        # ── PEs ──
+        pes = by_type.get("pe", [])
+        if pes:
+            parts.append(f"\n## Pontos de Entrada ({len(pes)})\n")
+            parts.append("| # | Nome | Operacao | Retorno |")
+            parts.append("|---|------|----------|---------|")
+            for p in pes[:30]:
+                parts.append(f"| {p['id']} | {p.get('nome','')} | {p.get('operacao','')} | {p.get('tipo_retorno','')} |")
+            if len(pes) > 30:
+                parts.append(f"\n*... +{len(pes)-30} PEs adicionais*")
+            parts.append("")
+
+        # ── Parametros ──
+        params = by_type.get("parametro", [])
+        if params:
+            parts.append(f"\n## Parametros ({len(params)})\n")
+            parts.append("| # | Variavel | Valor | Descricao |")
+            parts.append("|---|----------|-------|-----------|")
+            for p in params:
+                parts.append(f"| {p['id']} | {p.get('variavel','')} | {p.get('conteudo','')} | {p.get('descricao','')[:50]} |")
+            parts.append("")
+
+        return "\n".join(parts)
 
     async def _stream_verified(self, draft: str) -> AsyncGenerator[dict, None]:
         """Stream a pre-verified draft in small chunks."""

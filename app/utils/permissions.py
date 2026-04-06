@@ -162,6 +162,9 @@ PERMISSION_CATALOG = [
     ("devworkspace:edit",       "devworkspace",     "edit",     "Editar workspaces"),
     ("devworkspace:delete",     "devworkspace",     "delete",   "Excluir workspaces"),
     ("devworkspace:analyze",    "devworkspace",     "analyze",  "Executar analises no workspace"),
+    ("devworkspace:ingest",     "devworkspace",     "ingest",   "Ingerir dados no workspace (CSV, fontes, live, REST)"),
+    ("devworkspace:export",     "devworkspace",     "export",   "Exportar dados do workspace"),
+    ("devworkspace:chat",       "devworkspace",     "chat",     "Conversar com analista do workspace"),
 
     # dictionary (Dicionario Protheus)
     ("dictionary:view",         "dictionary",       "view",     "Visualizar dicionario Protheus"),
@@ -222,6 +225,7 @@ DEFAULT_ROLE_PERMISSIONS = {
         "documentation:view", "documentation:create", "documentation:edit",
         # Workspace
         "devworkspace:view", "devworkspace:create", "devworkspace:edit", "devworkspace:delete", "devworkspace:analyze",
+        "devworkspace:ingest", "devworkspace:export", "devworkspace:chat",
         "dictionary:view", "dictionary:compare", "dictionary:equalize", "dictionary:ingest",
         "rpo:view", "rpo:execute",
     ]),
@@ -247,6 +251,7 @@ DEFAULT_ROLE_PERMISSIONS = {
         "documentation:view", "documentation:create",
         # Workspace
         "devworkspace:view", "devworkspace:create", "devworkspace:edit", "devworkspace:analyze",
+        "devworkspace:ingest", "devworkspace:export", "devworkspace:chat",
         "dictionary:view", "dictionary:compare",
         "rpo:view",
     ]),

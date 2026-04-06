@@ -1,0 +1,244 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# ÍNDICE DE HEURÍSTICAS DE CONSULTOR
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Este arquivo é o MAPA do que o analista já sabe raciocinar como consultor.
+#
+# STATUS:
+#   implementado  → cadeia de raciocínio codificada + fast path + testes
+#   parcial       → tem receita de tools mas sem raciocínio profundo
+#   pendente      → não implementado, precisa ensinar
+#
+# COMO USAR:
+#   1. Consulte este índice para saber o que o sistema já resolve
+#   2. Itens "pendente" precisam que o Joni ensine a cadeia de raciocínio
+#   3. Para cada item implementado, o YAML detalha o passo-a-passo
+#
+# ══════════════════════════════════════════════════════════════════════════════
+
+categorias:
+
+  # ────────────────────────────────────────────────────────────
+  # GATILHOS (SX7)
+  # ────────────────────────────────────────────────────────────
+  gatilhos:
+    - id: analise_gatilho
+      nome: "Impacto de excluir/alterar gatilho"
+      arquivo: analise_gatilho.yaml
+      status: implementado
+      descricao: "SX7 → regra → campo destino → função → campos extras → impacto"
+      exemplos:
+        - "Qual impacto de excluir o gatilho C7_PRODUTO seq 512?"
+        - "O que faz o gatilho D1_TOTAL seq 003?"
+
+    - id: debug_gatilho
+      nome: "Gatilho não dispara / funciona errado"
+      arquivo: ../recipes/debug_gatilho.yaml
+      status: parcial
+      descricao: "Tem receita de tools mas sem cadeia de raciocínio profunda"
+      gaps:
+        - "Não verifica ordem de execução entre gatilhos"
+        - "Não analisa condição do gatilho para explicar quando dispara/não dispara"
+        - "Não verifica se PE está sobrescrevendo o valor"
+
+    - id: criar_gatilho
+      nome: "Criar/modificar gatilho"
+      status: pendente
+      descricao: "Definir regra, tipo, condição, validação de dependências"
+      gaps:
+        - "Como montar a regra ADVPL correta"
+        - "Validar se não conflita com gatilhos existentes"
+        - "Orientar sobre tipo P vs E"
+
+  # ────────────────────────────────────────────────────────────
+  # CAMPOS (SX3)
+  # ────────────────────────────────────────────────────────────
+  campos:
+    - id: campo_obrigatorio
+      nome: "Tornar campo obrigatório / impacto"
+      arquivo: analise_campo_obrigatorio.yaml
+      status: implementado
+      descricao: "SX3 → MsExecAuto (verifica no código) → RecLock → Jobs/Schedules → Gatilhos → Impacto"
+      exemplos:
+        - "Qual o impacto de tornar C7_CC obrigatório?"
+        - "Posso deixar B1_XCODBAR obrigatório?"
+
+    - id: aumento_campo
+      nome: "Aumentar tamanho de campo"
+      arquivo: ../recipes/aumento_campo.yaml
+      status: parcial
+      descricao: "Tem tool analise_aumento_campo mas sem cadeia de consultor"
+      gaps:
+        - "Não verifica SXG (grupo) que compartilha tamanho"
+        - "Não analisa índices que podem precisar recriação"
+        - "Não verifica relatórios/views SQL afetados"
+
+    - id: campo_nao_grava
+      nome: "Campo não grava / perde valor"
+      arquivo: ../recipes/campo_nao_grava.yaml
+      status: parcial
+      descricao: "Tem directed_investigation mas sem raciocínio completo"
+      gaps:
+        - "Não verifica se gatilho pós-validação sobrescreve"
+        - "Não analisa ordem de execução dos PEs"
+
+    - id: criar_campo
+      nome: "Criar campo novo"
+      arquivo: ../recipes/criar_campo.yaml
+      status: parcial
+      gaps:
+        - "Não orienta sobre SXG (grupo de campos)"
+        - "Não sugere validações recomendadas"
+
+  # ────────────────────────────────────────────────────────────
+  # PONTOS DE ENTRADA (PEs)
+  # ────────────────────────────────────────────────────────────
+  pontos_entrada:
+    - id: entender_pe
+      nome: "O que faz este PE / onde é chamado"
+      arquivo: ../recipes/entender_pe.yaml
+      status: parcial
+      gaps:
+        - "Não explica QUANDO o PE é chamado no fluxo da rotina"
+        - "Não detalha os parâmetros que recebe (PARAMIXB)"
+        - "Não mostra exemplo de implementação"
+
+    - id: criar_pe
+      nome: "Criar/implementar PE"
+      arquivo: ../recipes/criar_pe.yaml
+      status: parcial
+      gaps:
+        - "Não gera código baseado no contexto real do cliente"
+        - "Não valida se o PE já existe implementado"
+
+    - id: impacto_pe
+      nome: "Impacto de alterar/remover PE implementado"
+      status: pendente
+      descricao: "Análise de impacto quando PE será modificado/removido"
+      raciocinio_esperado:
+        - "Encontrar o PE implementado no cliente"
+        - "Entender o que faz (bloqueia? altera dados? preenche campos?)"
+        - "Verificar se outros fontes dependem dele"
+        - "Verificar se há chamadas encadeadas (PE chama outro PE)"
+        - "Montar impacto: o que quebra se remover"
+
+  # ────────────────────────────────────────────────────────────
+  # PARÂMETROS (SX6)
+  # ────────────────────────────────────────────────────────────
+  parametros:
+    - id: entender_parametro
+      nome: "O que faz este parâmetro / onde é usado"
+      arquivo: ../recipes/entender_parametro.yaml
+      status: parcial
+      gaps:
+        - "Não busca nos fontes do cliente quem consulta o MV_"
+        - "Não explica o impacto de mudar o valor"
+        - "Não verifica se é usado em gatilhos ou validações"
+
+    - id: impacto_parametro
+      nome: "Impacto de alterar valor do parâmetro"
+      status: pendente
+      raciocinio_esperado:
+        - "Encontrar o parâmetro no SX6"
+        - "Buscar TODOS os fontes que consultam (GetNewPar, SuperGetMv)"
+        - "Para cada fonte: entender o que muda com valor diferente"
+        - "Verificar se usado em gatilhos (regra com GetMV)"
+        - "Verificar se usado em validações de campos"
+        - "Montar impacto: mudar de X para Y causa..."
+
+    - id: criar_parametro
+      nome: "Criar parâmetro novo"
+      arquivo: ../recipes/criar_parametro.yaml
+      status: parcial
+
+  # ────────────────────────────────────────────────────────────
+  # PROCESSOS / ROTINAS
+  # ────────────────────────────────────────────────────────────
+  processos:
+    - id: entender_processo
+      nome: "Como funciona este processo no cliente"
+      arquivo: ../recipes/entender_processo.yaml
+      status: parcial
+      gaps:
+        - "Não monta fluxo visual (Mermaid) do processo"
+        - "Não identifica gargalos de customização"
+        - "Não compara padrão vs customizado"
+
+    - id: impacto_rotina
+      nome: "Impacto de alterar rotina customizada"
+      status: pendente
+      raciocinio_esperado:
+        - "Identificar a rotina e suas customizações"
+        - "Mapear PEs implementados nessa rotina"
+        - "Mapear gatilhos dos campos da tabela principal"
+        - "Verificar MsExecAuto que chamam essa rotina"
+        - "Verificar integrações (REST, SOAP, Schedule)"
+        - "Montar mapa de dependências"
+
+  # ────────────────────────────────────────────────────────────
+  # TABELAS (SX2)
+  # ────────────────────────────────────────────────────────────
+  tabelas:
+    - id: entender_tabela
+      nome: "Estrutura e uso da tabela"
+      arquivo: ../recipes/entender_tabela.yaml
+      status: parcial
+
+    - id: impacto_tabela
+      nome: "Impacto de alterar estrutura da tabela"
+      status: pendente
+      raciocinio_esperado:
+        - "Mapear todos os fontes que gravam na tabela"
+        - "Mapear gatilhos dos campos"
+        - "Mapear MsExecAuto e integrações"
+        - "Verificar índices e chaves"
+        - "Montar mapa de impacto completo"
+
+  # ────────────────────────────────────────────────────────────
+  # ERROS / DEBUG
+  # ────────────────────────────────────────────────────────────
+  debug:
+    - id: erro_rotina
+      nome: "Erro/crash em rotina"
+      arquivo: ../recipes/erro_rotina.yaml
+      status: parcial
+      gaps:
+        - "Não analisa log de erro para identificar linha"
+        - "Não sugere debug step-by-step"
+
+    - id: valor_errado
+      nome: "Campo com valor errado"
+      arquivo: ../recipes/valor_errado.yaml
+      status: parcial
+      gaps:
+        - "Não rastreia a cadeia completa de preenchimento"
+        - "Não verifica ordem de execução (gatilho vs PE vs validação)"
+
+  # ────────────────────────────────────────────────────────────
+  # INTEGRAÇÕES
+  # ────────────────────────────────────────────────────────────
+  integracoes:
+    - id: impacto_integracao
+      nome: "Impacto em integrações ao alterar estrutura"
+      status: pendente
+      raciocinio_esperado:
+        - "Identificar MsExecAuto que processam a tabela"
+        - "Identificar WebServices/REST que enviam/recebem dados"
+        - "Identificar Schedules/Jobs automatizados"
+        - "Para cada integração: o campo alterado é usado?"
+        - "Montar mapa de risco por integração"
+
+# ══════════════════════════════════════════════════════════════
+# RESUMO DE STATUS
+# ══════════════════════════════════════════════════════════════
+resumo:
+  implementado: 2   # com cadeia de raciocínio completa (gatilho, campo obrigatório)
+  parcial: 11       # tem receita/tool mas sem profundidade
+  pendente: 6       # precisa ensinar do zero
+
+# Próximos a implementar (prioridade do Joni):
+proximos:
+  - impacto_parametro     # "Mudar MV_X de Y para Z, o que acontece?"
+  - impacto_pe            # "Remover PE X, o que quebra?"
+  - campo_obrigatorio     # "Tornar campo obrigatório, quem quebra?"
+  - impacto_rotina        # "Alterar fonte X, o que depende dele?"

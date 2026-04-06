@@ -1,0 +1,26 @@
+id: table_routine_map
+name: "Tabela → Rotinas Padrao"
+description: "Mapeia tabela para rotinas padrao que a gerenciam (para detectar MsExecAuto)"
+source: "backend/services/analista_tools.py:271"
+
+mapping:
+  SA1: [MATA030]
+  SA2: [MATA020]
+  SA3: [MATA040]
+  SA4: [MATA050]
+  SB1: [MATA010]
+  SC1: [MATA110]
+  SC5: [MATA410]
+  SC6: [MATA410]
+  SC7: [MATA120]
+  SD1: [MATA101, MATA103]
+  SD2: [MATA461]
+  SE1: [FINA040]
+  SE2: [FINA050]
+  SF1: [MATA103]
+  SF2: [MATA460]
+
+notes: |
+  Usado para detectar MsExecAuto em fontes do cliente.
+  Se uma fonte chama MsExecAuto(MATA410) e a tabela e SC5,
+  essa fonte PRECISA ser verificada em alteracoes de campo obrigatorio.

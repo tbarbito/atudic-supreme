@@ -1,0 +1,123 @@
+id: analise_gatilho
+name: "Heurística: Análise de Impacto de Gatilho"
+description: |
+  Cadeia de raciocínio de consultor para perguntas sobre gatilhos (SX7).
+  Ensina o analista a pensar como consultor, não apenas buscar dados.
+
+versao: 1
+autor: Joni
+data_criacao: "2026-04-04"
+status: implementado  # implementado | parcial | pendente
+
+# ══════════════════════════════════════════════════════════════
+# QUANDO USAR
+# ══════════════════════════════════════════════════════════════
+trigger:
+  keywords: ["gatilho", "trigger", "sx7", "sequência", "sequencia"]
+  entidades_necessarias: ["campo (XX_CAMPO)", "sequencia (número)"]
+  exemplos_pergunta:
+    - "Qual o impacto caso exclua o gatilho C7_PRODUTO sequência 512?"
+    - "O que faz o gatilho D1_TOTAL seq 003?"
+    - "Posso remover o trigger B1_COD 001?"
+    - "O gatilho C6_PRODUTO 510 está correto?"
+
+# ══════════════════════════════════════════════════════════════
+# CADEIA DE RACIOCÍNIO (como o consultor pensa)
+# ══════════════════════════════════════════════════════════════
+raciocinio:
+  - passo: 1
+    nome: "Encontrar o gatilho"
+    fonte: "tabela gatilhos (SX7)"
+    query: "SELECT * FROM gatilhos WHERE campo_origem = ? AND sequencia = ?"
+    dados_extraidos:
+      - campo_origem
+      - campo_destino (contradomínio)
+      - regra
+      - tipo (P=Posicionamento, E=Preenchimento)
+      - condicao (quando executa)
+      - proprietario (U=custom, S=padrão)
+      - tabela_seek, alias, chave
+
+  - passo: 2
+    nome: "Entender O QUE o gatilho faz"
+    analise: |
+      Classificar o comportamento pela regra:
+      - Chama função customizada? (U_XXXX) → precisa analisar o fonte
+      - Posiciona em tabela e traz dados? (ALIAS->CAMPO) → risco de perder preenchimento
+      - Tem regra condicional? (IIF) → entender as condições
+      - Usa funções padrão? (Posicione, MsSeek) → documentar o que faz
+    perguntas_chave:
+      - "De onde vem o dado que ele preenche?"
+      - "Ele sempre executa ou tem condição?"
+      - "Ele só preenche um campo ou faz mais?"
+
+  - passo: 3
+    nome: "Analisar o campo destino"
+    fonte: "tabela campos (SX3)"
+    query: "SELECT * FROM campos WHERE campo = ?"
+    verificacoes:
+      - obrigatorio: "Se sim, usuário TERÁ que preencher manualmente"
+      - inicializador: "Se não tem, campo ficará VAZIO"
+      - validacao: "Se tem, preenchimento incorreto dará erro"
+      - vlduser: "Pode ter validação extra customizada"
+      - f3: "Qual consulta padrão o usuário pode usar"
+
+  - passo: 4
+    nome: "Analisar função customizada (se houver)"
+    condicao: "Quando a regra chama U_XXXX"
+    fonte: "funcao_docs + fonte_chunks"
+    verificacoes:
+      - campos_extras: "A função preenche outros campos além do contradomínio?"
+      - bloqueia: "Tem Return(.F.) que impede a operação?"
+      - parametros: "Consulta parâmetros MV_ que controlam comportamento?"
+      - tabelas: "Acessa outras tabelas além da seek?"
+    alerta: |
+      ATENÇÃO: funções de gatilho frequentemente fazem MAIS do que o SX7 indica.
+      Exemplo: gatilho preenche C7_CC mas a função também valida intercompany
+      e grupo de aprovação. Remover o gatilho perde TUDO isso.
+
+  - passo: 5
+    nome: "Verificar alternativas"
+    verificacoes:
+      - outros_gatilhos_mesmo_destino: "Tem outro gatilho preenchendo o mesmo campo?"
+      - outros_gatilhos_mesma_funcao: "A mesma função é usada em outros gatilhos?"
+      - quem_chama_funcao: "Outros fontes chamam essa função?"
+    impacto: |
+      Se é o ÚNICO gatilho → alto risco
+      Se há alternativa → avaliar se a alternativa é suficiente
+
+  - passo: 6
+    nome: "Montar resumo de impacto"
+    template: |
+      Ao excluir o gatilho {campo} seq {seq}:
+      - O campo {destino} ({titulo}) NÃO será mais preenchido automaticamente
+      - {se_obrigatorio}: Usuário TERÁ que preencher manualmente
+      - {se_sem_inicializador}: Campo ficará VAZIO
+      - {se_tem_validacao}: Preencher incorretamente causará erro
+      - {se_sem_alternativa}: Não há outro gatilho para suprir
+      - {se_funcao_faz_extra}: Campos extras perdem preenchimento: {lista}
+
+# ══════════════════════════════════════════════════════════════
+# IMPLEMENTAÇÃO
+# ══════════════════════════════════════════════════════════════
+implementacao:
+  arquivo: "backend/services/query_decomposer.py"
+  funcoes:
+    - step3c_analise_gatilho  # análise completa
+    - _analise_comportamento_regra  # classificação do comportamento
+  fast_path: true  # decompose_and_investigate() pula steps 1-2 para gatilhos
+  sufficiency: true  # pipeline pula steps 3-5 quando análise é completa
+
+# ══════════════════════════════════════════════════════════════
+# GAPS CONHECIDOS (o que ainda falta ensinar)
+# ══════════════════════════════════════════════════════════════
+gaps:
+  - id: gatilho_cadeia
+    descricao: "Analisar cadeia de gatilhos (gatilho A dispara B que dispara C)"
+    prioridade: media
+  - id: gatilho_msexecauto
+    descricao: "Verificar se MsExecAuto trata o campo quando não tem gatilho"
+    prioridade: alta
+  - id: gatilho_workflow
+    descricao: "Impacto em workflows de aprovação quando campo fica vazio"
+    prioridade: media

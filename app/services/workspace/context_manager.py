@@ -340,7 +340,15 @@ def _summarize_analise_aumento_campo(args: dict, result: Any) -> dict:
     tam_atual = result.get("tamanho_atual", 0)
     novo_tam = result.get("novo_tamanho", 0)
 
-    facts = [f"Aumento de {tabela}.{campo} de {tam_atual} para {novo_tam} posições"]
+    if tam_atual >= novo_tam and novo_tam > 0:
+        facts = [f"⚠️ ATENÇÃO: {tabela}.{campo} JÁ ESTÁ com {tam_atual} posições no dicionário (solicitado {novo_tam}).",
+                 f"CAMPO_ANALISADO: {campo}",
+                 f"O campo NÃO precisa ser aumentado — já tem o tamanho desejado.",
+                 f"PORÉM: Verifique se o ambiente de PRODUÇÃO está atualizado — pode estar com tamanho anterior.",
+                 f"Abaixo estão os fontes que ainda usam tamanhos antigos (Space/PadR chumbado) e PRECISAM ser corrigidos:"]
+    else:
+        facts = [f"Aumento de {tabela}.{campo} de {tam_atual} para {novo_tam} posições",
+                 f"CAMPO_ANALISADO: {campo}"]
 
     # Group info
     grupo = result.get("grupo_sxg", "")
@@ -356,13 +364,42 @@ def _summarize_analise_aumento_campo(args: dict, result: Any) -> dict:
         for c in fora[:10]:
             facts.append(f"  - {c['tabela']}.{c['campo']}: {c['titulo']} (tam={c['tamanho']}) — {c['risco']}")
 
-    # PadR chumbado
+    # PadR e Space() chumbado
     padr = result.get("padr_chumbado", [])
     if padr:
-        arquivos_unicos = sorted(set(p["arquivo"] for p in padr))
-        facts.append(f"⚠️ {len(arquivos_unicos)} fonte(s) com PadR CHUMBADO (tamanho {tam_atual}) — VÃO TRUNCAR o valor:")
-        for a in arquivos_unicos[:8]:
-            facts.append(f"  - {a}: PadR com tamanho fixo {tam_atual}")
+        # Group by tipo+tamanho for better presentation
+        by_type = {}
+        for p in padr:
+            tipo = p.get("tipo", "PadR")
+            tam = p.get("tamanho", tam_atual)
+            key = f"{tipo}({tam})"
+            if key not in by_type:
+                by_type[key] = []
+            if p["arquivo"] not in [x["arquivo"] for x in by_type[key]]:
+                by_type[key].append(p)
+
+        total_unique = len(set(p["arquivo"] for p in padr))
+        alta = [p for p in padr if p.get("confianca", "alta") == "alta"]
+        media = [p for p in padr if p.get("confianca") == "media"]
+        facts.append(f"⚠️ {total_unique} fonte(s) com tamanho CHUMBADO (PadR/Space/SubStr/Replicate/ParamBox fixo) — VÃO TRUNCAR ou causar erro:")
+        def _format_items(items, label):
+            lines = []
+            for key, group in sorted(by_type.items()):
+                filtered = [i for i in group if i.get("confianca", "alta") == label]
+                if filtered:
+                    lines.append(f"    [{key}] — {len(filtered)} fonte(s):")
+                    for p in filtered:
+                        lines.append(f"      - {p['arquivo']}::{p.get('funcao', '')} — {key} fixo")
+                        for trecho in p.get("trechos", [])[:2]:
+                            lines.append(f"        📝 {trecho}")
+            return lines
+
+        if alta:
+            facts.append(f"  CONFIANÇA ALTA ({len(alta)} — mencionam o campo diretamente):")
+            facts.extend(_format_items(alta, "alta"))
+        if media:
+            facts.append(f"  CONFIANÇA MÉDIA ({len(media)} — usam a tabela, podem estar relacionados):")
+            facts.extend(_format_items(media, "media"))
 
     # TamSX3 OK
     tamsx3 = result.get("tamsx3_dinamico", [])
