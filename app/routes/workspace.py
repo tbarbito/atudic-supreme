@@ -1569,13 +1569,38 @@ def workspace_dashboard(slug):
     }
 
     # --- DISTRIBUICAO DE RISCO ---
-    campos_so_padrao = max(0, campos_total - campos_custom - campos_adicionados - campos_alterados)
-    distribuicao_risco = {
-        "campos_so_padrao": campos_so_padrao,
-        "campos_adicionados": campos_adicionados,
-        "campos_alterados": campos_alterados,
-        "campos_removidos": diff_removidos,
-    }
+    # Se tabela diff esta vazia, usar campos.custom como fallback
+    has_diff = (campos_adicionados + campos_alterados + diff_removidos) > 0
+    if has_diff:
+        campos_so_padrao = max(0, campos_total - campos_adicionados - campos_alterados)
+        distribuicao_risco = {
+            "campos_so_padrao": campos_so_padrao,
+            "campos_adicionados": campos_adicionados,
+            "campos_alterados": campos_alterados,
+            "campos_removidos": diff_removidos,
+        }
+    else:
+        # Fallback: usar flag custom dos campos (quando base padrao nao foi ingerida)
+        # custom=1 vem do parser: campo com prefixo X_ ou X3_PROPRI != 'S' ou tabela Z/SZ/Q
+        # Campos em tabelas custom (Z*, SZ*, Q*) → adicionados (tabela inteira e custom)
+        campos_em_tab_custom = _count(
+            "SELECT COUNT(*) FROM campos WHERE custom = 1 AND ("
+            "  tabela LIKE 'Z%' OR tabela LIKE 'SZ%' OR tabela LIKE 'Q%'"
+            ")"
+        )
+        # Campos custom em tabelas padrao (campo X_ ou proprietario != S) → alterados/adicionados ao padrao
+        campos_custom_em_tab_padrao = _count(
+            "SELECT COUNT(*) FROM campos WHERE custom = 1 AND NOT ("
+            "  tabela LIKE 'Z%' OR tabela LIKE 'SZ%' OR tabela LIKE 'Q%'"
+            ")"
+        )
+        campos_so_padrao = max(0, campos_total - campos_em_tab_custom - campos_custom_em_tab_padrao)
+        distribuicao_risco = {
+            "campos_so_padrao": campos_so_padrao,
+            "campos_adicionados": campos_em_tab_custom,
+            "campos_alterados": campos_custom_em_tab_padrao,
+            "campos_removidos": 0,
+        }
 
     # --- TOP TABELAS (mais customizadas) ---
     top_tabelas = []
