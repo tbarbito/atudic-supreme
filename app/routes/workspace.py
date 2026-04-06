@@ -2516,20 +2516,30 @@ def analista_ask(slug):
 
     system_prompt = (
         "Voce e um analista tecnico senior de ambientes TOTVS Protheus.\n"
-        "Use APENAS os dados do CONTEXTO abaixo. Nao invente dados.\n"
+        "Use APENAS os dados do CONTEXTO abaixo e o historico de conversa. Nao invente dados.\n"
         "Responda de forma tecnica e concisa em portugues.\n\n"
         f"CONTEXTO DO WORKSPACE:\n{context_text}\n"
     )
+
+    # Carregar historico recente para continuidade da conversa
+    history = []
+    try:
+        hist_rows = db.execute(
+            "SELECT role, content FROM chat_history ORDER BY id DESC LIMIT 10"
+        ).fetchall()
+        history = [{"role": r[0], "content": r[1]} for r in reversed(hist_rows)]
+    except Exception:
+        pass
 
     try:
         llm = _get_llm_provider()
     except Exception as e:
         return jsonify({"error": f"LLM nao disponivel: {str(e)[:200]}"}), 500
 
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": question},
-    ]
+    messages = [{"role": "system", "content": system_prompt}]
+    for h in history[-8:]:
+        messages.append({"role": h["role"], "content": h["content"]})
+    messages.append({"role": "user", "content": question})
 
     answer = _llm_chat_text(llm, messages)
 
@@ -2826,121 +2836,6 @@ def docs_generate_v2(slug):
 # ========================================================================
 # CHAT — Chat focado no workspace
 # ========================================================================
-
-@workspace_bp.route("/workspaces/<slug>/chat", methods=["POST"])
-@require_permission("devworkspace:chat")
-def workspace_chat(slug):
-    """Chat focado no workspace."""
-    data = request.get_json()
-    message = (data or {}).get("message", "").strip()
-    if not message:
-        return jsonify({"error": "Mensagem vazia"}), 400
-
-    db = _get_db(slug)
-    ks = KnowledgeService(db)
-
-    # Construir contexto do workspace
-    try:
-        summary = ks.get_custom_summary()
-    except Exception:
-        summary = {}
-
-    # Buscar tabelas e fontes mencionadas
-    sources = []
-    q_upper = message.upper()
-    try:
-        # Detectar referencias a tabelas (codigos tipo SA1, ZA0, etc.)
-        import re as _re
-        tab_refs = _re.findall(r'\b([A-Z][A-Z0-9]{2})\b', q_upper)
-        for tab_code in set(tab_refs[:5]):
-            info = ks.get_table_info(tab_code)
-            if info:
-                sources.append({"tipo": "tabela", "codigo": tab_code, "resumo": info.get("nome", "")})
-    except Exception:
-        pass
-
-    # Carregar historico recente do chat
-    history = []
-    try:
-        hist_rows = db.execute(
-            "SELECT role, content FROM chat_history ORDER BY id DESC LIMIT 10"
-        ).fetchall()
-        history = [{"role": r[0], "content": r[1]} for r in reversed(hist_rows)]
-    except Exception:
-        pass
-
-    context_text = f"Resumo do workspace: {json.dumps(summary, ensure_ascii=False)}"
-    if sources:
-        context_text += f"\nTabelas detectadas na pergunta: {json.dumps(sources, ensure_ascii=False)}"
-
-    system_prompt = (
-        "Voce e um consultor tecnico senior de ambientes TOTVS Protheus.\n"
-        "Use APENAS os dados do CONTEXTO abaixo e o historico de conversa. Nao invente dados.\n"
-        "Responda de forma tecnica e concisa em portugues.\n\n"
-        f"CONTEXTO DO WORKSPACE:\n{context_text}\n"
-    )
-
-    messages = [{"role": "system", "content": system_prompt}]
-    # Adicionar historico
-    for h in history[-8:]:
-        messages.append({"role": h["role"], "content": h["content"]})
-    messages.append({"role": "user", "content": message})
-
-    try:
-        llm = _get_llm_provider()
-    except Exception as e:
-        return jsonify({"error": f"LLM nao disponivel: {str(e)[:200]}"}), 500
-
-    answer = _llm_chat_text(llm, messages)
-
-    # Salvar no historico
-    try:
-        db.execute(
-            "INSERT INTO chat_history (role, content, sources) VALUES ('user', ?, NULL)",
-            (message,)
-        )
-        db.execute(
-            "INSERT INTO chat_history (role, content, sources) VALUES ('assistant', ?, ?)",
-            (answer, json.dumps(sources, ensure_ascii=False))
-        )
-        db.commit()
-    except Exception as e:
-        logger.warning("Erro ao salvar historico do chat: %s", e)
-
-    return jsonify({
-        "role": "assistant",
-        "content": answer,
-        "sources": sources,
-    })
-
-
-@workspace_bp.route("/workspaces/<slug>/chat/history", methods=["GET"])
-@require_permission("devworkspace:view")
-def workspace_chat_history(slug):
-    """Historico do chat do workspace."""
-    db = _get_db(slug)
-    limit = request.args.get("limit", 50, type=int)
-
-    try:
-        rows = db.execute(
-            "SELECT id, role, content, sources, created_at "
-            "FROM chat_history ORDER BY id DESC LIMIT ?",
-            (limit,)
-        ).fetchall()
-        items = [
-            {
-                "id": r[0],
-                "role": r[1],
-                "content": r[2],
-                "sources": json.loads(r[3]) if r[3] else [],
-                "created_at": r[4],
-            }
-            for r in reversed(rows)
-        ]
-        return jsonify(items)
-    except Exception:
-        return jsonify([])
-
 
 # ========================================================================
 # Endpoints migrados do ExtraiRPO — helpers e rotas adicionais

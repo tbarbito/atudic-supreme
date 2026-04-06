@@ -83,11 +83,6 @@ async function showDevWorkspace() {
                     '<i class="fas fa-file-alt me-1"></i>Gerar Docs' +
                 '</button>' +
             '</li>' +
-            '<li class="nav-item">' +
-                '<button class="nav-link" data-action="wsSwitchTab" data-params=\'{"tab":"chat"}\'>' +
-                    '<i class="fas fa-comments me-1"></i>Chat' +
-                '</button>' +
-            '</li>' +
         '</ul>' +
         '<div id="ws-tab-content"></div>';
 
@@ -120,7 +115,6 @@ async function wsSwitchTab(params) {
     else if (tab === 'analista') await wsRenderAnalista(container);
     else if (tab === 'padrao') await wsRenderPadrao(container);
     else if (tab === 'gerar_docs') await wsRenderGerarDocs(container);
-    else if (tab === 'chat') await wsRenderChat(container);
 }
 
 // =====================================================================
@@ -2611,155 +2605,6 @@ function wsDocsDownload() {
     a.download = last.slug + '_doc.md';
     a.click();
     URL.revokeObjectURL(url);
-}
-
-// =====================================================================
-// WORKSPACE — ABA CHAT
-// =====================================================================
-
-async function wsRenderChat(container) {
-    var slug = window._wsState.activeSlug;
-    if (!slug) {
-        container.innerHTML = '<div class="alert alert-info">Configure um workspace em Admin > Configuracoes > Workspace.</div>';
-        return;
-    }
-
-    if (!window._wsState._chatMessages) window._wsState._chatMessages = [];
-
-    container.innerHTML =
-        '<div class="card" style="height:75vh;display:flex;flex-direction:column">' +
-            '<div class="card-header py-2 d-flex justify-content-between align-items-center">' +
-                '<span><i class="fas fa-comments text-primary me-1"></i>Chat — <strong>' + dwEscapeHtml(slug) + '</strong></span>' +
-                '<button class="btn btn-outline-secondary btn-sm" onclick="wsLimparChat()">' +
-                    '<i class="fas fa-trash me-1"></i>Limpar' +
-                '</button>' +
-            '</div>' +
-            '<div class="card-body p-3" id="ws-chat-msgs" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px">' +
-                '<div class="text-muted text-center py-3" id="ws-chat-empty">' +
-                    '<i class="fas fa-comments fa-2x mb-2"></i>' +
-                    '<p style="font-size:0.88rem">Faca uma pergunta sobre o workspace <strong>' + dwEscapeHtml(slug) + '</strong>.</p>' +
-                '</div>' +
-            '</div>' +
-            '<div class="card-footer p-2">' +
-                '<div class="input-group">' +
-                    '<input type="text" class="form-control" id="ws-chat-input" ' +
-                        'placeholder="Pergunte sobre tabelas, campos, fontes, processos..." ' +
-                        'onkeydown="if(event.key===\'Enter\' && !event.shiftKey){event.preventDefault();wsChatEnviar();}">' +
-                    '<button class="btn btn-primary" onclick="wsChatEnviar()" id="ws-chat-btn">' +
-                        '<i class="fas fa-paper-plane"></i>' +
-                    '</button>' +
-                '</div>' +
-                '<small class="text-muted mt-1 d-block">Enter para enviar</small>' +
-            '</div>' +
-        '</div>';
-
-    // Carregar historico do servidor
-    try {
-        var hist = await apiRequest('/workspace/workspaces/' + slug + '/chat/history');
-        var msgs = hist.mensagens || hist.messages || hist || [];
-        if (Array.isArray(msgs) && msgs.length) {
-            window._wsState._chatMessages = msgs;
-            var msgsEl = document.getElementById('ws-chat-msgs');
-            if (msgsEl) {
-                var emptyEl = document.getElementById('ws-chat-empty');
-                if (emptyEl) emptyEl.remove();
-                msgs.forEach(function(m) {
-                    msgsEl.appendChild(_wsChatBuildBubble(m.role || m.tipo, m.content || m.mensagem || ''));
-                });
-                msgsEl.scrollTop = msgsEl.scrollHeight;
-            }
-        }
-    } catch (e) { /* historico opcional */ }
-}
-
-function _wsChatBuildBubble(role, content) {
-    var isUser = role === 'user' || role === 'usuario';
-    var wrapper = document.createElement('div');
-    wrapper.style.cssText = 'display:flex;justify-content:' + (isUser ? 'flex-end' : 'flex-start');
-    var bubble = document.createElement('div');
-    bubble.style.cssText = 'max-width:80%;padding:10px 14px;border-radius:12px;font-size:0.88rem;' +
-        (isUser
-            ? 'background:#0d6efd;color:#fff;border-bottom-right-radius:3px'
-            : 'background:#f8f9fa;border:1px solid #dee2e6;border-bottom-left-radius:3px');
-    if (isUser) {
-        bubble.textContent = content;
-    } else {
-        bubble.className = 'ws-markdown';
-        bubble.innerHTML = _wsRenderMarkdown(content);
-    }
-    wrapper.appendChild(bubble);
-    return wrapper;
-}
-
-async function wsChatEnviar() {
-    var slug = window._wsState.activeSlug;
-    var input = document.getElementById('ws-chat-input');
-    var btn = document.getElementById('ws-chat-btn');
-    var msg = input ? input.value.trim() : '';
-    if (!msg) return;
-
-    var msgsEl = document.getElementById('ws-chat-msgs');
-    var emptyEl = document.getElementById('ws-chat-empty');
-    if (emptyEl) emptyEl.remove();
-
-    input.value = '';
-    if (btn) btn.disabled = true;
-    if (input) input.disabled = true;
-
-    // Bubble do usuario
-    msgsEl.appendChild(_wsChatBuildBubble('user', msg));
-
-    // Bubble de espera do assistente
-    var waitWrapper = document.createElement('div');
-    waitWrapper.style.cssText = 'display:flex;justify-content:flex-start';
-    waitWrapper.id = 'ws-chat-wait';
-    var waitBubble = document.createElement('div');
-    waitBubble.style.cssText = 'max-width:80%;padding:10px 14px;border-radius:12px;font-size:0.88rem;background:#f8f9fa;border:1px solid #dee2e6;border-bottom-left-radius:3px';
-    waitBubble.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div>Processando...';
-    waitWrapper.appendChild(waitBubble);
-    msgsEl.appendChild(waitWrapper);
-    msgsEl.scrollTop = msgsEl.scrollHeight;
-
-    try {
-        var data = await apiRequest('/workspace/workspaces/' + slug + '/chat', 'POST', { message: msg });
-        var answer = data.answer || data.response || data.content || data.mensagem || '';
-
-        // Substituir bubble de espera pela resposta real
-        var waitEl = document.getElementById('ws-chat-wait');
-        if (waitEl) waitEl.remove();
-        msgsEl.appendChild(_wsChatBuildBubble('assistant', answer));
-
-        if (!window._wsState._chatMessages) window._wsState._chatMessages = [];
-        window._wsState._chatMessages.push({ role: 'user', content: msg });
-        window._wsState._chatMessages.push({ role: 'assistant', content: answer });
-    } catch (e) {
-        var waitEl2 = document.getElementById('ws-chat-wait');
-        if (waitEl2) waitEl2.remove();
-        var errWrapper = document.createElement('div');
-        errWrapper.style.cssText = 'display:flex;justify-content:flex-start';
-        var errBubble = document.createElement('div');
-        errBubble.style.cssText = 'max-width:80%;padding:10px 14px;border-radius:12px;font-size:0.88rem;background:#f8d7da;border:1px solid #f5c2c7;color:#842029';
-        errBubble.textContent = 'Erro: ' + e.message;
-        errWrapper.appendChild(errBubble);
-        msgsEl.appendChild(errWrapper);
-    } finally {
-        if (btn) btn.disabled = false;
-        if (input) input.disabled = false;
-        if (input) input.focus();
-        msgsEl.scrollTop = msgsEl.scrollHeight;
-    }
-}
-
-function wsLimparChat() {
-    window._wsState._chatMessages = [];
-    var msgsEl = document.getElementById('ws-chat-msgs');
-    if (msgsEl) {
-        msgsEl.innerHTML =
-            '<div class="text-muted text-center py-3" id="ws-chat-empty">' +
-                '<i class="fas fa-comments fa-2x mb-2"></i>' +
-                '<p style="font-size:0.88rem">Conversa limpa. Faca uma nova pergunta.</p>' +
-            '</div>';
-    }
 }
 
 // =====================================================================
