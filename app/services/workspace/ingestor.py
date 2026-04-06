@@ -774,8 +774,9 @@ def ingest_record_counts(db: Database, csv_path: Path) -> dict:
 
 
 def calculate_diff(db: Database) -> dict:
-    """Compare cliente tables vs padrao tables and populate the diff table.
+    """DEPRECATED: Use workspace_populator.calculate_diff que suporta banco_padrao.db via ATTACH.
 
+    Compare cliente tables vs padrao tables and populate the diff table.
     Currently diffs: campos (SX3) and gatilhos (SX7).
     Returns summary: {campos: {added: N, altered: N, removed: N}, gatilhos: {...}}
     """

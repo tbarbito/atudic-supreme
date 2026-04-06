@@ -315,6 +315,22 @@ def _ingest_padrao_if_provided(data: dict, db) -> dict | None:
         return {"padrao": {"error": str(e)}, "diff": {}}
 
 
+def _auto_calculate_diff(db) -> dict | None:
+    """Calcula diff automaticamente usando banco_padrao.db se disponivel.
+
+    Chamado apos ingestao e lazy no dashboard/explorer quando tabela diff esta vazia.
+    """
+    from app.services.workspace.workspace_populator import calculate_diff, _get_padrao_db_path
+    padrao_path = _get_padrao_db_path()
+    if not padrao_path.exists():
+        return None
+    try:
+        return calculate_diff(db)
+    except Exception as e:
+        logger.warning("Erro ao calcular diff com banco_padrao.db: %s", e)
+        return None
+
+
 # ========================================================================
 # INGESTAO
 # ========================================================================
@@ -343,6 +359,11 @@ def ingest_csv(slug):
         if padrao_stats:
             stats["padrao"] = padrao_stats["padrao"]
             stats["diff"] = padrao_stats["diff"]
+        else:
+            # Auto-diff com banco_padrao.db se disponivel
+            diff_result = _auto_calculate_diff(pop.db)
+            if diff_result:
+                stats["diff"] = diff_result
         return jsonify({"success": True, "stats": stats})
     except Exception as e:
         logger.exception(f"Erro na ingestao CSV: {e}")
@@ -405,6 +426,10 @@ def ingest_live(slug):
         if padrao_stats:
             stats["padrao"] = padrao_stats["padrao"]
             stats["diff"] = padrao_stats["diff"]
+        else:
+            diff_result = _auto_calculate_diff(pop.db)
+            if diff_result:
+                stats["diff"] = diff_result
         return jsonify({"success": True, "stats": stats})
     except Exception as e:
         logger.exception(f"Erro na ingestao live: {e}")
@@ -443,6 +468,10 @@ def ingest_hybrid(slug):
         if padrao_stats:
             stats["padrao"] = padrao_stats["padrao"]
             stats["diff"] = padrao_stats["diff"]
+        else:
+            diff_result = _auto_calculate_diff(pop.db)
+            if diff_result:
+                stats["diff"] = diff_result
         return jsonify({"success": True, "stats": stats})
     except Exception as e:
         logger.exception(f"Erro na ingestao hibrida: {e}")
@@ -536,6 +565,10 @@ def ingest_rest(slug):
             if padrao_stats:
                 stats["padrao"] = padrao_stats["padrao"]
                 stats["diff"] = padrao_stats["diff"]
+        else:
+            diff_result = _auto_calculate_diff(db)
+            if diff_result:
+                stats["diff"] = diff_result
 
         return jsonify({"success": True, "mode": "rest", "stats": stats})
     except Exception as e:
@@ -794,6 +827,10 @@ def explorer_summary(slug):
 
 def _compute_diff_stats(db, _c):
     """Calcula stats de diff com fallback para campos.custom quando tabela diff esta vazia."""
+    # Auto-diff lazy se diff vazia
+    diff_count = _c("SELECT COUNT(*) FROM diff")
+    if diff_count == 0:
+        _auto_calculate_diff(db)
     diff_add = _c("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx IN ('campo','SX3') AND acao='adicionado'")
     diff_alt = _c("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx IN ('campo','SX3') AND acao='alterado'")
     diff_rem = _c("SELECT COUNT(DISTINCT chave) FROM diff WHERE tipo_sx IN ('campo','SX3') AND acao='removido'")
@@ -1592,6 +1629,11 @@ def workspace_dashboard(slug):
             return 0
 
     # --- RESUMO ---
+    # Auto-diff lazy: se tabela diff esta vazia e banco_padrao.db existe, calcular agora
+    diff_count = _count("SELECT COUNT(*) FROM diff")
+    if diff_count == 0:
+        _auto_calculate_diff(db)
+
     tabelas_total = _count("SELECT COUNT(*) FROM tabelas")
     tabelas_custom = _count("SELECT COUNT(*) FROM tabelas WHERE custom = 1")
     campos_total = _count("SELECT COUNT(*) FROM campos")
