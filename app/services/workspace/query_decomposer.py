@@ -1675,6 +1675,198 @@ def step3d_analise_campo_obrigatorio(message: str) -> str:
     return "\n".join(parts)
 
 
+# ── Step 3e: ANÁLISE DE AUMENTO DE CAMPO ──────────────────────────────────
+
+def step3e_analise_aumento_campo(message: str) -> str:
+    """Análise de impacto de alterar tamanho de campo com raciocínio de consultor.
+
+    Cadeia:
+    1. Identificar campo, tabela e novo tamanho
+    2. Verificar grupo SXG (campos que mudam automaticamente)
+    3. Campos fora do grupo com F3 (precisam ajuste manual)
+    4. PadR/Space chumbado nos fontes (vão truncar)
+    5. Índices que podem estourar
+    6. MsExecAuto que enviam campo com tamanho antigo
+    """
+    import re as _re
+
+    # Detect field
+    campo_match = _re.findall(r'\b([A-Z][A-Z0-9]{1,2}_\w+)\b', message.upper())
+    if not campo_match:
+        return ""
+
+    # Detect new size: "de 11 para 15", "para 20", "15 caracteres", "15 posições"
+    size_match = _re.findall(r'para\s+(\d+)', message.lower())
+    if not size_match:
+        size_match = _re.findall(r'(\d+)\s*(?:caracter|posiç|posico)', message.lower())
+    novo_tamanho = int(size_match[0]) if size_match else 0
+
+    # Detect table from field prefix or explicit mention
+    tabela_match = _re.findall(r'\b(S[A-Z][A-Z0-9])\b', message.upper())
+
+    # Infer table from field prefix if not explicitly mentioned
+    campo = campo_match[0]
+    if not tabela_match:
+        # C7_ → SC7, B1_ → SB1, D1_ → SD1
+        prefix = campo.split("_")[0]
+        if len(prefix) == 2:
+            tabela_match = [f"S{prefix}"]
+
+    tabela = tabela_match[0] if tabela_match else ""
+    if not tabela:
+        return ""
+
+    # Call the existing comprehensive tool
+    try:
+        from app.services.workspace.analise_campo_chave import tool_analise_aumento_campo
+        result = tool_analise_aumento_campo(tabela, campo, novo_tamanho)
+    except Exception as e:
+        print(f"[decomposer] step3e error calling tool: {e}")
+        return ""
+
+    if not result or "erro" in result:
+        return ""
+
+    # Format as consultant reasoning
+    parts = []
+    parts.append(f"\n╔══════════════════════════════════════════════════════════════╗")
+    parts.append(f"║  ANÁLISE DE IMPACTO: ALTERAR TAMANHO DE {campo}")
+    parts.append(f"╚══════════════════════════════════════════════════════════════╝")
+
+    # ── 1. SITUAÇÃO ATUAL ──
+    parts.append(f"\n── 1. SITUAÇÃO ATUAL DO CAMPO ──")
+    parts.append(f"  Campo: {result['campo']} ({result.get('titulo', '')})")
+    parts.append(f"  Tabela: {result['tabela']}")
+    parts.append(f"  Tipo: {result.get('tipo', '')}")
+    parts.append(f"  Tamanho atual: {result['tamanho_atual']}")
+    if novo_tamanho:
+        parts.append(f"  Novo tamanho desejado: {novo_tamanho}")
+        parts.append(f"  Delta: +{novo_tamanho - result['tamanho_atual']} posições")
+
+    # ── 2. GRUPO SXG ──
+    grupo = result.get("grupo_sxg", "")
+    campos_grupo = result.get("campos_grupo", [])
+    parts.append(f"\n── 2. GRUPO SXG ──")
+    if grupo:
+        gi = result.get("grupo_info", {})
+        parts.append(f"  Grupo: {grupo} — {gi.get('descricao', '')}")
+        parts.append(f"  ✅ {len(campos_grupo)} campos mudam AUTOMATICAMENTE via Configurador")
+        tabelas_afetadas = sorted(set(c["tabela"] for c in campos_grupo))
+        if len(tabelas_afetadas) > 20:
+            parts.append(f"  Tabelas afetadas ({len(tabelas_afetadas)}): {', '.join(tabelas_afetadas[:20])}... +{len(tabelas_afetadas)-20} outras")
+        else:
+            parts.append(f"  Tabelas afetadas ({len(tabelas_afetadas)}): {', '.join(tabelas_afetadas)}")
+
+        inconsistentes = result.get("campos_inconsistentes", [])
+        if inconsistentes:
+            parts.append(f"\n  ⚠️ {len(inconsistentes)} campos JÁ INCONSISTENTES (tamanho diferente do grupo):")
+            for ci in inconsistentes[:10]:
+                parts.append(f"    {ci['tabela']}.{ci['campo']} = {ci['tamanho']} (esperado: {result['tamanho_atual']})")
+    else:
+        parts.append(f"  ⚠️ Campo NÃO pertence a nenhum grupo SXG")
+        parts.append(f"  Alteração precisará ser feita MANUALMENTE em cada tabela")
+
+    # ── 3. CAMPOS FORA DO GRUPO (RISCO) ──
+    campos_fora = result.get("campos_fora_grupo", [])
+    parts.append(f"\n── 3. CAMPOS FORA DO GRUPO COM F3 (RISCO — AJUSTE MANUAL) ──")
+    if campos_fora:
+        parts.append(f"  ⚠️ {len(campos_fora)} campos referenciam {tabela} via F3 mas NÃO estão no grupo {grupo}")
+        parts.append(f"  Esses NÃO mudam automaticamente — precisam ajuste MANUAL:")
+        for cf in campos_fora[:20]:
+            parts.append(f"    {cf['tabela']}.{cf['campo']} ({cf['titulo']}) — tam {cf['tamanho']}, grupo: {cf['grupo_atual']}")
+        if len(campos_fora) > 20:
+            parts.append(f"    ... +{len(campos_fora)-20} outros")
+    else:
+        parts.append(f"  Nenhum campo fora do grupo referencia {tabela}")
+
+    # Campos custom suspeitos
+    suspeitos = result.get("campos_suspeitos_custom", [])
+    if suspeitos:
+        parts.append(f"\n  🟡 {len(suspeitos)} campos CUSTOMIZADOS apontam F3 para {tabela}:")
+        for cs in suspeitos[:15]:
+            parts.append(f"    {cs['tabela']}.{cs['campo']} ({cs['titulo']}) — tam {cs['tamanho']}, grupo: {cs['grupo']}")
+
+    # ── 4. PADR/SPACE CHUMBADO (RISCO CRÍTICO) ──
+    padr = result.get("padr_chumbado", [])
+    parts.append(f"\n── 4. PADR/SPACE CHUMBADO NOS FONTES (RISCO — VÃO TRUNCAR) ──")
+    if padr:
+        alta = [p for p in padr if p.get("confianca") == "alta"]
+        media = [p for p in padr if p.get("confianca") != "alta"]
+        if alta:
+            parts.append(f"  🔴 {len(alta)} ocorrências de ALTA CONFIANÇA (mencionam o campo/tabela):")
+            for p in alta[:15]:
+                parts.append(f"    {p['arquivo']}::{p['funcao']} — {p['tipo']}({p['tamanho']})")
+                for t in p.get("trechos", [])[:2]:
+                    parts.append(f"      → {t}")
+        if media:
+            parts.append(f"  🟡 {len(media)} ocorrências de MÉDIA CONFIANÇA (mesmo tamanho mas sem menção direta):")
+            for p in media[:10]:
+                parts.append(f"    {p['arquivo']}::{p['funcao']} — {p['tipo']}({p['tamanho']})")
+                for t in p.get("trechos", [])[:1]:
+                    parts.append(f"      → {t}")
+    else:
+        parts.append(f"  ✅ Nenhum PadR/Space chumbado encontrado")
+
+    # TamSX3 dinâmico (ok)
+    tamsx3 = result.get("tamsx3_dinamico", [])
+    if tamsx3:
+        parts.append(f"\n  ✅ {len(tamsx3)} fontes usam TamSX3 dinâmico (se adaptam automaticamente):")
+        for t in tamsx3[:10]:
+            parts.append(f"    {t}")
+
+    # ── 5. ÍNDICES ──
+    indices = result.get("indices_risco", [])
+    parts.append(f"\n── 5. ÍNDICES QUE PODEM ESTOURAR ──")
+    if indices:
+        for idx in indices:
+            parts.append(f"  ⚠️ {idx['tabela']} índice {idx['ordem']}: {idx['risco']}")
+            parts.append(f"    Chave: {idx['chave']}")
+            parts.append(f"    Campos afetados: {', '.join(idx['campos_afetados'])}")
+            parts.append(f"    Crescimento: +{idx['crescimento']} chars → estimado {idx['tamanho_estimado']} (limite 250)")
+    else:
+        if novo_tamanho:
+            parts.append(f"  ✅ Nenhum índice em risco de estourar com o novo tamanho")
+        else:
+            parts.append(f"  (Informe o novo tamanho para verificar índices)")
+
+    # ── 6. MSEXECAUTO ──
+    msexec = result.get("msexecauto", [])
+    parts.append(f"\n── 6. MSEXECAUTO (PODEM ENVIAR TAMANHO ANTIGO) ──")
+    if msexec:
+        parts.append(f"  ⚠️ {len(msexec)} MsExecAuto encontrados:")
+        for m in msexec:
+            parts.append(f"    {m['arquivo']} — {m['risco']}")
+    else:
+        parts.append(f"  Nenhum MsExecAuto encontrado para a tabela")
+
+    # ── 7. INTEGRAÇÕES ──
+    integr = result.get("integracoes", [])
+    if integr:
+        parts.append(f"\n── 7. INTEGRAÇÕES ──")
+        parts.append(f"  ⚠️ {len(integr)} integrações gravam em {tabela}:")
+        for i in integr:
+            parts.append(f"    {i['arquivo']} ({i['modulo']})")
+
+    # ── 8. RESUMO DE IMPACTO ──
+    res = result.get("resumo", {})
+    parts.append(f"\n── RESUMO DE IMPACTO ──")
+    parts.append(f"  Ao alterar {campo} de {result['tamanho_atual']} para {novo_tamanho or '?'} posições:")
+    if grupo:
+        parts.append(f"  ✅ {res.get('mudam_automaticamente', 0)} campos mudam automaticamente (grupo SXG {grupo})")
+    parts.append(f"  🟡 {res.get('precisam_ajuste_manual', 0)} campos precisam ajuste MANUAL (fora do grupo)")
+    parts.append(f"  🟡 {res.get('suspeitos_custom', 0)} campos custom suspeitos")
+    if res.get('padr_chumbado', 0):
+        parts.append(f"  🔴 {res['padr_chumbado']} PadR/Space chumbados (vão TRUNCAR)")
+    if res.get('indices_risco', 0):
+        parts.append(f"  🔴 {res['indices_risco']} índices em risco de estourar")
+    if res.get('msexecauto', 0):
+        parts.append(f"  🟡 {res['msexecauto']} MsExecAuto para revisar")
+    if res.get('integracoes', 0):
+        parts.append(f"  🟡 {res['integracoes']} integrações para revisar")
+
+    return "\n".join(parts)
+
+
 def decompose_and_investigate(message: str, llm=None) -> str:
     """Run full 4-step decomposition pipeline.
 
@@ -1704,6 +1896,18 @@ def decompose_and_investigate(message: str, llm=None) -> str:
         mandatory_context = step3d_analise_campo_obrigatorio(message)
         if mandatory_context:
             return mandatory_context
+
+    # ── FAST PATH: Field size change ──
+    _is_size_query = (
+        any(k in msg_lower for k in ["aumentar", "aumento", "ampliar", "tamanho", "posições",
+                                      "posicoes", "expandir", "reduzir", "caracteres"])
+        and re.search(r'\b[A-Z][A-Z0-9]{1,2}_\w+', message)
+    )
+    if _is_size_query:
+        print(f"[decomposer] FAST PATH: field size change query detected")
+        size_context = step3e_analise_aumento_campo(message)
+        if size_context:
+            return size_context
 
     # Step 1
     entendimento = step1_entender(message, llm)

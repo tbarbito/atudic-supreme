@@ -65,13 +65,12 @@ categorias:
 
     - id: aumento_campo
       nome: "Aumentar tamanho de campo"
-      arquivo: ../recipes/aumento_campo.yaml
-      status: parcial
-      descricao: "Tem tool analise_aumento_campo mas sem cadeia de consultor"
-      gaps:
-        - "Não verifica SXG (grupo) que compartilha tamanho"
-        - "Não analisa índices que podem precisar recriação"
-        - "Não verifica relatórios/views SQL afetados"
+      arquivo: analise_aumento_campo.yaml
+      status: implementado
+      descricao: "SXG → campos fora grupo → PadR/Space chumbado → índices → MsExecAuto → integrações"
+      exemplos:
+        - "Qual impacto de aumentar C7_CC de 11 para 15?"
+        - "Posso expandir B1_COD para 30 posições?"
 
     - id: campo_nao_grava
       nome: "Campo não grava / perde valor"
@@ -232,8 +231,8 @@ categorias:
 # RESUMO DE STATUS
 # ══════════════════════════════════════════════════════════════
 resumo:
-  implementado: 2   # com cadeia de raciocínio completa (gatilho, campo obrigatório)
-  parcial: 11       # tem receita/tool mas sem profundidade
+  implementado: 3   # gatilho, campo obrigatório, aumento campo
+  parcial: 10       # tem receita/tool mas sem profundidade
   pendente: 6       # precisa ensinar do zero
 
 # Próximos a implementar (prioridade do Joni):

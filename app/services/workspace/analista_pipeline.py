@@ -293,6 +293,7 @@ class AnalistaPipeline:
         total_context = sum(len(p) for p in self.tool_results_parts)
         has_deep_analysis = any(
             "ANÁLISE DE IMPACTO: GATILHO" in p or "ANÁLISE DE IMPACTO: TORNAR" in p
+            or "ANÁLISE DE IMPACTO: ALTERAR TAMANHO" in p
             for p in self.tool_results_parts
         )
         if has_deep_analysis and total_context > 500:
