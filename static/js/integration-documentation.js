@@ -510,12 +510,8 @@ function renderDocPreview() {
 function docDownload(params) {
     const docId = params && params.id;
     if (!docId) return;
-    const token = sessionStorage.getItem('auth_token');
-    const url = `/api/docs/${docId}/download`;
-    // Abrir em nova aba com auth
-    fetch(url, { headers: { 'Authorization': token } })
+    apiDownload(`/docs/${docId}/download`)
         .then(resp => {
-            if (!resp.ok) throw new Error('Erro no download');
             const disp = resp.headers.get('Content-Disposition') || '';
             const match = disp.match(/filename=(.+)/);
             const filename = match ? match[1] : `documento_${docId}.md`;
@@ -528,7 +524,7 @@ function docDownload(params) {
             a.click();
             URL.revokeObjectURL(a.href);
         })
-        .catch(e => alert('Erro ao baixar: ' + e.message));
+        .catch(e => showNotification('Erro ao baixar: ' + e.message, 'error'));
 }
 
 async function docDelete(params) {

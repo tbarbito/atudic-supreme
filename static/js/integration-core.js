@@ -617,7 +617,7 @@ const actionHandlers = {
     'showEditUserModal': (params) => editUser(params.userId),
     'saveEditedUser': () => saveEditedUser(),
     'deleteUser': (params) => { if (isDeletingUser) return; deleteUser(params.userId); },
-    'showChangePasswordModal': () => window.showChangePasswordModal(),
+    'showChangePasswordModal': (params) => params && params.userId ? window.showChangePasswordModal(params) : window.showChangeOwnPasswordModal(),
     'changeOwnPassword': () => changeOwnPassword(),
     'showAdminChangePasswordModal': (params) => window.showAdminChangePasswordModal(params.userId),
     'adminChangePassword': () => adminChangePassword(),
@@ -1281,19 +1281,14 @@ function isViewer() {
     return currentUser && currentUser.profile === 'viewer';
 }
 
-// Função para carregar permissões do backend
+// Funcao para carregar permissoes do backend
 async function loadUserPermissions() {
     try {
-        const response = await fetch('/api/me/permissions', {
-            headers: { 'Authorization': authToken }
-        });
-        if (response.ok) {
-            const data = await response.json();
-            userPermissions = data.permissions;
-            return userPermissions;
-        }
+        const data = await apiRequest('/me/permissions');
+        userPermissions = data.permissions;
+        return userPermissions;
     } catch (e) {
-        console.error('Erro ao carregar permissões:', e);
+        console.error('Erro ao carregar permissoes:', e);
     }
     return null;
 }

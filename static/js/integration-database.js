@@ -1735,21 +1735,7 @@ async function _dbExportCsv() {
     showNotification('Gerando CSV completo (sem limite de linhas)...', 'info');
 
     try {
-        const token = sessionStorage.getItem('auth_token');
-        const resp = await fetch(`/api/db-connections/${dbSelectedConnId}/query/csv`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': token,
-            },
-            body: JSON.stringify({ query }),
-        });
-
-        if (!resp.ok) {
-            const err = await resp.json().catch(() => ({}));
-            throw new Error(err.error || `Erro ${resp.status}`);
-        }
-
+        const resp = await apiStreamRequest(`/db-connections/${dbSelectedConnId}/query/csv`, { query });
         const blob = await resp.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -2534,15 +2520,7 @@ async function dictExportCompareCsv(params) {
     const historyId = params?.historyId;
     if (!historyId) return;
     try {
-        const url = `/api/dictionary/export/compare/${historyId}`;
-        const headers = {};
-        const token = sessionStorage.getItem('auth_token');
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-        const envId = sessionStorage.getItem('active_environment_id');
-        if (envId) headers['X-Environment-Id'] = envId;
-
-        const response = await fetch(url, { headers });
-        if (!response.ok) throw new Error('Erro ao exportar');
+        const response = await apiDownload(`/dictionary/export/compare/${historyId}`);
         const blob = await response.blob();
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
@@ -3222,15 +3200,7 @@ async function dictExportValidateCsv(params) {
     const historyId = params?.historyId;
     if (!historyId) return;
     try {
-        const url = `/api/dictionary/export/validate/${historyId}`;
-        const headers = {};
-        const token = sessionStorage.getItem('auth_token');
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-        const envId = sessionStorage.getItem('active_environment_id');
-        if (envId) headers['X-Environment-Id'] = envId;
-
-        const response = await fetch(url, { headers });
-        if (!response.ok) throw new Error('Erro ao exportar');
+        const response = await apiDownload(`/dictionary/export/validate/${historyId}`);
         const blob = await response.blob();
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
@@ -3519,15 +3489,7 @@ async function eqExportHistory(params) {
     const historyId = params.historyId;
     if (!historyId) return;
     try {
-        const url = `/api/dictionary/export/equalize/${historyId}`;
-        const headers = {};
-        const token = sessionStorage.getItem('auth_token');
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-        const envId = sessionStorage.getItem('active_environment_id');
-        if (envId) headers['X-Environment-Id'] = envId;
-
-        const response = await fetch(url, { headers });
-        if (!response.ok) throw new Error('Erro ao exportar');
+        const response = await apiDownload(`/dictionary/export/equalize/${historyId}`);
         const blob = await response.blob();
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);

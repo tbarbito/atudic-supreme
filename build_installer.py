@@ -302,7 +302,7 @@ def obfuscate_python():
                 print_warning(f"Data file não encontrado: {rel_src}")
 
         # Copiar arquivos extras da raiz necessários para o build (sem ofuscação adicional)
-        root_files_to_copy = ['license_system.py', 'activate_license.py', 'security_enhancements.py', 'index.html', 'theme.css', 'activate_license.html', 'sw.js']
+        root_files_to_copy = ['license_system.py', 'activate_license.py', 'security_enhancements.py', 'mcp_server.py', 'index.html', 'theme.css', 'activate_license.html', 'sw.js']
         for file in root_files_to_copy:
             src_file = os.path.join(PROJECT_ROOT, file)
             dest_file = os.path.join(obfuscated_dir, file)

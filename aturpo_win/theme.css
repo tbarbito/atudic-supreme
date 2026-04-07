@@ -617,7 +617,7 @@ body {
 .alert-warning {
     background: rgba(245, 158, 11, 0.1) !important;
     border-color: var(--theme-warning) !important;
-    color: #92400E !important;
+    color: var(--theme-warning) !important;
 }
 
 .alert-info {
@@ -779,6 +779,8 @@ body {
 [data-theme="dark"] .form-control:focus,
 [data-theme="dark"] .form-select:focus {
     background: var(--theme-bg-primary) !important;
+    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.3) !important;
+    border-color: var(--theme-primary-400) !important;
 }
 
 [data-theme="dark"] .table {
@@ -871,8 +873,57 @@ body {
     color: var(--theme-text-primary) !important;
 }
 
+[data-theme="dark"] .btn-secondary:hover {
+    background: var(--theme-border-strong) !important;
+    border-color: var(--theme-primary-400) !important;
+    color: var(--theme-primary-300) !important;
+}
+
 [data-theme="dark"] .bg-light {
     background: var(--theme-bg-tertiary) !important;
+}
+
+/* Nav tabs no dark mode */
+[data-theme="dark"] .nav-tabs {
+    border-color: var(--theme-border) !important;
+}
+
+[data-theme="dark"] .nav-tabs .nav-link {
+    color: var(--theme-text-secondary) !important;
+}
+
+[data-theme="dark"] .nav-tabs .nav-link:hover {
+    border-color: var(--theme-border-strong) !important;
+    color: var(--theme-text-primary) !important;
+}
+
+[data-theme="dark"] .nav-tabs .nav-link.active {
+    background: var(--theme-surface) !important;
+    color: var(--theme-primary-300) !important;
+    border-color: var(--theme-border) var(--theme-border) var(--theme-surface) !important;
+}
+
+/* Paginacao no dark mode */
+[data-theme="dark"] .page-link {
+    color: var(--theme-primary-300) !important;
+    background: var(--theme-surface) !important;
+    border-color: var(--theme-border) !important;
+}
+
+[data-theme="dark"] .page-link:hover {
+    background: var(--theme-bg-tertiary) !important;
+    color: var(--theme-primary-200) !important;
+}
+
+[data-theme="dark"] .page-item.active .page-link {
+    background: var(--theme-primary-500) !important;
+    border-color: var(--theme-primary-500) !important;
+    color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .page-item.disabled .page-link {
+    background: var(--theme-bg-secondary) !important;
+    color: var(--theme-text-tertiary) !important;
 }
 
 [data-theme="dark"] .text-dark {
@@ -970,77 +1021,83 @@ h1, h2, h3, h4, h5, h6 {
     letter-spacing: 0.5px;
 }
 
-/* Valores coloridos */
+/* Valores coloridos — ambos os temas */
 .dashboard-card .text-success,
 .stat-card .text-success {
-    color: #10B981 !important;
+    color: var(--theme-success) !important;
 }
 
 .dashboard-card .text-danger,
 .stat-card .text-danger {
-    color: #EF4444 !important;
+    color: var(--theme-error) !important;
 }
 
 .dashboard-card .text-warning,
 .stat-card .text-warning {
-    color: #F59E0B !important;
+    color: var(--theme-warning) !important;
 }
 
 .dashboard-card .text-info,
 .stat-card .text-info {
-    color: #3B82F6 !important;
+    color: var(--theme-info) !important;
 }
 
-/* Headers dos cards de lista (Últimas Execuções, Próximos Agendamentos) */
+/* Headers dos cards de lista — ambos os temas */
 .dashboard-card .card-header,
 .dashboard-card-header {
     background: transparent !important;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-bottom: 1px solid var(--theme-border) !important;
     padding: 16px 20px !important;
 }
 
 .dashboard-card .card-header h5,
 .dashboard-card .card-title,
 .dashboard-card-header h5 {
-    color: #FFFFFF !important;
+    color: var(--theme-text-primary) !important;
     font-weight: 600 !important;
 }
 
 /* Link "Ver todas" */
 .dashboard-card a,
 .dashboard-card .btn-link {
-    color: var(--theme-primary-300) !important;
+    color: var(--theme-primary-500) !important;
 }
 
 .dashboard-card a:hover {
-    color: var(--theme-accent-400) !important;
+    color: var(--theme-accent-500) !important;
 }
 
-/* Itens da lista de execuções */
+/* Itens da lista de execucoes — ambos os temas */
 .dashboard-card .list-group-item,
 .dashboard-list-item {
     background: transparent !important;
-    border-color: rgba(255, 255, 255, 0.1) !important;
-    color: #F1F5F9 !important;
+    border-color: var(--theme-border) !important;
+    color: var(--theme-text-primary) !important;
     padding: 14px 20px !important;
 }
 
 .dashboard-card .list-group-item:hover,
 .dashboard-list-item:hover {
-    background: rgba(255, 255, 255, 0.05) !important;
+    background: var(--theme-bg-tertiary) !important;
 }
 
-/* Texto secundário nas listas */
+/* Texto secundario nas listas */
 .dashboard-card .list-group-item small,
 .dashboard-card .list-group-item .text-muted,
 .dashboard-list-item small {
-    color: #6BAED6 !important;
+    color: var(--theme-text-secondary) !important;
 }
 
-/* Ícones nos cards de stats */
+/* Icones nos cards de stats */
 .dashboard-card .stat-icon,
 .dashboard-card .rounded-circle,
 .stat-card .stat-icon {
+    background: rgba(0, 102, 204, 0.1) !important;
+}
+
+[data-theme="dark"] .dashboard-card .stat-icon,
+[data-theme="dark"] .dashboard-card .rounded-circle,
+[data-theme="dark"] .stat-card .stat-icon {
     background: rgba(255, 255, 255, 0.1) !important;
 }
 
@@ -1070,299 +1127,160 @@ h1, h2, h3, h4, h5, h6 {
     margin-right: 8px !important;
 }
 
-/* Seções da sidebar (PRINCIPAL, CONFIGURAÇÕES) */
+/* Secoes da sidebar (PRINCIPAL, CONFIGURACOES) */
 .sidebar .nav-section-title,
 .sidebar .sidebar-section-title,
 .sidebar small.text-uppercase {
-    color: #6BAED6 !important;
+    color: var(--theme-text-tertiary) !important;
     font-size: 0.7rem !important;
     font-weight: 600 !important;
     letter-spacing: 1px !important;
     padding: 16px 20px 8px 20px !important;
 }
 
-/* Tema claro - ajustes */
-[data-theme="light"] .dashboard-card h2,
-[data-theme="light"] .dashboard-card .display-4,
-[data-theme="light"] .stat-card h2 {
+.dashboard-list-item .fw-medium {
     color: var(--theme-text-primary) !important;
 }
+/* === TEMA ESCURO — CONSOLIDADO === */
 
-[data-theme="light"] .dashboard-card p,
-[data-theme="light"] .dashboard-card .text-muted {
-    color: var(--theme-text-secondary) !important;
-}
-
-[data-theme="light"] .dashboard-card .list-group-item {
-    border-color: var(--theme-border) !important;
-}
-
-[data-theme="light"] .dashboard-list-item .fw-medium {
-    color: #000000 !important;
-}
-/* === FORÇA CORES NO TEMA ESCURO === */
+/* Tipografia geral */
 [data-theme="dark"] h1,
 [data-theme="dark"] h2,
 [data-theme="dark"] h3,
 [data-theme="dark"] h4,
 [data-theme="dark"] h5,
 [data-theme="dark"] h6 {
-    color: #FFFFFF !important;
+    color: var(--theme-text-primary) !important;
 }
 
 [data-theme="dark"] p,
-[data-theme="dark"] span,
 [data-theme="dark"] label {
-    color: #E2E8F0 !important;
+    color: var(--theme-text-primary) !important;
 }
 
 [data-theme="dark"] .text-muted {
-    color: #94A3B8 !important;
+    color: var(--theme-text-tertiary) !important;
 }
 
 [data-theme="dark"] .text-dark {
-    color: #F1F5F9 !important;
+    color: var(--theme-text-primary) !important;
 }
 
-[data-theme="dark"] .main-content h2 {
-    color: #FFFFFF !important;
+[data-theme="dark"] .empty-state {
+    color: var(--theme-text-tertiary) !important;
 }
 
-[data-theme="dark"] .main-content p {
-    color: #A3CEF1 !important;
-}
-
-/* Cards no tema escuro */
+/* Cards */
 [data-theme="dark"] .card,
 [data-theme="dark"] .dashboard-card {
-    background: #1B263B !important;
-    border-color: #3D5A80 !important;
+    background: var(--theme-surface) !important;
+    border-color: var(--theme-border-strong) !important;
 }
 
-[data-theme="dark"] .card h2,
-[data-theme="dark"] .card h3,
-[data-theme="dark"] .card h5 {
-    color: #FFFFFF !important;
+[data-theme="dark"] .card .fw-bold {
+    color: var(--theme-text-primary) !important;
 }
 
-[data-theme="dark"] .card p,
-[data-theme="dark"] .card span:not(.badge) {
-    color: #A3CEF1 !important;
+[data-theme="dark"] .card .text-muted,
+[data-theme="dark"] .card .stat-description {
+    color: var(--theme-text-tertiary) !important;
 }
 
-/* Valores numéricos grandes */
+/* Valores numericos grandes */
 [data-theme="dark"] .display-1,
 [data-theme="dark"] .display-2,
 [data-theme="dark"] .display-3,
 [data-theme="dark"] .display-4,
 [data-theme="dark"] .display-5,
-[data-theme="dark"] .display-6 {
-    color: #FFFFFF !important;
+[data-theme="dark"] .display-6,
+[data-theme="dark"] .fs-1,
+[data-theme="dark"] .fs-2,
+[data-theme="dark"] .fs-3 {
+    color: var(--theme-text-primary) !important;
 }
 
-/* Mensagens vazias (Nenhuma execução recente, etc) */
-[data-theme="dark"] .text-center.text-muted,
-[data-theme="dark"] .empty-state {
-    color: #6BAED6 !important;
-}
-/* === FIX: DASHBOARD CARDS - TEMA ESCURO === */
-[data-theme="dark"] .dashboard-card .stat-value,
-[data-theme="dark"] .dashboard-card .display-4,
-[data-theme="dark"] .dashboard-card .display-5,
-[data-theme="dark"] .dashboard-card .fs-1,
-[data-theme="dark"] .dashboard-card .fs-2,
-[data-theme="dark"] .dashboard-card .fw-bold.fs-1,
-[data-theme="dark"] .dashboard-card .fw-bold.fs-2,
-[data-theme="dark"] .dashboard-card > div > div > span:first-child,
-[data-theme="dark"] .dashboard-card .card-body > div > span:first-child {
-    color: #FFFFFF !important;
+/* Dashboard V2 (app-inline.css classes) */
+[data-theme="dark"] .dashboard-stat-value,
+[data-theme="dark"] .dashboard-card-title,
+[data-theme="dark"] .dashboard-section-title,
+[data-theme="dark"] .dashboard-list-item-title {
+    color: var(--theme-text-primary) !important;
 }
 
-[data-theme="dark"] .dashboard-card .stat-label,
-[data-theme="dark"] .dashboard-card .text-muted,
-[data-theme="dark"] .dashboard-card .card-body > div > span:last-child,
-[data-theme="dark"] .dashboard-card > div > div > span:nth-child(2),
-[data-theme="dark"] .dashboard-card .card-body p,
-[data-theme="dark"] .dashboard-card .card-body small {
-    color: #A3CEF1 !important;
+[data-theme="dark"] .dashboard-stat-label,
+[data-theme="dark"] .dashboard-list-item-subtitle {
+    color: var(--theme-text-secondary) !important;
 }
 
-/* Fix específico para números e labels nos stat cards do dashboard */
-[data-theme="dark"] .row .col .card .card-body span,
-[data-theme="dark"] .dashboard-stats span,
-[data-theme="dark"] .stats-card span {
-    color: #FFFFFF !important;
-}
-
-[data-theme="dark"] .row .col .card .card-body .text-muted,
-[data-theme="dark"] .row .col .card .card-body p {
-    color: #A3CEF1 !important;
-}
-
-/* Força cor branca em TODOS os números grandes dentro de cards no tema escuro */
-[data-theme="dark"] .card .fs-1,
-[data-theme="dark"] .card .fs-2,
-[data-theme="dark"] .card .fs-3,
-[data-theme="dark"] .card .display-1,
-[data-theme="dark"] .card .display-2,
-[data-theme="dark"] .card .display-3,
-[data-theme="dark"] .card .display-4,
-[data-theme="dark"] .card .display-5,
-[data-theme="dark"] .card .display-6,
-[data-theme="dark"] .card .fw-bold {
-    color: #FFFFFF !important;
-}
-
-/* Labels descritivos (Execuções de Pipeline, etc) */
-[data-theme="dark"] .card .card-body > div > div:first-child,
-[data-theme="dark"] .card .card-body .mb-0,
-[data-theme="dark"] .card .stat-description {
-    color: #A3CEF1 !important;
-}
-/* === FIX FINAL: NÚMEROS DOS INDICADORES DASHBOARD === */
-[data-theme="dark"] #dashboard-content span,
-[data-theme="dark"] #dashboard-content .card-body span,
-[data-theme="dark"] .dashboard-stats-grid span,
-[data-theme="dark"] [id*="dashboard"] .card span,
-[data-theme="dark"] .main-content .card .card-body > div > span,
-[data-theme="dark"] .main-content .card .card-body > div > div > span,
-[data-theme="dark"] .main-content .row .col .card span.fs-1,
-[data-theme="dark"] .main-content .row .col .card span.fs-2,
-[data-theme="dark"] .main-content .row .col .card span.fs-3,
-[data-theme="dark"] .main-content .row .col .card span.display-4,
-[data-theme="dark"] .main-content .card .card-body span[class=""] {
-    color: #FFFFFF !important;
-}
-
-/* Força TODOS os spans dentro de cards na área principal - tema escuro */
-[data-theme="dark"] .main-content .card:not(.dropdown-menu) span:not(.badge):not(.text-success):not(.text-danger):not(.text-warning):not(.text-info) {
-    color: #FFFFFF !important;
-}
-
-/* Mantém cores dos badges de status */
-[data-theme="dark"] .main-content .card .text-success {
-    color: #10B981 !important;
-}
-
-[data-theme="dark"] .main-content .card .text-danger {
-    color: #EF4444 !important;
-}
-
-[data-theme="dark"] .main-content .card .text-warning {
-    color: #F59E0B !important;
-}
-
-/* Labels descritivos mais claros */
-[data-theme="dark"] .main-content .card .text-muted {
-    color: #94A3B8 !important;
-}
-/* === FIX DEFINITIVO: DASHBOARD TEMA ESCURO === */
-
-/* Números grandes dos indicadores */
-[data-theme="dark"] .dashboard-stat-value {
-    color: #FFFFFF !important;
-}
-
-/* Labels dos cards (Execuções de Pipeline, Releases, etc) */
-[data-theme="dark"] .dashboard-stat-label {
-    color: #A3CEF1 !important;
-}
-
-/* Valores nas linhas de stats (SUCESSO, FALHA, EXECUTANDO) */
 [data-theme="dark"] .dashboard-stat-item .value {
-    color: #FFFFFF !important;
+    color: var(--theme-text-primary) !important;
 }
 
 [data-theme="dark"] .dashboard-stat-item .label {
-    color: #6BAED6 !important;
+    color: var(--theme-text-tertiary) !important;
 }
 
-/* Mantém cores de status */
-[data-theme="dark"] .dashboard-stat-item.success .value {
-    color: #10B981 !important;
+/* Cores de status preservadas */
+[data-theme="dark"] .dashboard-stat-item.success .value,
+[data-theme="dark"] .text-success {
+    color: var(--theme-success) !important;
 }
 
-[data-theme="dark"] .dashboard-stat-item.failed .value {
-    color: #EF4444 !important;
+[data-theme="dark"] .dashboard-stat-item.failed .value,
+[data-theme="dark"] .text-danger {
+    color: var(--theme-error) !important;
 }
 
-[data-theme="dark"] .dashboard-stat-item.running .value {
-    color: #F59E0B !important;
+[data-theme="dark"] .dashboard-stat-item.running .value,
+[data-theme="dark"] .text-warning {
+    color: var(--theme-warning) !important;
 }
 
-/* Cards do dashboard */
-[data-theme="dark"] .dashboard-card {
-    background: #1B263B !important;
-    border-color: #3D5A80 !important;
-}
-
-/* Header dos cards */
 [data-theme="dark"] .dashboard-card-header {
-    border-color: rgba(255, 255, 255, 0.1) !important;
+    border-color: var(--theme-border) !important;
 }
 
-[data-theme="dark"] .dashboard-card-title {
-    color: #FFFFFF !important;
-}
-
-/* Lista de execuções */
-[data-theme="dark"] .dashboard-list-item {
-    border-color: rgba(255, 255, 255, 0.1) !important;
-}
-
-[data-theme="dark"] .dashboard-list-item-title {
-    color: #FFFFFF !important;
-}
-
-[data-theme="dark"] .dashboard-list-item-subtitle {
-    color: #6BAED6 !important;
-}
-
-/* Ícones dos cards */
 [data-theme="dark"] .dashboard-card-icon {
     opacity: 0.9;
 }
 
-/* Seção do dashboard */
-[data-theme="dark"] .dashboard-section-title {
-    color: #FFFFFF !important;
+[data-theme="dark"] .dashboard-list-item {
+    border-color: var(--theme-border) !important;
 }
-/* === FIX: TABELA DE USUÁRIOS E BADGES - TEMA ESCURO === */
 
-/* Badges com fundo claro precisam de texto escuro */
+/* Badges */
 [data-theme="dark"] .badge.bg-light {
     background: rgba(255, 255, 255, 0.15) !important;
-    color: #FFFFFF !important;
+    color: var(--theme-text-primary) !important;
     border: 1px solid rgba(255, 255, 255, 0.3) !important;
 }
 
 [data-theme="dark"] .badge.text-dark {
-    color: #FFFFFF !important;
+    color: var(--theme-text-primary) !important;
 }
 
-/* Badges de perfil (admin, operator, viewer) */
 [data-theme="dark"] .badge.bg-danger {
     background: rgba(239, 68, 68, 0.2) !important;
     color: #FCA5A5 !important;
-    border: 1px solid #EF4444 !important;
+    border: 1px solid var(--theme-error) !important;
 }
 
 [data-theme="dark"] .badge.bg-primary {
     background: rgba(59, 130, 246, 0.2) !important;
     color: #93C5FD !important;
-    border: 1px solid #3B82F6 !important;
+    border: 1px solid var(--theme-info) !important;
 }
 
 [data-theme="dark"] .badge.bg-success {
     background: rgba(16, 185, 129, 0.2) !important;
     color: #6EE7B7 !important;
-    border: 1px solid #10B981 !important;
+    border: 1px solid var(--theme-success) !important;
 }
 
 [data-theme="dark"] .badge.bg-warning {
     background: rgba(245, 158, 11, 0.2) !important;
     color: #FCD34D !important;
-    border: 1px solid #F59E0B !important;
+    border: 1px solid var(--theme-warning) !important;
 }
 
 [data-theme="dark"] .badge.bg-info {
@@ -1377,98 +1295,54 @@ h1, h2, h3, h4, h5, h6 {
     border: 1px solid #64748B !important;
 }
 
-/* Texto dentro dos badges */
-[data-theme="dark"] .badge span,
-[data-theme="dark"] .badge {
-    font-weight: 600 !important;
-}
-
-/* Botões de ação na tabela */
+/* Botoes outline */
 [data-theme="dark"] .btn-outline-primary {
-    border-color: #3B82F6 !important;
-    color: #93C5FD !important;
+    border-color: var(--theme-primary-400) !important;
+    color: var(--theme-primary-300) !important;
 }
 
 [data-theme="dark"] .btn-outline-primary:hover {
-    background: #3B82F6 !important;
+    background: var(--theme-primary-500) !important;
     color: #FFFFFF !important;
 }
 
 [data-theme="dark"] .btn-outline-warning {
-    border-color: #F59E0B !important;
+    border-color: var(--theme-warning) !important;
     color: #FCD34D !important;
 }
 
 [data-theme="dark"] .btn-outline-danger {
-    border-color: #EF4444 !important;
+    border-color: var(--theme-error) !important;
     color: #FCA5A5 !important;
 }
 
 [data-theme="dark"] .btn-outline-danger:hover {
-    background: #EF4444 !important;
+    background: var(--theme-error) !important;
     color: #FFFFFF !important;
 }
 
-/* Linhas da tabela */
-[data-theme="dark"] .table tbody tr {
-    border-color: rgba(255, 255, 255, 0.1) !important;
-}
-
-[data-theme="dark"] .table tbody td {
-    color: #E2E8F0 !important;
-}
-/* === FIX: FUNDO DA TABELA - TEMA ESCURO === */
-[data-theme="dark"] .table {
-    background: transparent !important;
-}
-
-[data-theme="dark"] .table tbody {
-    background: #1B263B !important;
-}
-
-[data-theme="dark"] .table tbody tr {
-    background: #1B263B !important;
-}
-
-[data-theme="dark"] .table tbody tr:hover {
-    background: #253A54 !important;
-}
-
-[data-theme="dark"] .table-striped tbody tr:nth-of-type(odd) {
-    background: #1E3448 !important;
-}
-
-[data-theme="dark"] .table-striped tbody tr:nth-of-type(even) {
-    background: #1B263B !important;
-}
-
-/* Card que contém a tabela */
-[data-theme="dark"] .card .table,
-[data-theme="dark"] .card .table tbody,
-[data-theme="dark"] .card .table tbody tr {
-    background: transparent !important;
-}
-
-[data-theme="dark"] .card {
-    background: #1B263B !important;
-}
-
-/* Garante que table-responsive também tenha fundo correto */
-[data-theme="dark"] .table-responsive {
-    background: #1B263B !important;
-    border-radius: 10px;
-}
-/* === FIX DEFINITIVO: CÉLULAS DA TABELA - TEMA ESCURO === */
-[data-theme="dark"] table,
-[data-theme="dark"] table tbody,
-[data-theme="dark"] table tbody tr,
-[data-theme="dark"] table tbody tr td,
+/* Tabelas — regras unicas e consolidadas */
 [data-theme="dark"] .table,
+[data-theme="dark"] table {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
 [data-theme="dark"] .table tbody,
 [data-theme="dark"] .table tbody tr,
-[data-theme="dark"] .table tbody tr td {
-    background: #1B263B !important;
-    background-color: #1B263B !important;
+[data-theme="dark"] .table tbody tr td,
+[data-theme="dark"] table tbody,
+[data-theme="dark"] table tbody tr,
+[data-theme="dark"] table tbody tr td {
+    background: var(--theme-surface) !important;
+    background-color: var(--theme-surface) !important;
+    box-shadow: none !important;
+}
+
+[data-theme="dark"] .table tbody td,
+[data-theme="dark"] table tbody td {
+    color: var(--theme-text-primary) !important;
+    border-color: var(--theme-border) !important;
 }
 
 [data-theme="dark"] .table tbody tr:hover,
@@ -1480,45 +1354,47 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 [data-theme="dark"] .table-striped > tbody > tr:nth-of-type(odd) > *,
+[data-theme="dark"] .table-striped tbody tr:nth-of-type(odd),
 [data-theme="dark"] .table-striped tbody tr:nth-of-type(odd) td {
     background: #1E3448 !important;
     background-color: #1E3448 !important;
 }
 
 [data-theme="dark"] .table-striped > tbody > tr:nth-of-type(even) > *,
+[data-theme="dark"] .table-striped tbody tr:nth-of-type(even),
 [data-theme="dark"] .table-striped tbody tr:nth-of-type(even) td {
-    background: #1B263B !important;
-    background-color: #1B263B !important;
+    background: var(--theme-surface) !important;
+    background-color: var(--theme-surface) !important;
 }
 
-/* Remove qualquer box-shadow que possa criar efeito branco */
-[data-theme="dark"] .table,
-[data-theme="dark"] .table tbody tr,
-[data-theme="dark"] .table tbody td {
-    box-shadow: none !important;
+[data-theme="dark"] .table-responsive {
+    background: var(--theme-surface) !important;
+    border-radius: 10px;
 }
 
-/* Garante borda correta */
-[data-theme="dark"] .table tbody td {
-    border-color: rgba(255, 255, 255, 0.1) !important;
+[data-theme="dark"] .card .table,
+[data-theme="dark"] .card .table tbody,
+[data-theme="dark"] .card .table tbody tr {
+    background: transparent !important;
 }
-/* === FIX: REMOVER FAIXA BRANCA NO RODAPÉ - TEMA ESCURO === */
+
+/* Containers e fundo geral */
 [data-theme="dark"] body {
-    background: #0D1B2A !important;
+    background: var(--theme-bg-primary) !important;
     min-height: 100vh;
 }
 
 [data-theme="dark"] html {
-    background: #0D1B2A !important;
+    background: var(--theme-bg-primary) !important;
 }
 
 [data-theme="dark"] .app-container {
-    background: #0D1B2A !important;
+    background: var(--theme-bg-primary) !important;
     min-height: 100vh;
 }
 
 [data-theme="dark"] .main-content {
-    background: #0D1B2A !important;
+    background: var(--theme-bg-primary) !important;
     min-height: calc(100vh - 64px);
 }
 
@@ -1527,10 +1403,9 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 [data-theme="dark"] #pipelineRunView {
-    background: #0D1B2A !important;
+    background: var(--theme-bg-primary) !important;
 }
 
-/* Garante que não haja fundo branco em nenhum container */
 [data-theme="dark"] .container,
 [data-theme="dark"] .container-fluid {
     background: transparent !important;
@@ -1542,32 +1417,32 @@ h1, h2, h3, h4, h5, h6 {
     padding-right: 5px;
 }
 
-/* Estilizar scrollbar das listas - mais visível */
+/* Estilizar scrollbar das listas */
 .dashboard-card .dashboard-list::-webkit-scrollbar {
     width: 8px;
 }
 
 .dashboard-card .dashboard-list::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--theme-bg-tertiary);
     border-radius: 4px;
 }
 
 .dashboard-card .dashboard-list::-webkit-scrollbar-thumb {
-    background: rgba(59, 130, 246, 0.5);
+    background: var(--theme-border-strong);
     border-radius: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .dashboard-card .dashboard-list::-webkit-scrollbar-thumb:hover {
-    background: rgba(59, 130, 246, 0.8);
+    background: var(--theme-primary-500);
 }
-/* Form text helper - melhor visibilidade no tema dark */
+
+/* Form text helper */
 .form-text {
-    color: var(--text-secondary) !important;
+    color: var(--theme-text-secondary) !important;
     opacity: 0.85;
 }
 
-/* 🆕 Fix contraste: texto escuro em bg-white dentro de modais no dark mode */
+/* Fix contraste: texto escuro em bg-white dentro de modais no dark mode */
 [data-theme="dark"] #selectedCommands .bg-white,
 [data-theme="dark"] #editSelectedCommands .bg-white {
     color: #212529 !important;
@@ -1580,13 +1455,17 @@ h1, h2, h3, h4, h5, h6 {
 
 /* === MELHORIAS DO DASHBOARD === */
 
-/* Melhoria 1: Barra de progresso (taxa de sucesso) */
+/* Barra de progresso (taxa de sucesso) */
 .dashboard-progress-bar {
     height: 6px;
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.1);
     border-radius: 3px;
     margin: 8px 16px 0;
     overflow: hidden;
+}
+
+[data-theme="dark"] .dashboard-progress-bar {
+    background: rgba(255, 255, 255, 0.15);
 }
 
 .dashboard-progress-fill {
@@ -1597,28 +1476,16 @@ h1, h2, h3, h4, h5, h6 {
 
 .dashboard-progress-label {
     font-size: 0.75rem;
-    color: var(--theme-text-secondary, #adb5bd);
+    color: var(--theme-text-secondary);
     text-align: right;
     padding: 2px 16px 0;
 }
 
-[data-theme="light"] .dashboard-progress-bar {
-    background: rgba(0, 0, 0, 0.1);
-}
-
-[data-theme="light"] .dashboard-progress-label {
-    color: #6c757d;
-}
-
-/* Melhoria 2: Duração nas últimas execuções */
+/* Duracao nas ultimas execucoes */
 .dashboard-duration {
     margin-left: 6px;
-    color: var(--theme-accent-500, #8b5cf6);
+    color: var(--theme-accent-500);
     font-weight: 500;
-}
-
-[data-theme="light"] .dashboard-duration {
-    color: #6d28d9;
 }
 
 /* Melhoria 4: Card de Saúde do Sistema */
@@ -1634,12 +1501,12 @@ h1, h2, h3, h4, h5, h6 {
 
 .dashboard-health-indicator.healthy {
     background: rgba(34, 197, 94, 0.15);
-    color: #22c55e;
+    color: var(--theme-success);
 }
 
 .dashboard-health-indicator.unhealthy {
     background: rgba(239, 68, 68, 0.15);
-    color: #ef4444;
+    color: var(--theme-error);
     animation: pulse-health 2s infinite;
 }
 
@@ -1652,13 +1519,13 @@ h1, h2, h3, h4, h5, h6 {
     color: #fff;
 }
 
-/* Melhoria 5: Animação pulse para pipelines em execução */
+/* Animacao pulse para pipelines em execucao */
 .dashboard-pulse {
     display: inline-block;
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: #f59e0b;
+    background: var(--theme-warning);
     margin-right: 6px;
     vertical-align: middle;
     animation: dashboard-pulse-anim 1.5s ease-in-out infinite;
@@ -1669,7 +1536,7 @@ h1, h2, h3, h4, h5, h6 {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: #f59e0b;
+    background: var(--theme-warning);
     margin-right: 4px;
     vertical-align: middle;
     animation: dashboard-pulse-anim 1.5s ease-in-out infinite;

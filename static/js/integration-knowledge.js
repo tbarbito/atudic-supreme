@@ -806,19 +806,7 @@ function kbImportArticles() {
             const formData = new FormData();
             formData.append('file', file);
 
-            const headers = {};
-            if (authToken) headers['Authorization'] = authToken;
-            const envId = sessionStorage.getItem('active_environment_id');
-            if (envId) headers['X-Environment-Id'] = envId;
-
-            const response = await fetch(`${API_BASE_URL}/knowledge/import`, {
-                method: 'POST',
-                headers: headers,
-                body: formData,
-            });
-
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.error || `Erro ${response.status}`);
+            const result = await apiFormRequest('/knowledge/import', formData);
 
             showNotification(result.message || 'Importacao concluida', 'success');
             await loadKbCategories();

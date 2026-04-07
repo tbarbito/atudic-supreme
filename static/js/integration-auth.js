@@ -769,7 +769,7 @@ async function adminChangePassword() {
 // ALTERAÇÃO DE SENHA DO PRÓPRIO USUÁRIO
 // =====================================================================
 
-function showChangePasswordModal() {
+function showChangeOwnPasswordModal() {
     document.getElementById('changePasswordForm').reset();
     const modal = new bootstrap.Modal(document.getElementById('changePasswordModal'));
     modal.show();
@@ -873,18 +873,9 @@ function setupActivateLicenseModal() {
         }
 
         try {
-            const response = await fetch('/api/license/validate-admin', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ username, password })
-            });
-
-            const data = await response.json();
+            const data = await apiRequest('/license/validate-admin', 'POST', { username, password });
 
             if (data.success) {
-                // Redirecionar para página de ativação
                 window.location.href = data.redirect || '/activate';
             } else {
                 errorDiv.textContent = data.error || 'Acesso negado';
@@ -892,7 +883,7 @@ function setupActivateLicenseModal() {
             }
         } catch (error) {
             console.error('Erro ao validar acesso:', error);
-            errorDiv.textContent = 'Erro de conexão com o servidor';
+            errorDiv.textContent = error.message || 'Erro de conexao com o servidor';
             errorDiv.style.display = 'block';
         }
     });
@@ -904,8 +895,7 @@ function setupActivateLicenseModal() {
 
 async function checkFirstAccess() {
     try {
-        const response = await fetch('/api/first-access/check');
-        const data = await response.json();
+        const data = await apiRequest('/first-access/check');
 
         const btnFirstAccess = document.getElementById('btnFirstAccess');
         if (btnFirstAccess) {
@@ -1004,15 +994,7 @@ function setupFirstAccessModal() {
         submitBtn.disabled = true;
 
         try {
-            const response = await fetch('/api/first-access/create', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ username, name, email, password })
-            });
-
-            const data = await response.json();
+            const data = await apiRequest('/first-access/create', 'POST', { username, name, email, password });
 
             if (data.success) {
                 successDiv.innerHTML = `<i class="fas fa-check-circle me-1"></i>${escapeHtml(data.message)}`;
@@ -1329,17 +1311,12 @@ let _permissionRoles = null;
 async function loadPermissionCatalog() {
     if (_permissionCatalog) return _permissionCatalog;
     try {
-        const res = await fetch('/api/permissions/catalog', {
-            headers: { 'Authorization': authToken }
-        });
-        if (res.ok) {
-            const data = await res.json();
-            _permissionCatalog = data.catalog;
-            _permissionRoles = data.roles;
-            return _permissionCatalog;
-        }
+        const data = await apiRequest('/permissions/catalog');
+        _permissionCatalog = data.catalog;
+        _permissionRoles = data.roles;
+        return _permissionCatalog;
     } catch (e) {
-        console.error('Erro ao carregar catálogo de permissões:', e);
+        console.error('Erro ao carregar catalogo de permissoes:', e);
     }
     return null;
 }
@@ -1351,19 +1328,22 @@ async function showPermissionOverridesModal({ userId }) {
     }
 
     // Carregar catalogo e permissoes do usuario em paralelo
-    const [catalog, permRes] = await Promise.all([
-        loadPermissionCatalog(),
-        fetch(`/api/users/${userId}/permissions`, {
-            headers: { 'Authorization': authToken }
-        })
-    ]);
-
-    if (!catalog || !permRes.ok) {
-        showNotification('Erro ao carregar permissões', 'error');
+    let permData;
+    try {
+        const [catalog_, permData_] = await Promise.all([
+            loadPermissionCatalog(),
+            apiRequest(`/users/${userId}/permissions`)
+        ]);
+        if (!catalog_) {
+            showNotification('Erro ao carregar catalogo de permissoes', 'error');
+            return;
+        }
+        var catalog = catalog_;
+        permData = permData_;
+    } catch (e) {
+        showNotification('Erro ao carregar permissoes', 'error');
         return;
     }
-
-    const permData = await permRes.json();
 
     if (permData.is_root) {
         showNotification('Root admin tem permissão total — não aceita overrides', 'warning');
@@ -1569,52 +1549,29 @@ async function setPermOverride({ userId, key, effect }) {
     }
 
     try {
-        const res = await fetch(`/api/users/${userId}/permissions/overrides`, {
-            method: 'POST',
-            headers: {
-                'Authorization': authToken,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ permission_key: key, effect, reason })
-        });
-
-        const data = await res.json();
-        if (res.ok) {
-            showNotification(data.message || 'Override criado', 'success');
-            // Fechar e reabrir modal para atualizar
-            const modal = bootstrap.Modal.getInstance(document.getElementById('permOverridesModal'));
-            if (modal) modal.hide();
-            setTimeout(() => showPermissionOverridesModal({ userId }), 300);
-        } else {
-            showNotification(data.error || 'Erro ao criar override', 'error');
-        }
+        const data = await apiRequest(`/users/${userId}/permissions/overrides`, 'POST', { permission_key: key, effect, reason });
+        showNotification(data.message || 'Override criado', 'success');
+        const modal = bootstrap.Modal.getInstance(document.getElementById('permOverridesModal'));
+        if (modal) modal.hide();
+        setTimeout(() => showPermissionOverridesModal({ userId }), 300);
     } catch (e) {
         console.error('Erro ao criar override:', e);
-        showNotification('Erro de comunicação', 'error');
+        showNotification(e.message || 'Erro ao criar override', 'error');
     }
 }
 
 async function removePermOverride({ userId, overrideId }) {
-    if (!confirm('Remover este override? O usuário voltará ao perfil base para esta permissão.')) return;
+    if (!confirm('Remover este override? O usuario voltara ao perfil base para esta permissao.')) return;
 
     try {
-        const res = await fetch(`/api/users/${userId}/permissions/overrides/${overrideId}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': authToken }
-        });
-
-        const data = await res.json();
-        if (res.ok) {
-            showNotification('Override removido', 'success');
-            const modal = bootstrap.Modal.getInstance(document.getElementById('permOverridesModal'));
-            if (modal) modal.hide();
-            setTimeout(() => showPermissionOverridesModal({ userId }), 300);
-        } else {
-            showNotification(data.error || 'Erro ao remover override', 'error');
-        }
+        const data = await apiRequest(`/users/${userId}/permissions/overrides/${overrideId}`, 'DELETE');
+        showNotification('Override removido', 'success');
+        const modal = bootstrap.Modal.getInstance(document.getElementById('permOverridesModal'));
+        if (modal) modal.hide();
+        setTimeout(() => showPermissionOverridesModal({ userId }), 300);
     } catch (e) {
         console.error('Erro ao remover override:', e);
-        showNotification('Erro de comunicação', 'error');
+        showNotification(e.message || 'Erro ao remover override', 'error');
     }
 }
 

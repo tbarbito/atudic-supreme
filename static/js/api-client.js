@@ -56,6 +56,86 @@ try {
     }
 }
 
+/**
+ * Envia FormData (multipart) para o backend.
+ * NAO define Content-Type (o browser faz isso automaticamente com boundary).
+ */
+async function apiFormRequest(endpoint, formData) {
+    const headers = {};
+    if (authToken) {
+        headers['Authorization'] = authToken;
+    }
+    const activeEnvironmentId = sessionStorage.getItem('active_environment_id');
+    if (activeEnvironmentId) {
+        headers['X-Environment-Id'] = activeEnvironmentId;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+            method: 'POST',
+            headers: headers,
+            body: formData
+        });
+
+        if (!response.ok) {
+            const responseData = await response.json().catch(() => ({ error: 'Resposta invalida do servidor' }));
+            const error = new Error(responseData.error || `Erro ${response.status}`);
+            error.status = response.status;
+            throw error;
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Erro na API (FormData):', { endpoint, message: error.message });
+        throw error;
+    }
+}
+
+/**
+ * Faz download de arquivo (blob) do backend.
+ * Retorna o Response completo para que o caller trate o blob.
+ */
+async function apiDownload(endpoint) {
+    const headers = {};
+    if (authToken) {
+        headers['Authorization'] = authToken;
+    }
+    const activeEnvironmentId = sessionStorage.getItem('active_environment_id');
+    if (activeEnvironmentId) {
+        headers['X-Environment-Id'] = activeEnvironmentId;
+    }
+
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, { headers });
+
+    if (!response.ok) {
+        const responseData = await response.json().catch(() => ({ error: 'Erro no download' }));
+        const error = new Error(responseData.error || `Erro ${response.status}`);
+        error.status = response.status;
+        throw error;
+    }
+
+    return response;
+}
+
+/**
+ * Faz POST e retorna o Response para stream (SSE/reader) ou blob.
+ */
+async function apiStreamRequest(endpoint, data = null) {
+    const headers = getHeaders();
+    const options = { method: 'POST', headers };
+    if (data) {
+        options.body = JSON.stringify(data);
+    }
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+    if (!response.ok) {
+        const responseData = await response.json().catch(() => ({ error: 'Erro no stream' }));
+        const error = new Error(responseData.error || `Erro ${response.status}`);
+        error.status = response.status;
+        throw error;
+    }
+    return response;
+}
+
 // =====================================================================
 // AUTENTICAÇÃO
 // =====================================================================

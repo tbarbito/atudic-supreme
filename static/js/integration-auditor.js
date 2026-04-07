@@ -308,23 +308,7 @@ async function _auditorAnalyze() {
     if (envId) formData.append('environment_id', envId);
 
     try {
-        const headers = {};
-        if (authToken) headers['Authorization'] = authToken;
-        const envHeader = sessionStorage.getItem('active_environment_id');
-        if (envHeader) headers['X-Environment-Id'] = envHeader;
-
-        const resp = await fetch('/api/auditor/upload', {
-            method: 'POST',
-            headers: headers,
-            body: formData,
-        });
-        const data = await resp.json();
-
-        if (!resp.ok) {
-            showNotification(data.error || 'Erro na analise', 'error');
-            return;
-        }
-
+        const data = await apiFormRequest('/auditor/upload', formData);
         auditorCurrentResult = data;
         showNotification(`Análise concluída! Score: ${data.score}`, 'success');
 
