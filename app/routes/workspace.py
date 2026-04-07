@@ -2884,27 +2884,33 @@ def analista_ask(slug):
 @workspace_bp.route("/workspaces/<slug>/analista/history", methods=["GET"])
 @require_permission("devworkspace:view")
 def analista_history(slug):
-    """Historico de perguntas do analista."""
+    """Historico de perguntas do analista — agrupa pares user/assistant."""
     db = _get_db(slug)
-    limit = request.args.get("limit", 50, type=int)
+    limit = request.args.get("limit", 30, type=int)
 
     try:
         rows = db.execute(
             "SELECT id, role, content, sources, created_at "
             "FROM chat_history ORDER BY id DESC LIMIT ?",
-            (limit,)
+            (limit * 2,)  # pares user+assistant
         ).fetchall()
-        items = [
-            {
-                "id": r[0],
-                "role": r[1],
-                "content": r[2],
-                "sources": json.loads(r[3]) if r[3] else [],
-                "created_at": r[4],
-            }
-            for r in reversed(rows)
-        ]
-        return jsonify(items)
+
+        # Agrupar em pares question/answer para o frontend
+        pairs = []
+        pending_answer = None
+        for r in rows:  # DESC order: assistant primeiro, user depois
+            if r[1] == "assistant":
+                pending_answer = {
+                    "answer": r[2],
+                    "sources": json.loads(r[3]) if r[3] else [],
+                    "created_at": r[4],
+                }
+            elif r[1] == "user" and pending_answer:
+                pending_answer["question"] = r[2]
+                pairs.append(pending_answer)
+                pending_answer = None
+
+        return jsonify(pairs[:limit])
     except Exception:
         return jsonify([])
 

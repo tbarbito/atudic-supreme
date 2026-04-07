@@ -2052,7 +2052,7 @@ async function wsRenderAnalista(container) {
             return '<div class="list-group-item list-group-item-action py-2 px-2" style="cursor:pointer;font-size:0.8rem" ' +
                 'onclick="wsAnalistaLoadHistoryItem(' + idx + ')">' +
                 '<i class="fas fa-question-circle text-primary me-1" style="font-size:0.7rem"></i>' +
-                dwEscapeHtml(item.question.substring(0, 60)) + (item.question.length > 60 ? '...' : '') +
+                dwEscapeHtml((item.question || '').substring(0, 60)) + ((item.question || '').length > 60 ? '...' : '') +
             '</div>';
         }).join('');
     }
