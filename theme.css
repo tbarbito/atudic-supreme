@@ -1156,7 +1156,18 @@ h1, h2, h3, h4, h5, h6 {
 [data-theme="dark"] p,
 [data-theme="dark"] label,
 [data-theme="dark"] small,
-[data-theme="dark"] span {
+[data-theme="dark"] span,
+[data-theme="dark"] strong,
+[data-theme="dark"] b,
+[data-theme="dark"] a:not(.btn):not(.nav-link):not(.dropdown-item):not(.header-tab) {
+    color: var(--theme-text-primary) !important;
+}
+
+/* Heranca de cor via containers de conteudo — cobre texto direto em divs */
+[data-theme="dark"] .main-content,
+[data-theme="dark"] .card-body,
+[data-theme="dark"] .modal-body,
+[data-theme="dark"] .list-group-item {
     color: var(--theme-text-primary) !important;
 }
 
@@ -1188,7 +1199,9 @@ h1, h2, h3, h4, h5, h6 {
 
 [data-theme="dark"] .card p,
 [data-theme="dark"] .card small,
+[data-theme="dark"] .card strong,
 [data-theme="dark"] .card .card-text,
+[data-theme="dark"] .card .d-flex,
 [data-theme="dark"] .card span:not(.badge):not(.text-success):not(.text-danger):not(.text-warning):not(.text-info) {
     color: var(--theme-text-primary) !important;
 }
