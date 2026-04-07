@@ -2824,11 +2824,17 @@ def analista_ask(slug):
 
     context_text = "\n".join(context_parts)[:20000]  # Limitar contexto
 
-    system_prompt = prompt_template.format(
-        context=context_text,
-        tool_results="",
-        customizacoes_existentes="",
-    )
+    # Preencher todos os placeholders dos prompts (variam por modo)
+    from collections import defaultdict
+    format_vars = defaultdict(str, {
+        "context": context_text,
+        "tool_results": "",
+        "customizacoes_existentes": "",
+        "artefatos": "",
+        "artefatos_json": "[]",
+        "indice_artefatos": "",
+    })
+    system_prompt = prompt_template.format_map(format_vars)
 
     # ── 6. Historico da conversa ──
     history = []
