@@ -33,47 +33,79 @@ def _handle_workspace_llm_error(e):
     return jsonify({"error": str(e)}), 503
 
 
+class _WorkspaceLLMAdapter:
+    """Adapter que expoe interface compativel com workspace services (._call, .chat, .classify).
+
+    O provider do sistema principal tem .chat(messages, system_prompt, temperature, max_tokens)
+    que retorna dict. Os services do workspace esperam ._call(messages) que retorna str.
+    """
+
+    def __init__(self, provider):
+        self._provider = provider
+
+    def chat(self, messages, max_tokens=None):
+        """Chamada basica — extrai system e retorna str."""
+        system, clean = self._split_system(messages)
+        kwargs = {"messages": clean, "temperature": 0.4}
+        if system:
+            kwargs["system_prompt"] = system
+        if max_tokens:
+            kwargs["max_tokens"] = max_tokens
+        result = self._provider.chat(**kwargs)
+        if isinstance(result, str):
+            return result
+        return result.get("content", result.get("response", ""))
+
+    def _call(self, messages, temperature=0.3, use_gen=False, timeout=120, max_tokens=None):
+        """Interface compativel com workspace LLMProvider._call()."""
+        system, clean = self._split_system(messages)
+        kwargs = {"messages": clean, "temperature": temperature}
+        if system:
+            kwargs["system_prompt"] = system
+        if max_tokens:
+            kwargs["max_tokens"] = max_tokens
+        result = self._provider.chat(**kwargs)
+        if isinstance(result, str):
+            return result
+        return result.get("content", result.get("response", ""))
+
+    def classify(self, question):
+        """Wrapper para classificacao."""
+        from app.services.workspace.llm import CLASSIFY_PROMPT
+        return self._call(
+            [{"role": "system", "content": CLASSIFY_PROMPT}, {"role": "user", "content": question}],
+            temperature=0.1
+        )
+
+    @staticmethod
+    def _split_system(messages):
+        """Separa system prompt das messages."""
+        system_parts = []
+        clean = []
+        for m in messages:
+            if m.get("role") == "system":
+                system_parts.append(m["content"])
+            else:
+                clean.append(m)
+        return "\n".join(system_parts) if system_parts else None, clean
+
+
 def _get_llm_provider():
-    """Retorna LLMProvider via AgentChatEngine singleton."""
+    """Retorna LLMProvider adaptado via AgentChatEngine singleton."""
     from app.services.agent_chat import get_chat_engine
     engine = get_chat_engine()
     if not engine._llm_provider:
         raise RuntimeError("Nenhum LLM provider configurado")
-    return engine._llm_provider
+    return _WorkspaceLLMAdapter(engine._llm_provider)
 
 
 def _llm_chat_text(provider, messages):
     """Chama LLMProvider.chat() e retorna texto da resposta.
 
-    Trata automaticamente o role 'system': APIs como Anthropic nao aceitam
-    'system' no array de messages — converte para prefixo no primeiro user msg.
+    O _WorkspaceLLMAdapter ja cuida de separar system_prompt e normalizar resposta.
     """
-    # Normalizar messages: extrair system e prefixar no primeiro user msg
-    system_parts = []
-    clean_msgs = []
-    for m in messages:
-        if m.get("role") == "system":
-            system_parts.append(m["content"])
-        else:
-            clean_msgs.append(m)
-
-    if system_parts and clean_msgs:
-        system_text = "\n".join(system_parts)
-        # Prefixar system no primeiro user message
-        for i, m in enumerate(clean_msgs):
-            if m["role"] == "user":
-                clean_msgs[i] = {
-                    "role": "user",
-                    "content": f"[CONTEXTO DO SISTEMA]\n{system_text}\n\n[PERGUNTA]\n{m['content']}"
-                }
-                break
-        messages = clean_msgs
-    elif system_parts:
-        # Sem user msg — converter system em user
-        messages = [{"role": "user", "content": "\n".join(system_parts)}]
-
     try:
-        result = provider.chat(messages)
+        return provider.chat(messages)
     except Exception as e:
         err_msg = str(e)
         if "rate_limit" in err_msg.lower() or "rate limit" in err_msg.lower():
@@ -81,9 +113,6 @@ def _llm_chat_text(provider, messages):
         if "auth" in err_msg.lower() or "api_key" in err_msg.lower():
             raise WorkspaceLLMError("Erro de autenticacao LLM. Verifique a API key em Configuracoes > LLM/IA.")
         raise WorkspaceLLMError(f"Erro LLM: {err_msg[:200]}")
-    if isinstance(result, str):
-        return result
-    return result.get("content", result.get("response", ""))
 
 # Mapa de normalizacao SIGA* → nome curto do modulo
 _SIGA_TO_MODULE = {
@@ -2506,24 +2535,11 @@ Analise tecnica existente (JSON): {analise_json}
             f"DADOS DE INVESTIGACAO:\n{tool_results_text}\n"
         )
 
-        non_system_msgs = []
+        messages = [{"role": "system", "content": system_prompt}]
         for h_role, h_content in hist_rows:
-            non_system_msgs.append({"role": h_role, "content": h_content})
+            messages.append({"role": h_role, "content": h_content})
 
-        # Prefixar system no primeiro user msg (Anthropic nao aceita role system)
-        if non_system_msgs:
-            for i, m in enumerate(non_system_msgs):
-                if m["role"] == "user":
-                    non_system_msgs[i] = {
-                        "role": "user",
-                        "content": f"[CONTEXTO]\n{system_prompt}\n\n[PERGUNTA]\n{m['content']}"
-                    }
-                    break
-            messages = non_system_msgs
-        else:
-            messages = [{"role": "user", "content": system_prompt}]
-
-        # Fase 2: Stream LLM
+        # Fase 2: Stream LLM (adapter ja cuida de system_prompt separado)
         yield f"data: {json.dumps({'event': 'status', 'step': 'Gerando resposta...'}, ensure_ascii=False)}\n\n"
 
         full_text = ""
@@ -2666,7 +2682,11 @@ Texto: {descricao}"""
 @workspace_bp.route("/workspaces/<slug>/analista/ask", methods=["POST"])
 @require_permission("devworkspace:chat")
 def analista_ask(slug):
-    """Envia pergunta ao analista do workspace."""
+    """Envia pergunta ao analista do workspace usando pipeline completo.
+
+    Pipeline: classificacao → extracao de entidades → decomposer padrao →
+    resolucao semantica → investigacao → prompt especializado → LLM.
+    """
     data = request.get_json()
     question = (data or {}).get("question", "").strip()
     if not question:
@@ -2675,54 +2695,142 @@ def analista_ask(slug):
     db = _get_db(slug)
     ks = KnowledgeService(db)
 
-    # Construir contexto do workspace
+    try:
+        llm = _get_llm_provider()
+    except Exception as e:
+        return jsonify({"error": f"LLM nao disponivel: {str(e)[:200]}"}), 500
+
+    # ── 1. Classificacao + extracao de entidades ──
+    from app.services.workspace.analista_orchestrator import classify_demand, extract_entities_from_text
+    classification = {}
+    entities = extract_entities_from_text(question)
+    try:
+        classification = classify_demand(llm, question)
+    except Exception as e:
+        logger.warning("Classificacao falhou (fallback regex): %s", e)
+        classification = {"tipo": "duvida", "confianca": 0.3, "entidades": entities}
+
+    tabelas = entities.get("tabelas", []) + (classification.get("entidades", {}).get("tabelas", []))
+    campos = entities.get("campos", []) + (classification.get("entidades", {}).get("campos", []))
+    tabelas = list(set(t.upper() for t in tabelas if t))
+    campos = list(set(c.upper() for c in campos if c))
+
+    # Inferir tabelas a partir de campos (B1_COD → SB1)
+    for c in campos:
+        prefix = c.split("_")[0]
+        if len(prefix) == 2:
+            inferred = f"S{prefix}"
+            if inferred not in tabelas:
+                tabelas.append(inferred)
+
+    # ── 2. Query Decomposer — cross-ref padrao vs cliente ──
+    context_parts = []
+    try:
+        from app.services.workspace.query_decomposer import decompose_and_investigate
+        decomposer_ctx = decompose_and_investigate(question, llm)
+        if decomposer_ctx and len(decomposer_ctx) > 50:
+            context_parts.append(decomposer_ctx)
+    except Exception as e:
+        logger.warning("Decomposer falhou: %s", e)
+
+    # ── 3. Contexto do workspace — tabelas, campos, fontes vinculados ──
     try:
         summary = ks.get_custom_summary()
-    except Exception:
-        summary = {}
-
-    # Buscar modulos disponiveis
-    modulos_list = []
-    try:
-        rows = db.execute(
-            "SELECT DISTINCT modulo FROM fontes WHERE modulo IS NOT NULL AND modulo != '' ORDER BY modulo"
-        ).fetchall()
-        modulos_list = [r[0] for r in rows]
+        context_parts.append(f"Resumo do workspace: {json.dumps(summary, ensure_ascii=False)}")
     except Exception:
         pass
 
-    # Buscar tabelas mencionadas na pergunta para contexto extra
-    sources = []
-    q_upper = question.upper()
-    try:
-        tab_rows = db.execute(
-            "SELECT codigo, nome FROM tabelas WHERE upper(codigo) LIKE ? OR upper(nome) LIKE ? LIMIT 5",
-            (f"%{q_upper[:20]}%", f"%{q_upper[:30]}%")
-        ).fetchall()
-        for r in tab_rows:
-            info = ks.get_table_info(r[0])
+    # Buscar info detalhada das tabelas identificadas
+    for tab in tabelas[:10]:
+        try:
+            info = ks.get_table_info(tab)
             if info:
-                sources.append({"tipo": "tabela", "codigo": r[0], "nome": r[1]})
+                tab_ctx = f"\nTabela {tab} ({info.get('nome', '')}):"
+                # Campos custom
+                custom_fields = [c for c in info.get("campos", []) if c.get("custom")]
+                if custom_fields:
+                    tab_ctx += f"\n  Campos custom ({len(custom_fields)}): " + ", ".join(
+                        f"{c['campo']}({c.get('titulo', '')})" for c in custom_fields[:15]
+                    )
+                # Gatilhos
+                gatilhos = info.get("gatilhos", [])
+                if gatilhos:
+                    tab_ctx += f"\n  Gatilhos ({len(gatilhos)}): " + ", ".join(
+                        f"{g.get('campo_origem', '')}→{g.get('campo_destino', '')}" for g in gatilhos[:10]
+                    )
+                context_parts.append(tab_ctx)
+        except Exception:
+            pass
+
+    # Fontes vinculados as tabelas
+    for tab in tabelas[:5]:
+        try:
+            fontes_rows = db.execute(
+                "SELECT arquivo, modulo, write_tables, lines_of_code FROM fontes "
+                "WHERE tabelas_ref LIKE ? OR write_tables LIKE ? LIMIT 10",
+                (f'%"{tab}"%', f'%"{tab}"%')
+            ).fetchall()
+            if fontes_rows:
+                fontes_ctx = f"\nFontes que referenciam {tab}:"
+                for f in fontes_rows:
+                    writes = json.loads(f[2]) if f[2] else []
+                    modo = "ESCRITA" if tab in [w.upper() for w in writes] else "leitura"
+                    fontes_ctx += f"\n  {f[0]} ({f[1] or '?'}, {f[3] or 0} linhas) — {modo}"
+                context_parts.append(fontes_ctx)
+        except Exception:
+            pass
+
+    # Campos especificos mencionados
+    for campo in campos[:10]:
+        try:
+            row = db.execute(
+                "SELECT tabela, campo, tipo, tamanho, titulo, validacao, f3 FROM campos WHERE upper(campo) = ? LIMIT 1",
+                (campo,)
+            ).fetchone()
+            if row:
+                context_parts.append(
+                    f"\nCampo {row[1]} em {row[0]}: tipo={row[2]}, tam={row[3]}, "
+                    f"titulo='{row[4]}', validacao='{(row[5] or '')[:100]}', F3={row[6] or ''}"
+                )
+        except Exception:
+            pass
+
+    # ── 4. Processos detectados ──
+    try:
+        proc_rows = db.execute(
+            "SELECT nome, tipo, descricao, tabelas FROM processos_detectados "
+            "WHERE " + " OR ".join(["tabelas LIKE ?" for _ in tabelas[:5]]) if tabelas else "1=0",
+            tuple(f"%{t}%" for t in tabelas[:5])
+        ).fetchall()
+        if proc_rows:
+            context_parts.append("\nProcessos de negocio detectados:")
+            for p in proc_rows[:5]:
+                context_parts.append(f"  {p[0]} ({p[1]}): {p[2]}")
     except Exception:
         pass
 
-    # Montar prompt com contexto
-    context_parts = [f"Resumo do workspace: {json.dumps(summary, ensure_ascii=False)}"]
-    if modulos_list:
-        context_parts.append(f"Modulos disponiveis: {', '.join(modulos_list)}")
-    if sources:
-        context_parts.append(f"Tabelas relacionadas: {json.dumps(sources, ensure_ascii=False)}")
-
-    context_text = "\n".join(context_parts)
-
-    system_prompt = (
-        "Voce e um analista tecnico senior de ambientes TOTVS Protheus.\n"
-        "Use APENAS os dados do CONTEXTO abaixo e o historico de conversa. Nao invente dados.\n"
-        "Responda de forma tecnica e concisa em portugues.\n\n"
-        f"CONTEXTO DO WORKSPACE:\n{context_text}\n"
+    # ── 5. Montar prompt especializado por modo ──
+    from app.services.workspace.analista_prompts import (
+        SYSTEM_PROMPT_DUVIDA, SYSTEM_PROMPT_MELHORIA, SYSTEM_PROMPT_AJUSTE
     )
 
-    # Carregar historico recente para continuidade da conversa
+    modo = classification.get("tipo", "duvida")
+    if modo in ("bug", "campo", "parametro", "sx1", "sx5"):
+        prompt_template = SYSTEM_PROMPT_MELHORIA
+    elif modo == "projeto":
+        prompt_template = SYSTEM_PROMPT_AJUSTE
+    else:
+        prompt_template = SYSTEM_PROMPT_DUVIDA
+
+    context_text = "\n".join(context_parts)[:20000]  # Limitar contexto
+
+    system_prompt = prompt_template.format(
+        context=context_text,
+        tool_results="",
+        customizacoes_existentes="",
+    )
+
+    # ── 6. Historico da conversa ──
     history = []
     try:
         hist_rows = db.execute(
@@ -2732,19 +2840,16 @@ def analista_ask(slug):
     except Exception:
         pass
 
-    try:
-        llm = _get_llm_provider()
-    except Exception as e:
-        return jsonify({"error": f"LLM nao disponivel: {str(e)[:200]}"}), 500
-
+    # ── 7. Chamar LLM com contexto completo ──
     messages = [{"role": "system", "content": system_prompt}]
-    for h in history[-8:]:
+    for h in history[-6:]:
         messages.append({"role": h["role"], "content": h["content"]})
     messages.append({"role": "user", "content": question})
 
     answer = _llm_chat_text(llm, messages)
 
-    # Salvar no historico (chat_history do workspace SQLite)
+    # ── 8. Salvar historico ──
+    sources = [{"tipo": "tabela", "codigo": t} for t in tabelas[:10]]
     try:
         db.execute(
             "INSERT INTO chat_history (role, content, sources) VALUES ('user', ?, NULL)",
@@ -2761,7 +2866,11 @@ def analista_ask(slug):
     return jsonify({
         "answer": answer,
         "sources": sources,
-        "modulos": modulos_list,
+        "classification": {
+            "tipo": classification.get("tipo", "duvida"),
+            "tabelas": tabelas,
+            "campos": campos,
+        },
     })
 
 
