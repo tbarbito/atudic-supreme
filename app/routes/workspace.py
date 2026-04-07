@@ -43,7 +43,35 @@ def _get_llm_provider():
 
 
 def _llm_chat_text(provider, messages):
-    """Chama LLMProvider.chat() e retorna texto da resposta."""
+    """Chama LLMProvider.chat() e retorna texto da resposta.
+
+    Trata automaticamente o role 'system': APIs como Anthropic nao aceitam
+    'system' no array de messages — converte para prefixo no primeiro user msg.
+    """
+    # Normalizar messages: extrair system e prefixar no primeiro user msg
+    system_parts = []
+    clean_msgs = []
+    for m in messages:
+        if m.get("role") == "system":
+            system_parts.append(m["content"])
+        else:
+            clean_msgs.append(m)
+
+    if system_parts and clean_msgs:
+        system_text = "\n".join(system_parts)
+        # Prefixar system no primeiro user message
+        for i, m in enumerate(clean_msgs):
+            if m["role"] == "user":
+                clean_msgs[i] = {
+                    "role": "user",
+                    "content": f"[CONTEXTO DO SISTEMA]\n{system_text}\n\n[PERGUNTA]\n{m['content']}"
+                }
+                break
+        messages = clean_msgs
+    elif system_parts:
+        # Sem user msg — converter system em user
+        messages = [{"role": "user", "content": "\n".join(system_parts)}]
+
     try:
         result = provider.chat(messages)
     except Exception as e:
@@ -2478,9 +2506,22 @@ Analise tecnica existente (JSON): {analise_json}
             f"DADOS DE INVESTIGACAO:\n{tool_results_text}\n"
         )
 
-        messages = [{"role": "system", "content": system_prompt}]
+        non_system_msgs = []
         for h_role, h_content in hist_rows:
-            messages.append({"role": h_role, "content": h_content})
+            non_system_msgs.append({"role": h_role, "content": h_content})
+
+        # Prefixar system no primeiro user msg (Anthropic nao aceita role system)
+        if non_system_msgs:
+            for i, m in enumerate(non_system_msgs):
+                if m["role"] == "user":
+                    non_system_msgs[i] = {
+                        "role": "user",
+                        "content": f"[CONTEXTO]\n{system_prompt}\n\n[PERGUNTA]\n{m['content']}"
+                    }
+                    break
+            messages = non_system_msgs
+        else:
+            messages = [{"role": "user", "content": system_prompt}]
 
         # Fase 2: Stream LLM
         yield f"data: {json.dumps({'event': 'status', 'step': 'Gerando resposta...'}, ensure_ascii=False)}\n\n"
