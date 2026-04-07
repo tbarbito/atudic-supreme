@@ -456,8 +456,10 @@ def create_executable():
         # Workspace (ExtraiRPO) — parser de fontes ADVPL/TLPP
         'chardet',
         # Workspace — config (pydantic) e vectorstore (chromadb)
-        'pydantic', 'pydantic.fields',
+        'pydantic', 'pydantic.fields', 'pydantic._internal',
         'chromadb',
+        # Workspace — web_search (httpx)
+        'httpx', 'httpx._client',
         # ExtraiRPO merge deps
         'litellm', 'litellm.llms', 'litellm.utils', 'litellm.main',
         'numpy', 'numpy.core', 'numpy.core.multiarray',
