@@ -2796,18 +2796,19 @@ def analista_ask(slug):
             pass
 
     # ── 4. Processos detectados ──
-    try:
-        proc_rows = db.execute(
-            "SELECT nome, tipo, descricao, tabelas FROM processos_detectados "
-            "WHERE " + " OR ".join(["tabelas LIKE ?" for _ in tabelas[:5]]) if tabelas else "1=0",
-            tuple(f"%{t}%" for t in tabelas[:5])
-        ).fetchall()
-        if proc_rows:
-            context_parts.append("\nProcessos de negocio detectados:")
-            for p in proc_rows[:5]:
-                context_parts.append(f"  {p[0]} ({p[1]}): {p[2]}")
-    except Exception:
-        pass
+    if tabelas:
+        try:
+            where_clauses = " OR ".join(["tabelas LIKE ?" for _ in tabelas[:5]])
+            proc_rows = db.execute(
+                f"SELECT nome, tipo, descricao, tabelas FROM processos_detectados WHERE {where_clauses}",
+                tuple(f"%{t}%" for t in tabelas[:5])
+            ).fetchall()
+            if proc_rows:
+                context_parts.append("\nProcessos de negocio detectados:")
+                for p in proc_rows[:5]:
+                    context_parts.append(f"  {p[0]} ({p[1]}): {p[2]}")
+        except Exception:
+            pass
 
     # ── 5. Montar prompt especializado por modo ──
     from app.services.workspace.analista_prompts import (
