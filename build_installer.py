@@ -243,6 +243,8 @@ def obfuscate_python():
             (os.path.join(PROJECT_ROOT, 'db'), os.path.join(obfuscated_dir, 'db')),
             # Workspace — knowledge base (heuristics, maps, prompts, recipes, tools, tests)
             (os.path.join(PROJECT_ROOT, 'knowledge'), os.path.join(obfuscated_dir, 'knowledge')),
+            # Memory — contexto do agente (MEMORY.md, TOOLS.md, TDN, etc.)
+            (os.path.join(PROJECT_ROOT, 'memory'), os.path.join(obfuscated_dir, 'memory')),
         ]
 
         for src, dest in dirs_to_copy:
@@ -325,9 +327,10 @@ def obfuscate_python():
                 shutil.rmtree(obfuscated_app)
             shutil.copytree(os.path.join(PROJECT_ROOT, 'app'), obfuscated_app)
 
-            # Copiar as pastas static e templates também no fallback se falhar
+            # Copiar as pastas static, templates e memory também no fallback
             dirs_to_copy = [
-                (os.path.join(PROJECT_ROOT, 'static'), os.path.join(obfuscated_dir, 'app', 'static'))
+                (os.path.join(PROJECT_ROOT, 'static'), os.path.join(obfuscated_dir, 'app', 'static')),
+                (os.path.join(PROJECT_ROOT, 'memory'), os.path.join(obfuscated_dir, 'memory')),
             ]
             for src, dest in dirs_to_copy:
                 if os.path.exists(src):
