@@ -1,8 +1,8 @@
 @echo off
 REM ============================================================================
-REM ATURPO DevOps - Script de Instalação do Serviço Windows (NSSM)
-REM Versão: 2.1
-REM Data: 2025-12-03
+REM BiizHubOps - Script de Instalação do Serviço Windows (NSSM)
+REM Versão: 2.2
+REM Data: 2026-04-08
 REM ============================================================================
 
 setlocal EnableDelayedExpansion
@@ -13,9 +13,9 @@ set "APP_PORT=%~2"
 set "ENV_FILE=%~3"
 
 REM Nome do serviço
-set "SERVICE_NAME=ATURPODevOpsService"
-set "SERVICE_DISPLAY=ATURPO DevOps Service"
-set "SERVICE_DESC=Sistema de CI/CD e DevOps para Protheus ERP"
+set "SERVICE_NAME=BiizHubOpsService"
+set "SERVICE_DISPLAY=BiizHubOps Service"
+set "SERVICE_DESC=BiizHubOps - Plataforma de Inteligencia Protheus"
 
 REM Caminho do NSSM (mesmo diretório do instalador)
 set "SCRIPT_DIR=%~dp0"
@@ -23,7 +23,7 @@ set "NSSM_PATH=%SCRIPT_DIR%nssm.exe"
 
 echo.
 echo ============================================================================
-echo  ATURPO DevOps - Instalacao do Servico Windows (NSSM)
+echo  BiizHubOps - Instalacao do Servico Windows (NSSM)
 echo ============================================================================
 echo.
 

@@ -1,19 +1,19 @@
 @echo off
 REM ============================================================================
-REM ATURPO DevOps - Script de Desinstalação do Serviço Windows
-REM Versão: 2.1
-REM Data: 2025-12-03
+REM BiizHubOps - Script de Desinstalação do Serviço Windows
+REM Versão: 2.2
+REM Data: 2026-04-08
 REM ============================================================================
 
 setlocal EnableDelayedExpansion
 
-set "SERVICE_NAME=ATURPODevOpsService"
+set "SERVICE_NAME=BiizHubOpsService"
 set "SCRIPT_DIR=%~dp0"
 set "NSSM_PATH=%SCRIPT_DIR%nssm.exe"
 
 echo.
 echo ============================================================================
-echo  ATURPO DevOps - Desinstalacao do Servico
+echo  BiizHubOps - Desinstalacao do Servico
 echo ============================================================================
 echo.
 
