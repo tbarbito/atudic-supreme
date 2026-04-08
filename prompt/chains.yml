@@ -1,0 +1,86 @@
+# Chains de ferramentas do GolIAs (AtuDIC)
+#
+# Cada chain agrupa tools que são frequentemente usadas juntas.
+# O agente pode executar a chain inteira de uma vez, consolidando
+# os resultados em uma resposta única — mais rápido que N tool calls.
+#
+# AtuDIC: apenas chains dos módulos ativos (monitoramento, database, knowledge).
+#
+# Campos:
+#   trigger: regex que ativa a chain na mensagem do usuário
+#   description: o que a chain faz (usado no log)
+#   steps: lista de tools com params (suportam {variáveis} do contexto)
+#   consolidate: como juntar os resultados (template)
+
+diagnose_error:
+  description: "Diagnóstico completo de erros — alertas + recorrência + KB"
+  trigger: "diagnosticar|diagnóstico|investigar erro|o que está acontecendo"
+  steps:
+    - tool: get_alerts
+      params:
+        limit: 5
+        severity: "error,critical"
+    - tool: get_recurring_errors
+      params:
+        days: 7
+        min_count: 3
+    - tool: search_knowledge
+      params:
+        query: "{message}"
+        limit: 3
+
+environment_health:
+  description: "Saúde do ambiente — serviços + alertas + conexões"
+  trigger: "saúde do ambiente|health check|como está o ambiente|visão geral"
+  steps:
+    - tool: get_services
+      params: {}
+    - tool: get_alert_summary
+      params:
+        days: 7
+    - tool: get_db_connections
+      params: {}
+
+knowledge_deep_search:
+  description: "Busca profunda na KB + memória"
+  trigger: "buscar tudo sobre|pesquisar|o que sabemos sobre"
+  steps:
+    - tool: search_knowledge
+      params:
+        query: "{message}"
+        limit: 5
+
+database_overview:
+  description: "Visão geral de banco — conexões + dicionário"
+  trigger: "como estão os bancos|conexões de banco|visão do banco"
+  steps:
+    - tool: get_db_connections
+      params: {}
+    - tool: get_alert_summary
+      params:
+        days: 7
+
+setup_monitoring:
+  description: "Contexto para configurar monitoramento — logs disponíveis + monitores existentes"
+  trigger: "configurar monitoramento|criar monitor|setup monitor"
+  steps:
+    - tool: browse_log_files
+      params: {}
+    - tool: list_log_monitors
+      params: {}
+
+setup_database:
+  description: "Contexto para configurar banco — conexões existentes + ambientes"
+  trigger: "configurar banco|conectar banco|nova conexão|criar conexão"
+  steps:
+    - tool: get_db_connections
+      params: {}
+    - tool: get_environments
+      params: {}
+
+audit_overview:
+  description: "Visão geral de auditorias — histórico recente"
+  trigger: "auditorias|histórico de auditoria|últimas auditorias"
+  steps:
+    - tool: get_auditor_history
+      params: {}

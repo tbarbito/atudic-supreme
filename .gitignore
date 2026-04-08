@@ -20,6 +20,7 @@ prompt/*
 !prompt/BIIZHUBOPS_AGENT_CONTEXT.md
 !prompt/BIIZHUBOPS_AGENT_CONTEXT_CORE.md
 !prompt/specialists.yml
+!prompt/chains.yml
 !prompt/specialists/
 .claude/
 db/
