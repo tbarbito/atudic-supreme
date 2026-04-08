@@ -318,7 +318,7 @@ def obfuscate_python():
         print_error(f"Erro durante ofuscação Python: {e}")
         print_warning("Tentando copiar arquivos sem ofuscação...")
 
-        # Fallback: copiar tudo sem ofuscação
+        # Fallback: copiar tudo sem ofuscação (replica logica do caminho principal)
         try:
             os.makedirs(obfuscated_dir, exist_ok=True)
             shutil.copy2(os.path.join(PROJECT_ROOT, 'run.py'), os.path.join(obfuscated_dir, 'run.py'))
@@ -327,9 +327,14 @@ def obfuscate_python():
                 shutil.rmtree(obfuscated_app)
             shutil.copytree(os.path.join(PROJECT_ROOT, 'app'), obfuscated_app)
 
-            # Copiar as pastas static, templates e memory também no fallback
+            # Copiar todos os diretorios necessarios
             dirs_to_copy = [
                 (os.path.join(PROJECT_ROOT, 'static'), os.path.join(obfuscated_dir, 'app', 'static')),
+                (os.path.join(PROJECT_ROOT, 'processoPadrao'), os.path.join(obfuscated_dir, 'processoPadrao')),
+                (os.path.join(PROJECT_ROOT, 'templates', 'processos'), os.path.join(obfuscated_dir, 'templates', 'processos')),
+                (os.path.join(PROJECT_ROOT, 'ADVPL'), os.path.join(obfuscated_dir, 'ADVPL')),
+                (os.path.join(PROJECT_ROOT, 'db'), os.path.join(obfuscated_dir, 'db')),
+                (os.path.join(PROJECT_ROOT, 'knowledge'), os.path.join(obfuscated_dir, 'knowledge')),
                 (os.path.join(PROJECT_ROOT, 'memory'), os.path.join(obfuscated_dir, 'memory')),
             ]
             for src, dest in dirs_to_copy:
@@ -338,7 +343,38 @@ def obfuscate_python():
                         shutil.rmtree(dest)
                     shutil.copytree(src, dest)
 
-            print_warning("Arquivos copiados SEM ofuscação")
+            # Copiar prompt (skills, specialists, arquivos core)
+            for subdir in ['skills', 'specialists']:
+                src = os.path.join(PROJECT_ROOT, 'prompt', subdir)
+                dest = os.path.join(obfuscated_dir, 'prompt', subdir)
+                if os.path.isdir(src):
+                    if os.path.exists(dest):
+                        shutil.rmtree(dest)
+                    shutil.copytree(src, dest)
+
+            for fname in ['BIIZHUBOPS_AGENT_CONTEXT.md', 'BIIZHUBOPS_AGENT_CONTEXT_CORE.md', 'specialists.yml', 'chains.yml']:
+                src_file = os.path.join(PROJECT_ROOT, 'prompt', fname)
+                dest_file = os.path.join(obfuscated_dir, 'prompt', fname)
+                if os.path.exists(src_file):
+                    os.makedirs(os.path.dirname(dest_file), exist_ok=True)
+                    shutil.copy2(src_file, dest_file)
+
+            # Copiar data files
+            for rel_src in ['app/database/knowledge_seed.json']:
+                src_file = os.path.join(PROJECT_ROOT, rel_src)
+                dest_file = os.path.join(obfuscated_dir, rel_src)
+                if os.path.exists(src_file):
+                    os.makedirs(os.path.dirname(dest_file), exist_ok=True)
+                    shutil.copy2(src_file, dest_file)
+
+            # Copiar arquivos raiz
+            for file in ['license_system.py', 'activate_license.py', 'security_enhancements.py', 'mcp_server.py', 'index.html', 'theme.css', 'activate_license.html', 'sw.js']:
+                src_file = os.path.join(PROJECT_ROOT, file)
+                dest_file = os.path.join(obfuscated_dir, file)
+                if os.path.exists(src_file):
+                    shutil.copy2(src_file, dest_file)
+
+            print_warning("Arquivos copiados SEM ofuscação (fallback)")
             return True
 
         except Exception as e2:
