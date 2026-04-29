@@ -1,12 +1,12 @@
-# CLAUDE.md — AtuDIC Supreme
+# CLAUDE.md — BiizHubOps
 
 ## Identidade
 
-- **Produto:** AtuDIC Supreme — plataforma unificada de inteligencia Protheus
-- **Repositorio:** `atudic-supreme`
+- **Produto:** BiizHubOps — plataforma unificada de inteligencia Protheus
+- **Repositorio:** `atudic-supreme` (path legado; produto e branding atual = BiizHubOps)
 - **Origem:** Merge de AtuDIC (aturpo_demo) + ExtraiRPO (protheus-extraiRPO)
 - **Desenvolvedores:** Barbito (Tiago Barbieri) + Joni (Joni Praia)
-- **Empresa:** Normatel / Todimo
+- **Empresa:** BiizHubFlow
 
 ## Stack
 
